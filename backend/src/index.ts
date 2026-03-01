@@ -40,13 +40,15 @@ app.use(
 
 app.get(
   "/",
-  asyncHandler(async (req: Request, res: Response, next: NextFunction) => {
-    throw new BadRequestException("This is a test error");
-    res.status(HTTPSTATUS.OK).json({
-      message: "Hello Subcribe to the channel",
-    });
+  asyncHandler(async (req: Request, res: Response) => {
+   res.status(HTTPSTATUS.OK).json({
+    status: "OK",
+    message: "Obsidian Finance Backend is running",
+   });
   })
 );
+
+
 
 app.use(`${BASE_PATH}/auth`, authRoutes);
 app.use(`${BASE_PATH}/user`, passportAuthenticateJwt, userRoutes);
