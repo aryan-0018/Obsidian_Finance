@@ -1,80 +1,111 @@
-# 🌟 Advanced MERN AI Finance SaaS Platform - Finora
+# Obsidian Finance: Advanced MERN AI Financial SaaS Platform
 
-> This code, whether in parts or whole, is licensed for commercial use **only with a license**. It is **free for personal use**.
-> 👉 [Click here to obtain license](https://techwithemma.gumroad.com/l/huytmd) and 👉 [here to learn more](https://github.com/TechWithEmmaYT/Advanced-MERN-AI-Financial-SaaS-Platform/blob/main/TECHWITHEMMA-LICENSE.md)
+![MERN Stack](https://img.shields.io/badge/MERN-Stack-blue?logo=react)
+![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?logo=tailwind-css&logoColor=white)
+![Google Gemini AI](https://img.shields.io/badge/Google_Gemini-AI-orange?logo=google)
 
-## ❤️ Support the Channel
+Obsidian Finance is a cutting-edge financial SaaS platform built on the MERN stack with TypeScript. It integrates advanced AI capabilities, comprehensive financial tracking, and a stunning modern user interface to deliver a premium user experience.
 
-Love this project? Here’s how you can support:
+## ✨ Key Features
 
-* ☕ [Buy Me a Coffee](https://buymeacoffee.com/techwithemmaofficial)
-* 🌟 Star this repo
-* 🎥 [Subscribe on YouTube](https://tinyurl.com/subcribe-to-techwithEmma)
+- **Comprehensive Dashboard:** Interactive charts and data visualizations using `recharts`.
+- **AI-Powered Insights:** Integration with Google Gemini AI for smart financial advice and data interpretation.
+- **Secure Authentication:** JWT, Google OAuth integration, and secure password hashing.
+- **Transactions Management:** Easily track, categorize, and manage your income and expenses.
+- **Cloud Storage:** Image and media handling using Cloudinary.
+- **Modern UI/UX:** Built with React, Radix UI components, Tailwind CSS v4, and dynamic themes (dark/light mode).
+- **Automated Tasks:** Background cron jobs for financial summaries and alerts.
 
----
+## 🛠️ Tech Stack
 
-## 🗝️ Key Features: 👇
+### Frontend (Client)
+- **Framework:** React 19 + TypeScript + Vite
+- **Styling:** Tailwind CSS v4, Radix UI, Class Variance Authority
+- **State Management:** Redux Toolkit, Redux Persist
+- **Routing:** React Router v7
+- **Forms & Validation:** React Hook Form + Zod
+- **Charts:** Recharts
 
-* 🔐 Authentication (Email + Password with JWT)
-* 🏢 Create & Edit Transactions
-* 📤 Upload & Scan Receipt with AI
-* 📈 Beautiful Advanced Analytics  (MongoDB Aggregate Pipeline)
-* 📊 Expenses Breakdown Pie Chart
-* 📈 Income & Expense Line Chart
-* 📅 Filter by Date Ranges — like Last 30 Days etc.
-* ♻️ Recurring Transactions with Cron Job
-* 📄 Auto-Generated Monthly Report (Emailed to User)
-* 📥 CSV transaction Import
-* 🔍 Filter & Search
-* 📅 Pagination
-* 🗑️ Bulk Delete
-* ➕ Duplicate Transactions
-* 🧑‍💼 Upload Profile Photo (Cloudinary)
-* 🌐 Built with MERN Stack (Node.js, MongoDB, React, TypeScript)
+### Backend (Server)
+- **Environment:** Node.js + Express
+- **Language:** TypeScript
+- **Database:** MongoDB + Mongoose
+- **Authentication:** Passport.js (JWT, Google OAuth), bcryptjs
+- **AI Integration:** Google GenAI SDK (`@google/genai`)
+- **File Uploads:** Multer + Cloudinary
+- **Emails:** Resend
 
-- 💳 [Premium] Upgrades via Stripe — Free Trial, Monthly & Yearly Plans, Easy Plan Switching 👉 [Get It Here](https://techwithemma.gumroad.com/l/gasvc)
+## 🚀 Getting Started
 
+### Prerequisites
 
+- Node.js (v18 or higher)
+- MongoDB instance (local or Atlas)
+- Google Cloud Console Project (for OAuth and Gemini AI)
+- Cloudinary Account
+- Resend Account (for emails)
 
-## 🔧 How to Use This Project
+### Installation
 
-### 📺 Step 1: Watch the Complete Full Course on YouTube
+1. **Clone the repository:**
+   ```bash
+   git clone https://github.com/yourusername/obsidian-finance.git
+   cd obsidian-finance
+   ```
 
-> Learn how it all works, including the folder structure, integration, AI config, and more.
-> 👉 [Watch the Course](https://www.youtube.com/watch?v=2S7Y2wewF6I)
+2. **Install Backend Dependencies:**
+   ```bash
+   cd backend
+   npm install
+   ```
 
+3. **Install Frontend Dependencies:**
+   ```bash
+   cd ../client
+   npm install
+   ```
 
+### ⚙️ Environment Variables
 
-### 💻 Step 2: Run It Locally, Setup Video, Live Preview
+Create a `.env` file in both the `backend` and `client` directories.
 
-> Want to run this project on your own machine? We've got you covered:
-👉 [Setup & Live Preview Link](https://techwithemma.gumroad.com/l/nphhyz)
+**Backend (`backend/.env`):**
+```env
+PORT=5000
+MONGODB_URI=your_mongodb_connection_string
+JWT_SECRET=your_jwt_secret
+GOOGLE_CLIENT_ID=your_google_oauth_client_id
+GOOGLE_CLIENT_SECRET=your_google_oauth_client_secret
+GEMINI_API_KEY=your_gemini_api_key
+CLOUDINARY_CLOUD_NAME=your_cloudinary_name
+CLOUDINARY_API_KEY=your_cloudinary_api_key
+CLOUDINARY_API_SECRET=your_cloudinary_api_secret
+RESEND_API_KEY=your_resend_api_key
+```
 
+**Frontend (`client/.env`):**
+```env
+VITE_API_URL=http://localhost:5000/api
+VITE_GOOGLE_CLIENT_ID=your_google_oauth_client_id
+```
 
+### 🏃‍♂️ Running the Application
 
-### 🚀 [Step 3]: Get the Extended Version — Stripe Payment Video (Free Trial), Full Source Code, Deployment & More.
+1. **Start the Backend:**
+   ```bash
+   cd backend
+   npm run dev
+   ```
 
-This is the missing piece — the Stripe payment that powers your SaaS.
-👉 [Get the Extended Version](https://techwithemma.gumroad.com/l/gasvc)
+2. **Start the Frontend:**
+   ```bash
+   cd client
+   npm run dev
+   ```
 
-* Free Trial + Monthly & Yearly Plan
-* Switch between Monthly ↔️ Yearly Plan
-* Full Stripe Integration & Webhooks
-* Setup Video (Run locally)
-* Complete Full Source Code
-* Plus Support
----
+The application will be running at `http://localhost:5173/`.
 
-## 📜 License Information
+## 📄 License
 
-A paid license is required for commercial use. To obtain a commercial license, please visit 👉 [Here](https://techwithemma.gumroad.com/l/huytmd)
-
-For more details about license, please refer to the [TECHWITHEMMA-LICENSE.md](https://github.com/TechWithEmmaYT/Advanced-MERN-AI-Financial-SaaS-Platform/blob/main/TECHWITHEMMA-LICENSE.md).
-
----
-
-# 📺 Subscribe for More Projects
-
-If you find this helpful, support by subscribing and sharing:
-
-🔗 [https://tinyurl.com/subcribe-to-techwithEmma](https://tinyurl.com/subcribe-to-techwithEmma)
+This project is licensed under the ISC License.
