@@ -1,11 +1,11 @@
-# Obsidian Finance: Advanced MERN AI Financial SaaS Platform
+# Obsidian Finance: Advanced MERN AI Financial Platform
 
 ![MERN Stack](https://img.shields.io/badge/MERN-Stack-blue?logo=react)
 ![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?logo=typescript&logoColor=white)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?logo=tailwind-css&logoColor=white)
 ![Google Gemini AI](https://img.shields.io/badge/Google_Gemini-AI-orange?logo=google)
 
-Obsidian Finance is a cutting-edge financial SaaS platform built on the MERN stack with TypeScript. It integrates advanced AI capabilities, comprehensive financial tracking, and a stunning modern user interface to deliver a premium user experience.
+Obsidian Finance is a financial platform built on the MERN stack. It integrates advanced AI capabilities, comprehensive financial tracking, and a stunning modern user interface to deliver a premium user experience.
 
 ## ✨ Key Features
 
