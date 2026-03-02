@@ -1,4 +1,6 @@
-# Obsidian Finance: MERN AI Financial Platform
+## Obsidian Finance – Curating Elite Wealth 
+
+A production-ready, AI-powered financial management platform built with the MERN stack.
 
 ![MERN Stack](https://img.shields.io/badge/MERN-Stack-blue?logo=react)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?logo=tailwind-css&logoColor=white)
@@ -8,13 +10,12 @@
 
 ## Application Access
 
-**Application:**  https://obsidian-finance.vercel.app
+**Live Application:**  https://obsidian-finance.vercel.app
 
 **Backend API:**  https://obsidian-finance-backend.onrender.com
 
 
-Obsidian Finance is a financial platform built on the MERN stack. It integrates advanced AI capabilities, comprehensive financial tracking, and a stunning modern user interface to deliver a premium user experience.
-
+Obsidian Finance enables intelligent financial analysis, secure user authentication, automated insights, and real-time expense tracking through a modern and scalable architecture.
 ## ✨ Key Features
 
 - **Comprehensive Dashboard:** Interactive charts and data visualizations using `recharts`.
