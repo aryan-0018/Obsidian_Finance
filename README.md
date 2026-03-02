@@ -4,6 +4,11 @@
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?logo=tailwind-css&logoColor=white)
 ![Google Gemini AI](https://img.shields.io/badge/Google_Gemini-AI-orange?logo=google)
 
+## Application Access
+
+**Frontend:** [Open App](https://obsidian-finance.vercel.app)
+**Backend:**  https://obsidian-finance-backend.onrender.com
+
 Obsidian Finance is a financial platform built on the MERN stack. It integrates advanced AI capabilities, comprehensive financial tracking, and a stunning modern user interface to deliver a premium user experience.
 
 ## ✨ Key Features
