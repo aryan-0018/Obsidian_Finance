@@ -15,11 +15,40 @@ import { BulkTransactionType } from "@/features/transaction/transationType";
 import { useProgressLoader } from "@/hooks/use-progress-loader";
 import { useBulkImportTransactionMutation } from "@/features/transaction/transactionAPI";
 
+// Helper strictly for parsing DD/MM/YYYY or DD-MM-YYYY
+const parseCustomDate = (dateStr: string) => {
+  if (!dateStr) return new Date();
+
+  // Try mapping DD/MM/YYYY or DD-MM-YYYY to YYYY-MM-DD
+  const parts = dateStr.match(/(\d+)[-/](\d+)[-/](\d+)/);
+  if (parts) {
+    // If the year is first (YYYY-MM-DD)
+    if (parts[1].length === 4) return new Date(dateStr);
+
+    // Otherwise assume DD-MM-YYYY and flip to YYYY-MM-DD
+    const day = parts[1].padStart(2, '0');
+    const month = parts[2].padStart(2, '0');
+    const year = parts[3].length === 2 ? `20${parts[3]}` : parts[3];
+    return new Date(`${year}-${month}-${day}`);
+  }
+  return new Date(dateStr);
+};
+
+const normalizePaymentMethod = (method: string) => {
+  if (!method) return undefined;
+  const upper = method.toUpperCase().replace(/\s+/g, '_');
+  const values = Object.values(PAYMENT_METHODS_ENUM) as string[];
+  if (values.includes(upper)) {
+    return upper;
+  }
+  return method;
+};
+
 type ConfirmationStepProps = {
   file: File | null;
   mappings: Record<string, string>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  csvData: any[];
+  csvData: Record<string, any>[];
   onComplete: () => void;
   onBack: () => void;
 };
@@ -142,11 +171,11 @@ const ConfirmationStep = ({
 
   const getAssignFieldToMappedTransactions = () => {
     let hasValidationErrors = false;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const results: Partial<any>[] = [];
+    const results: Partial<BulkTransactionType>[] = [];
 
     csvData.forEach((row, index) => {
-      const transaction: Record<string, string> = {};
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const transaction: Record<string, any> = {};
       // Apply mappings
       Object.entries(mappings).forEach(([csvColumn, transactionField]) => {
         if (transactionField === "Skip" || row[csvColumn] === undefined) return;
@@ -154,28 +183,38 @@ const ConfirmationStep = ({
           transactionField === "amount"
             ? Number(row[csvColumn])
             : transactionField === "date"
-              ? new Date(row[csvColumn])
-              : row[csvColumn];
+              ? parseCustomDate(row[csvColumn])
+              : transactionField === "paymentMethod"
+                ? normalizePaymentMethod(row[csvColumn])
+                : transactionField === "type"
+                  ? row[csvColumn]?.toUpperCase()
+                  : row[csvColumn];
       });
       try {
-        const validated = transactionSchema.parse(transaction);
-        results.push(validated);
+        const validated = transactionSchema.parse({
+          ...transaction,
+          date: transaction.date ? new Date(transaction.date) : undefined
+        });
+        results.push({
+          ...validated,
+          date: validated.date.toISOString()
+        });
       } catch (error) {
         hasValidationErrors = true;
         const message =
           error instanceof z.ZodError
             ? error.errors
-                .map((e) => {
-                  if (e.path[0] === "type")
-                    return "Transaction type:- must be INCOME or EXPENSE";
-                  if (e.path[0] === "paymentMethod")
-                    return (
-                      "Payment method:- must be one of: " +
-                      Object.values(PAYMENT_METHODS_ENUM).join(", ")
-                    );
-                  return `${e.path[0]}: ${e.message}`;
-                })
-                .join("\n")
+              .map((e) => {
+                if (e.path[0] === "type")
+                  return "Transaction type:- must be INCOME or EXPENSE";
+                if (e.path[0] === "paymentMethod")
+                  return (
+                    "Payment method:- must be one of: " +
+                    Object.values(PAYMENT_METHODS_ENUM).join(", ")
+                  );
+                return `${e.path[0]}: ${e.message}`;
+              })
+              .join("\n")
             : "Invalid data";
         setErrors((prev) => ({
           ...prev,

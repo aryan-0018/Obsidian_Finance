@@ -5,7 +5,7 @@ import TransactionModel, {
 } from "../models/transaction.model";
 import { getDateRange } from "../utils/date";
 import { differenceInDays, subDays, subYears } from "date-fns";
-import { convertToDollarUnit } from "../utils/format-currency";
+import { convertToUnit } from "../utils/format-currency";
 import { GoogleGenAI } from "@google/genai";
 import { Env } from "../config/env.config";
 import { getBudgetService } from "./budget.service";
@@ -227,11 +227,11 @@ export const summaryAnalyticsService = async (
   }
 
   return {
-    budgetLimit: convertToDollarUnit(budgetLimit),
-    remainingBudget: convertToDollarUnit(remainingBudget),
-    availableBalance: convertToDollarUnit(availableBalance),
-    totalIncome: convertToDollarUnit(totalIncome),
-    totalExpenses: convertToDollarUnit(totalExpenses),
+    budgetLimit: convertToUnit(budgetLimit),
+    remainingBudget: convertToUnit(remainingBudget),
+    availableBalance: convertToUnit(availableBalance),
+    totalIncome: convertToUnit(totalIncome),
+    totalExpenses: convertToUnit(totalExpenses),
     savingRate: {
       percentage: parseFloat(savingData.savingsPercentage.toFixed(2)),
       expenseRatio: parseFloat(savingData.expenseRatio.toFixed(2)),
@@ -240,13 +240,13 @@ export const summaryAnalyticsService = async (
     percentageChange: {
       ...percentageChange,
       previousValues: {
-        incomeAmount: convertToDollarUnit(
+        incomeAmount: convertToUnit(
           percentageChange.previousValues.incomeAmount
         ),
-        expenseAmount: convertToDollarUnit(
+        expenseAmount: convertToUnit(
           percentageChange.previousValues.expenseAmount
         ),
-        balanceAmount: convertToDollarUnit(
+        balanceAmount: convertToUnit(
           percentageChange.previousValues.balanceAmount
         ),
       },
@@ -361,8 +361,8 @@ export const chartAnalyticsService = async (
 
   const transaformedData = (resultData?.chartData || []).map((item: any) => ({
     date: item.date,
-    income: convertToDollarUnit(item.income),
-    expenses: convertToDollarUnit(item.expenses),
+    income: convertToUnit(item.income),
+    expenses: convertToUnit(item.expenses),
   }));
 
   return {
@@ -486,10 +486,10 @@ export const expensePieChartBreakdownService = async (
     breakdown: [],
   };
   const transformedData = {
-    totalSpent: convertToDollarUnit(data.totalSpent),
+    totalSpent: convertToUnit(data.totalSpent),
     breakdown: data.breakdown.map((item: any) => ({
       ...item,
-      value: convertToDollarUnit(item.value),
+      value: convertToUnit(item.value),
     })),
   };
 
@@ -526,30 +526,30 @@ export const generateAiInsightsService = async (userId: string) => {
   const ai = new GoogleGenAI({ apiKey: Env.GEMINI_API_KEY });
 
   const prompt = `
-    You are the Chief Data Analyst at ObsidianFinance, an ultra-premium wealth management firm.
-    Your client has requested an elite, actionable financial verdict based on their current period metrics.
+    You are a strictly analytical Quantitative Analyst for ObsidianFinance.
+    Analyze the precise statistical breakdown of the portfolio metrics.
     
     Financial Summary:
-    Total Income: ${summary.totalIncome}
-    Total Expenses: ${summary.totalExpenses}
-    Available Balance: ${summary.availableBalance}
+    Total Income: ₹${summary.totalIncome}
+    Total Expenses: ₹${summary.totalExpenses}
+    Available Balance: ₹${summary.availableBalance}
     Saving Rate: ${summary.savingRate.percentage}%
     Income Growth vs Previous Period: ${summary.percentageChange?.income || 0}%
     Expense Growth vs Previous Period: ${summary.percentageChange?.expenses || 0}%
     
     Category Spending Breakdown:
-    ${expenseBreakdown.breakdown.map((cat: any) => `- ${cat._id || cat.name}: $${cat.value}`).join("\n")}
+    ${expenseBreakdown.breakdown.map((cat: any) => `- ${cat._id || cat.name}: ₹${cat.value}`).join("\n")}
     
     Recent Transactions: 
-    ${transactions.map(t => `- ${t.date.toISOString().split('T')[0]}: ${t.type} of $${t.amount} for ${t.category} (${t.description || "N/A"})`).join("\n")}
+    ${transactions.map(t => `- ${t.date.toISOString().split('T')[0]}: ${t.type} of ₹${convertToUnit(t.amount)} for ${t.category} (${t.description || "N/A"})`).join("\n")}
     
-    Produce a rigorous, short paragraph (strictly 3 to 4 sentences). 
-    Your verdict MUST include:
-    1. Specifically call out the MOST and LEAST spent categories.
-    2. State the exact percentage increase or decrease in spending compared to their previous period, and whether this trajectory is favorable.
-    3. Conclude with a predictive, forward-looking insight or adjustment they should make (e.g., "If this velocity continues...").
-    
-    Tone: Sophisticated, worldly, calculating, and highly analytical. Address the user directly. Do not use markdown syntax, asterisks, or bullet points in the response string—just a perfectly cohesive paragraph.
+    OUTPUT REQUIREMENTS:
+    1. Output strictly as a valid JSON array of strings. No markdown formatting, asterisks, or nested objects.
+    2. Format exactly like: ["Point 1", "Point 2", "Point 3"]
+    3. Use Indian Rupees (₹) for all currencies. 
+    4. Exclude all conversational filler, fluff, warnings, or moral advice.
+    5. Provide strictly advanced statistical analysis based entirely on the provided portfolio metrics.
+    6. Ensure maximum 4 elements in the array.
   `;
 
   try {
@@ -557,9 +557,15 @@ export const generateAiInsightsService = async (userId: string) => {
       model: 'gemini-2.5-flash',
       contents: prompt,
     });
-    return response.text;
+
+    // Clean and parse the json response
+    const text = response.text || "[]";
+    const jsonStr = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    const insightsArray = JSON.parse(jsonStr);
+
+    return Array.isArray(insightsArray) ? insightsArray : [text];
   } catch (error) {
     console.error("Gemini AI generation failed", error);
-    return "Our analysts are currently occupied. Please review your elegant portfolio metrics below.";
+    return ["Our mathematical models are currently calibrating. Please review the portfolio metrics manually."];
   }
 };

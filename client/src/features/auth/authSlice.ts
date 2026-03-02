@@ -39,6 +39,9 @@ const authSlice = createSlice({
       state.expiresAt = action.payload.expiresAt;
       state.user = action.payload.user;
       state.reportSetting = action.payload.reportSetting;
+      if (action.payload.user?.portfolioBalance !== undefined) {
+        state.portfolioBalance = action.payload.user.portfolioBalance;
+      }
     },
     setPortfolioBalance: (state, action) => {
       state.portfolioBalance = action.payload;
@@ -48,7 +51,12 @@ const authSlice = createSlice({
 
       if (accessToken !== undefined) state.accessToken = accessToken;
       if (expiresAt !== undefined) state.expiresAt = expiresAt;
-      if (user !== undefined) state.user = { ...state.user, ...user };
+      if (user !== undefined) {
+        state.user = { ...state.user, ...user };
+        if (user.portfolioBalance !== undefined) {
+          state.portfolioBalance = user.portfolioBalance;
+        }
+      }
       if (reportSetting !== undefined)
         state.reportSetting = { ...state.reportSetting, ...reportSetting };
     },

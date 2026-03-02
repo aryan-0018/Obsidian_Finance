@@ -16,7 +16,7 @@ const ImportTransactionModal = () => {
   const [file, setFile] = useState<File | null>(null);
   const [csvColumns, setCsvColumns] = useState<CsvColumn[]>([]);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const [csvData, setCsvData] = useState<any[]>([]);
+  const [csvData, setCsvData] = useState<Record<string, any>[]>([]);
   const [mappings, setMappings] = useState<Record<string, string>>({});
   const [open, setOpen] = useState(false);
 
@@ -34,21 +34,19 @@ const ImportTransactionModal = () => {
 
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handleFileUpload = (file: File, columns: CsvColumn[], data: any[]) => {
+  const handleFileUpload = (file: File, columns: CsvColumn[], data: Record<string, any>[]) => {
     setFile(file);
     setCsvColumns(columns);
     setCsvData(data);
 
     // Auto-map logic to make importing simpler
     const autoMappings: Record<string, string> = {};
-    let mappedCount = 0;
 
     columns.forEach(col => {
       const colLower = col.name.toLowerCase().trim();
       const matchedField = transactionFields.find(f => f.fieldName.toLowerCase() === colLower);
       if (matchedField) {
         autoMappings[col.name] = matchedField.fieldName;
-        mappedCount++;
       }
     });
 

@@ -231,7 +231,7 @@ const SummaryCard: FC<SummaryCardProps> = ({
                   onClick={() => {
                     const newLimit = parseFloat(editBudgetValue);
                     if (!isNaN(newLimit)) {
-                      // Convert dollar input to cents before sending to backend
+                      // Convert Rupee input to paise before sending to backend
                       updateBudget({ limit: Math.round(newLimit * 100) })
                         .unwrap()
                         .then(() => {

@@ -23,7 +23,7 @@ const Billing = () => {
               </div>
               <h2 className="text-3xl font-light text-white mb-2 font-serif tracking-wide">Obsidian Private Wealth</h2>
               <p className="text-[#e8e0d4]/70 max-w-md font-light text-[15px]">
-                You are currently on the exclusive Private Wealth tier, granting you unrestricted access to proprietary analytics and bespoke concierge services.
+                You are currently on the exclusive Private Wealth tier, granting you unrestricted access to proprietary analytics and prescriptive AI intelligence.
               </p>
             </div>
 

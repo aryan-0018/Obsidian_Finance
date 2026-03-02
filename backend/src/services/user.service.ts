@@ -20,7 +20,8 @@ export const updateUserService = async (
   }
 
   user.set({
-    name: body.name,
+    name: body.name !== undefined ? body.name : user.name,
+    portfolioBalance: body.portfolioBalance !== undefined ? body.portfolioBalance : user.portfolioBalance,
   });
 
   await user.save();

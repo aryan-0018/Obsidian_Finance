@@ -3,6 +3,7 @@ import { HTTPSTATUS } from "../config/http.config";
 import { asyncHandler } from "../middlewares/asyncHandler.middlerware";
 import { loginSchema, registerSchema } from "../validators/auth.validator";
 import { loginService, registerService, googleLoginService } from "../services/auth.service";
+import { UnauthorizedException } from "../utils/app-error";
 
 export const registerController = asyncHandler(
   async (req: Request, res: Response) => {

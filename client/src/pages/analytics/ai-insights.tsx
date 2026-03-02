@@ -5,7 +5,7 @@ import { toast } from "sonner";
 import { useTypedSelector } from "@/app/hook";
 
 export default function AiInsights() {
-    const [insight, setInsight] = useState<string | null>(null);
+    const [insight, setInsight] = useState<string[] | string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
     const { accessToken } = useTypedSelector((state) => state.auth);
 
@@ -25,8 +25,8 @@ export default function AiInsights() {
 
             setInsight(data.data);
             toast.success("Intelligence gathering complete.");
-        } catch (error: any) {
-            toast.error(error.message || "Analysts are currently unavailable");
+        } catch (error: unknown) {
+            toast.error(error instanceof Error ? error.message : "Analysts are currently unavailable");
         } finally {
             setIsLoading(false);
         }
@@ -62,10 +62,21 @@ export default function AiInsights() {
                         {isLoading ? (
                             <div className="flex items-center text-[#c1a063]">
                                 <Loader className="h-4 w-4 animate-spin mr-2" />
-                                <span className="animate-pulse">Synthesizing real-time market data...</span>
+                                <span className="animate-pulse">Synthesizing real-time mathematical models...</span>
                             </div>
                         ) : (
-                            <p className="font-light">{insight}</p>
+                            Array.isArray(insight) ? (
+                                <ul className="space-y-4 list-none text-[14.5px]">
+                                    {insight.map((point: string, index: number) => (
+                                        <li key={index} className="flex gap-3 md:gap-4 items-start">
+                                            <div className="min-w-1.5 h-1.5 rounded-full bg-[#c1a063] mt-2 shadow-[0_0_8px_rgba(193,160,99,0.5)]" />
+                                            <p className="font-light text-neutral-300 leading-relaxed tracking-wide">{point}</p>
+                                        </li>
+                                    ))}
+                                </ul>
+                            ) : (
+                                <p className="font-light whitespace-pre-wrap">{insight}</p>
+                            )
                         )}
                     </div>
                     {!isLoading && (

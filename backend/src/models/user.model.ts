@@ -10,6 +10,7 @@ export interface UserDocument extends Document {
   updatedAt: Date;
   comparePassword: (password: string) => Promise<boolean>;
   omitPassword: () => Omit<UserDocument, "password">;
+  portfolioBalance: number;
 }
 
 const userSchema = new Schema<UserDocument>(
@@ -34,6 +35,10 @@ const userSchema = new Schema<UserDocument>(
       type: String,
       select: true,
       required: true,
+    },
+    portfolioBalance: {
+      type: Number,
+      default: 0,
     },
   },
   {

@@ -16,9 +16,10 @@ import {
 } from "@/components/ui/form";
 import { toast } from "sonner";
 import { Loader } from "lucide-react";
-import { useLoginMutation } from "@/features/auth/authAPI";
+import { useLoginMutation, useGoogleLoginMutation } from "@/features/auth/authAPI";
 import { useAppDispatch } from "@/app/hook";
 import { setCredentials } from "@/features/auth/authSlice";
+import { GoogleLogin } from "@react-oauth/google";
 
 const schema = z.object({
   email: z.string().email("Invalid email address"),
@@ -34,6 +35,7 @@ const SignInForm = ({
   const dispatch = useAppDispatch();
   const navigate = useNavigate();
   const [login, { isLoading }] = useLoginMutation();
+  const [googleLogin, { isLoading: isGoogleLoading }] = useGoogleLoginMutation();
 
   const form = useForm<FormValues>({
     resolver: zodResolver(schema),
@@ -106,10 +108,41 @@ const SignInForm = ({
               )}
             />
           </div>
-          <Button disabled={isLoading} type="submit" className="w-full">
-            {isLoading && <Loader className="h-4 w-4 animate-spin" />}
-            Login
-          </Button>
+          <div className="flex flex-col gap-3">
+            <Button disabled={isLoading || isGoogleLoading} type="submit" className="w-full">
+              {isLoading && <Loader className="h-4 w-4 animate-spin" />}
+              Login
+            </Button>
+
+            <div className="relative border-b border-white/10 my-1">
+              <span className="absolute bg-[#0a0a0a] px-2 text-xs text-muted-foreground top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                OR
+              </span>
+            </div>
+
+            <div className="flex justify-center mt-1">
+              <GoogleLogin
+                onSuccess={(credentialResponse) => {
+                  googleLogin({ token: credentialResponse.credential })
+                    .unwrap()
+                    .then((data) => {
+                      dispatch(setCredentials(data));
+                      toast.success("Login with Google successful");
+                      setTimeout(() => navigate(PROTECTED_ROUTES.OVERVIEW), 1000);
+                    })
+                    .catch((error) => {
+                      toast.error(error.data?.message || "Google Login processing failed");
+                    });
+                }}
+                onError={() => {
+                  toast.error("Google authentication failed");
+                }}
+                theme="filled_black"
+                shape="rectangular"
+                width="100%"
+              />
+            </div>
+          </div>
         </div>
         <div className="text-center text-sm">
           Don&apos;t have an account?{" "}

@@ -8,6 +8,8 @@ import { setPortfolioBalance } from "@/features/auth/authSlice";
 import { useSummaryAnalyticsQuery } from "@/features/analytics/analyticsAPI";
 import { DateRangeEnum } from "@/components/date-range-select";
 import CountUp from "react-countup";
+import { useUpdateUserMutation } from "@/features/user/userAPI";
+import { toast } from "sonner";
 
 export default function EditableBalanceCard() {
     const { user, portfolioBalance } = useTypedSelector((state) => state.auth);
@@ -24,15 +26,25 @@ export default function EditableBalanceCard() {
 
     const [isEditing, setIsEditing] = useState(false);
     const [inputValue, setInputValue] = useState("");
+    const [updateUser] = useUpdateUserMutation();
 
-    const handleSave = () => {
-        const newBase = parseFloat(inputValue);
-        if (!isNaN(newBase)) {
-            dispatch(setPortfolioBalance(newBase));
-        } else {
-            dispatch(setPortfolioBalance(0));
+    const handleSave = async () => {
+        let newBase = parseFloat(inputValue);
+        if (isNaN(newBase)) {
+            newBase = 0;
         }
+
+        dispatch(setPortfolioBalance(newBase));
         setIsEditing(false);
+
+        try {
+            const formData = new FormData();
+            formData.append("portfolioBalance", newBase.toString());
+            await updateUser(formData).unwrap();
+            toast.success("Base portfolio balance updated");
+        } catch {
+            toast.error("Failed to save portfolio balance to server");
+        }
     };
 
     return (

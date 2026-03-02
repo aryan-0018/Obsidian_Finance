@@ -8,14 +8,17 @@ import { Provider } from "react-redux";
 import { store } from "./app/store.ts";
 import { persistor } from "./app/store.ts";
 import { PersistGate } from "redux-persist/integration/react";
+import { GoogleOAuthProvider } from "@react-oauth/google";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
     <Provider store={store}>
       <PersistGate loading={null} persistor={persistor}>
-        <NuqsAdapter>
-          <App />
-        </NuqsAdapter>
+        <GoogleOAuthProvider clientId={import.meta.env.VITE_GOOGLE_CLIENT_ID || ""}>
+          <NuqsAdapter>
+            <App />
+          </NuqsAdapter>
+        </GoogleOAuthProvider>
         <Toaster
           position="top-center"
           expand={true}

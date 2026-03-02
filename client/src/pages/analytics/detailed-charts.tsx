@@ -12,6 +12,13 @@ interface DetailedChartsProps {
     dateRange?: DateRangeType;
 }
 
+interface ChartDataPoint {
+    date: string | Date;
+    income: number;
+    expenses: number;
+    [key: string]: string | number | Date;
+}
+
 const DetailedCharts: React.FC<DetailedChartsProps> = ({ dateRange }) => {
     const { user } = useTypedSelector((state) => state.auth);
     const currency = user?.currency || "INR";
@@ -42,7 +49,7 @@ const DetailedCharts: React.FC<DetailedChartsProps> = ({ dateRange }) => {
     }
 
     // Pre-process for Net Flow
-    const advancedData = chartData.map((d: any) => ({
+    const advancedData = chartData.map((d: ChartDataPoint) => ({
         ...d,
         netFlow: d.income - d.expenses,
     }));

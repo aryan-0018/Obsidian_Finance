@@ -37,9 +37,10 @@ export default function ExportTransactionModal() {
 
     const transactions = transactionRes?.transations || [];
     const categoriesMap = new Map();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     transactions.forEach((t: any) => {
-        if (t.categoryId && t.categoryId._id) {
-            categoriesMap.set(t.categoryId._id, t.categoryId.name);
+        if (t.category && t.category._id) {
+            categoriesMap.set(t.category._id, t.category.name);
         }
     });
     const categories = Array.from(categoriesMap.entries()).map(([id, name]) => ({ id, name }));
@@ -52,6 +53,7 @@ export default function ExportTransactionModal() {
 
         // Apply local date filter if selected
         if (dateRange?.from || dateRange?.to) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
             exportTransactions = exportTransactions.filter((t: any) => {
                 const trxDate = new Date(t.date);
                 if (dateRange.from && trxDate < dateRange.from) return false;
@@ -62,7 +64,10 @@ export default function ExportTransactionModal() {
 
         // Apply local category filter if selected
         if (category !== "all") {
-            exportTransactions = exportTransactions.filter((t: any) => t.categoryId?._id === category);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            exportTransactions = exportTransactions.filter((t: any) =>
+                t.category && typeof t.category === "object" && "_id" in t.category ? t.category._id === category : false
+            );
         }
 
         if (exportTransactions.length === 0) {
@@ -71,11 +76,12 @@ export default function ExportTransactionModal() {
         }
 
         // Format data for CSV
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const csvData = exportTransactions.map((t: any) => ({
             Date: format(new Date(t.date), "yyyy-MM-dd"),
             Title: t.title,
             Type: t.type,
-            Category: t.categoryId?.name || "Uncategorized",
+            Category: t.category && t.category.name ? t.category.name : "Uncategorized",
             Amount: t.amount,
             Description: t.description || "",
             Status: t.status || "completed",
@@ -105,8 +111,9 @@ export default function ExportTransactionModal() {
             }).unwrap();
             toast.success("Export report has been emailed to your registered address.");
             setIsOpen(false);
-        } catch (error: any) {
-            toast.error(error?.data?.message || "Failed to send export email.");
+        } catch (error: unknown) {
+            const err = error as { data?: { message?: string } };
+            toast.error(err?.data?.message || "Failed to send export email.");
         }
     };
 
@@ -141,7 +148,7 @@ export default function ExportTransactionModal() {
                             </SelectTrigger>
                             <SelectContent className="bg-[#111] border-[#c1a063]/30 text-white">
                                 <SelectItem value="all">All Categories</SelectItem>
-                                {categories.map((cat: any) => (
+                                {categories.map((cat: { id: string, name: string }) => (
                                     <SelectItem key={cat.id} value={cat.id}>
                                         {cat.name}
                                     </SelectItem>

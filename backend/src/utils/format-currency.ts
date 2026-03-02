@@ -1,17 +1,17 @@
-// Convert dollars to cents when saving
-export function convertToCents(amount: number) {
+// Convert unit to paise when saving
+export function convertToSmallestUnit(amount: number) {
   return Math.round(amount * 100);
 }
 
-// Convert cents to dollars when retrieving
-//convertFromCents
-export function convertToDollarUnit(amount: number) {
+// Convert paise to unit when retrieving
+//convertFromSmallestUnit
+export function convertToUnit(amount: number) {
   return amount / 100;
 }
 
 export function formatCurrency(amount: number) {
-  return new Intl.NumberFormat("en-US", {
+  return new Intl.NumberFormat("en-IN", {
     style: "currency",
-    currency: "USD",
+    currency: "INR",
   }).format(amount);
 }
