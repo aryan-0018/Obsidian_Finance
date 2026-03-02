@@ -3,6 +3,7 @@
 ![MERN Stack](https://img.shields.io/badge/MERN-Stack-blue?logo=react)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?logo=tailwind-css&logoColor=white)
 ![Google Gemini AI](https://img.shields.io/badge/Google_Gemini-AI-orange?logo=google)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
 
 ## Application Access
@@ -110,8 +111,8 @@ VITE_GOOGLE_CLIENT_ID=your_google_oauth_client_id
    npm run dev
    ```
 
-The application will be running at `http://localhost:5173/`.
+The application will be available locally at `http://localhost:5173/`.
 
 ## 📄 License
 
-This project is licensed under the ISC License.
+This project is licensed under the MIT License.
