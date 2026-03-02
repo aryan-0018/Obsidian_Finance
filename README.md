@@ -7,7 +7,7 @@
 
 ## Application Access
 
-**Application:**     https://obsidian-finance.vercel.app
+**Application:**  https://obsidian-finance.vercel.app
 
 **Backend API:**  https://obsidian-finance-backend.onrender.com
 
