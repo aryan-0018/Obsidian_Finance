@@ -23,7 +23,7 @@ Obsidian Finance enables intelligent financial analysis, secure user authenticat
 - **Secure Authentication:** JWT, Google OAuth integration, and secure password hashing.
 - **Transactions Management:** Easily track, categorize, and manage your income and expenses.
 - **Cloud Storage:** Image and media handling using Cloudinary.
-- **Modern UI/UX:** Built with React, Radix UI components, Tailwind CSS v4, and dynamic themes (dark/light mode).
+- **Modern UI/UX:** Built with React, Radix UI components, Tailwind CSS v4.
 - **Automated Tasks:** Background cron jobs for financial summaries and alerts.
 
 ## 🛠️ Tech Stack
