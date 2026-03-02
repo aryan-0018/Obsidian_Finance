@@ -1,4 +1,4 @@
-# Obsidian Finance: Advanced MERN AI Financial Platform
+# Obsidian Finance: MERN AI Financial Platform
 
 ![MERN Stack](https://img.shields.io/badge/MERN-Stack-blue?logo=react)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?logo=tailwind-css&logoColor=white)
