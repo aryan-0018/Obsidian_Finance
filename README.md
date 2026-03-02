@@ -48,8 +48,8 @@ Obsidian Finance is a financial platform built on the MERN stack. It integrates 
 
 1. **Clone the repository:**
    ```bash
-   git clone https://github.com/yourusername/obsidian-finance.git
-   cd obsidian-finance
+   git clone https://github.com/aryan-0018/Obsidian_Finance.git
+   cd Obsidian_Finance
    ```
 
 2. **Install Backend Dependencies:**
