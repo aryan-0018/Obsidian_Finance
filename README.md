@@ -10,12 +10,13 @@ A production-ready, AI-powered financial management platform built with the MERN
 
 ## Application Access
 
-**Live Application:**  https://obsidian-finance.vercel.app
+**Live Application :**  https://obsidian-finance.vercel.app
 
-**Backend API:**  https://obsidian-finance-backend.onrender.com
+**Backend API :**  https://obsidian-finance-backend.onrender.com
 
 
 Obsidian Finance enables intelligent financial analysis, secure user authentication, automated insights, and real-time expense tracking through a modern and scalable architecture.
+
 ## ✨ Key Features
 
 - **Comprehensive Dashboard:** Interactive charts and data visualizations using `recharts`.
