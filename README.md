@@ -1,6 +1,6 @@
 ## Obsidian Finance – Curating Elite Wealth 
 
-A production-ready, AI-powered financial management platform built with the MERN stack.
+AI-powered financial management platform built with the MERN stack.
 
 ![MERN Stack](https://img.shields.io/badge/MERN-Stack-blue?logo=react)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?logo=tailwind-css&logoColor=white)
