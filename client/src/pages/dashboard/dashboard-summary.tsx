@@ -3,20 +3,26 @@ import DashboardHeader from "./_component/dashboard-header";
 import DashboardStats from "./_component/dashboard-stats";
 import { DateRangeType } from "@/components/date-range-select";
 
+interface DashboardSummaryProps {
+  dateRange?: DateRangeType;
+  setDateRange?: (range: DateRangeType) => void;
+  title?: string;
+  subtitle?: string;
+}
+
 const DashboardSummary = ({
   dateRange,
   setDateRange,
-}: {
-  dateRange?: DateRangeType;
-  setDateRange?: (range: DateRangeType) => void;
-}) => {
+  title,
+  subtitle,
+}: DashboardSummaryProps) => {
   const { user } = useTypedSelector((state) => state.auth);
 
   return (
     <div className="w-full">
       <DashboardHeader
-        title={`Welcome back, ${user?.name || "Unknow"}`}
-        subtitle="This is your overview report for the selected period"
+        title={title || `Welcome back, ${user?.name || "User"}`}
+        subtitle={subtitle || "This is your overview report for the selected period"}
         dateRange={dateRange}
         setDateRange={setDateRange}
       />

@@ -65,7 +65,11 @@ const ReceiptScanner = ({
 
       aiScanReceipt(formData)
         .unwrap()
-        .then((res) => {
+        .then((res: any) => {
+          if (res?.data?.error) {
+            toast.error(res.data.error);
+            return;
+          }
           updateProgress(100);
           onScanComplete(res.data);
           toast.success("Receipt scanned successfully");

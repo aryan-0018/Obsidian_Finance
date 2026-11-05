@@ -31,6 +31,25 @@ import {
   useDuplicateTransactionMutation,
 } from "@/features/transaction/transactionAPI";
 import { toast } from "sonner";
+import { useTypedSelector } from "@/app/hook";
+
+const AmountCell = ({ amount, type }: { amount: number; type: string }) => {
+  const { user } = useTypedSelector((state) => state.auth);
+  const currency = user?.currency || "INR";
+
+  return (
+    <div
+      className={`text-right font-medium ${
+        type === _TRANSACTION_TYPE.INCOME
+          ? "text-green-600"
+          : "text-destructive"
+      }`}
+    >
+      {type === _TRANSACTION_TYPE.EXPENSE ? "-" : "+"}
+      {formatCurrency(amount, { currency })}
+    </div>
+  );
+};
 
 type FrequencyInfo = {
   label: string;
@@ -129,19 +148,8 @@ export const transactionColumns: ColumnDef<TransactionType>[] = [
     header: () => <div className="text-right">Amount</div>,
     cell: ({ row }) => {
       const amount = parseFloat(row.getValue("amount"));
-      const type = row.getValue("type");
-
-      return (
-        <div
-          className={`text-right font-medium ${type === _TRANSACTION_TYPE.INCOME
-              ? "text-green-600"
-              : "text-destructive"
-            }`}
-        >
-          {type === _TRANSACTION_TYPE.EXPENSE ? "-" : "+"}
-          {formatCurrency(amount)}
-        </div>
-      );
+      const type = row.getValue("type") as string;
+      return <AmountCell amount={amount} type={type} />;
     },
   },
   {
@@ -236,7 +244,7 @@ export const transactionColumns: ColumnDef<TransactionType>[] = [
 // eslint-disable-next-line react-refresh/only-export-components
 const ActionsCell = ({ row }: { row: any }) => {
   //const isRecurring = row.original.isRecurring;
-  const transactionId = row.original.id;
+  const transactionId = row.original._id || row.original.id;
   const { onOpenDrawer } = useEditTransactionDrawer();
 
   const [duplicateTransaction, { isLoading: isDuplicating }] =

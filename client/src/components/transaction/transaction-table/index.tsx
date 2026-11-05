@@ -1,6 +1,6 @@
 import { DataTable } from "@/components/data-table";
 import { transactionColumns } from "./column";
-import { _TRANSACTION_TYPE, _TransactionType } from "@/constant";
+import { _TRANSACTION_TYPE, _TransactionType, CATEGORIES } from "@/constant";
 import { useState } from "react";
 import useDebouncedSearch from "@/hooks/use-debounce-search";
 import {
@@ -8,12 +8,85 @@ import {
   useGetAllTransactionsQuery,
 } from "@/features/transaction/transactionAPI";
 import { toast } from "sonner";
+import {
+  startOfMonth,
+  subMonths,
+  startOfQuarter,
+  endOfQuarter,
+  subQuarters,
+  subDays,
+  startOfYear,
+  subYears,
+  endOfDay,
+} from "date-fns";
 
 type FilterType = {
   type?: _TransactionType | undefined;
   recurringStatus?: "RECURRING" | "NON_RECURRING" | undefined;
+  category?: string | undefined;
+  period?: string | undefined;
+  from?: string | undefined;
+  to?: string | undefined;
   pageNumber?: number;
   pageSize?: number;
+};
+
+const computePeriodRange = (period?: string) => {
+  if (!period) return { from: undefined, to: undefined };
+  const now = new Date();
+  const today = endOfDay(now);
+  switch (period) {
+    case "THIS_MONTH":
+      return {
+        from: startOfMonth(today).toISOString(),
+        to: today.toISOString(),
+      };
+    case "LAST_MONTH": {
+      const prevMonth = subMonths(today, 1);
+      return {
+        from: startOfMonth(prevMonth).toISOString(),
+        to: startOfMonth(today).toISOString(),
+      };
+    }
+    case "THIS_QUARTER":
+      return {
+        from: startOfQuarter(today).toISOString(),
+        to: today.toISOString(),
+      };
+    case "LAST_QUARTER": {
+      const prevQ = subQuarters(today, 1);
+      return {
+        from: startOfQuarter(prevQ).toISOString(),
+        to: endOfQuarter(prevQ).toISOString(),
+      };
+    }
+    case "LAST_30_DAYS":
+      return {
+        from: subDays(today, 29).toISOString(),
+        to: today.toISOString(),
+      };
+    case "LAST_3_MONTHS": {
+      const threeMonthsAgo = subMonths(today, 3);
+      return {
+        from: startOfMonth(threeMonthsAgo).toISOString(),
+        to: startOfMonth(today).toISOString(),
+      };
+    }
+    case "THIS_YEAR":
+      return {
+        from: startOfYear(today).toISOString(),
+        to: today.toISOString(),
+      };
+    case "LAST_YEAR": {
+      const prevYear = subYears(today, 1);
+      return {
+        from: startOfYear(prevYear).toISOString(),
+        to: startOfYear(today).toISOString(),
+      };
+    }
+    default:
+      return { from: undefined, to: undefined };
+  }
 };
 
 const TransactionTable = (props: {
@@ -23,6 +96,10 @@ const TransactionTable = (props: {
   const [filter, setFilter] = useState<FilterType>({
     type: undefined,
     recurringStatus: undefined,
+    category: undefined,
+    period: undefined,
+    from: undefined,
+    to: undefined,
     pageNumber: 1,
     pageSize: props.pageSize || 10,
   });
@@ -38,6 +115,9 @@ const TransactionTable = (props: {
     keyword: debouncedTerm,
     type: filter.type,
     recurringStatus: filter.recurringStatus,
+    category: filter.category,
+    from: filter.from,
+    to: filter.to,
     pageNumber: filter.pageNumber,
     pageSize: filter.pageSize,
   });
@@ -51,16 +131,21 @@ const TransactionTable = (props: {
   };
 
   const handleSearch = (value: string) => {
-    console.log(debouncedTerm);
     setSearchTerm(value);
   };
 
   const handleFilterChange = (filters: Record<string, string>) => {
-    const { type, frequently } = filters;
+    const { type, frequently, category, period } = filters;
+    const { from, to } = computePeriodRange(period);
     setFilter((prev) => ({
       ...prev,
-      type: type as _TransactionType,
-      recurringStatus: frequently as "RECURRING" | "NON_RECURRING",
+      type: (type as _TransactionType) || undefined,
+      recurringStatus: (frequently as "RECURRING" | "NON_RECURRING") || undefined,
+      category: category || undefined,
+      period: period || undefined,
+      from,
+      to,
+      pageNumber: 1,
     }));
   };
 
@@ -69,7 +154,7 @@ const TransactionTable = (props: {
   };
 
   const handlePageSizeChange = (pageSize: number) => {
-    setFilter((prev) => ({ ...prev, pageSize }));
+    setFilter((prev) => ({ ...prev, pageSize, pageNumber: 1 }));
   };
 
   const handleBulkDelete = (transactionIds: string[]) => {
@@ -85,7 +170,7 @@ const TransactionTable = (props: {
 
   return (
     <DataTable
-      data={transactions} //transactions
+      data={transactions}
       columns={transactionColumns}
       searchPlaceholder="Search transactions..."
       isLoading={isFetching}
@@ -102,8 +187,30 @@ const TransactionTable = (props: {
           ],
         },
         {
+          key: "category",
+          label: "All Categories",
+          options: CATEGORIES.map((c) => ({
+            value: c.value,
+            label: c.label,
+          })),
+        },
+        {
+          key: "period",
+          label: "Time Period",
+          options: [
+            { value: "THIS_MONTH", label: "This Month" },
+            { value: "LAST_MONTH", label: "Last Month" },
+            { value: "THIS_QUARTER", label: "This Quarter" },
+            { value: "LAST_QUARTER", label: "Last Quarter" },
+            { value: "LAST_30_DAYS", label: "Last 30 Days" },
+            { value: "LAST_3_MONTHS", label: "Last 3 Months" },
+            { value: "THIS_YEAR", label: "This Year" },
+            { value: "LAST_YEAR", label: "Last Year" },
+          ],
+        },
+        {
           key: "frequently",
-          label: "Frequently",
+          label: "Frequency",
           options: [
             { value: "RECURRING", label: "Recurring" },
             { value: "NON_RECURRING", label: "Non-Recurring" },

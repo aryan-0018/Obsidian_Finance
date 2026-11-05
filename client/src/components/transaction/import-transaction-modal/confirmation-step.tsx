@@ -172,6 +172,7 @@ const ConfirmationStep = ({
   const getAssignFieldToMappedTransactions = () => {
     let hasValidationErrors = false;
     const results: Partial<BulkTransactionType>[] = [];
+    const newErrors: Record<string, string> = {};
 
     csvData.forEach((row, index) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -216,13 +217,11 @@ const ConfirmationStep = ({
               })
               .join("\n")
             : "Invalid data";
-        setErrors((prev) => ({
-          ...prev,
-          [index + 1]: message,
-        }));
+        newErrors[index + 1] = message;
       }
     });
-    return { transactions: results, hasValidationErrors };
+    setErrors(newErrors);
+    return { transactions: results, hasValidationErrors: hasValidationErrors || Object.keys(newErrors).length > 0 };
   };
 
   const hasErrors = Object.keys(errors).length > 0;

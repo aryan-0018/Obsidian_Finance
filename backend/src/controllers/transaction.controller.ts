@@ -43,6 +43,9 @@ export const getAllTransactionController = asyncHandler(
     const filters = {
       keyword: req.query.keyword as string | undefined,
       type: req.query.type as keyof typeof TransactionTypeEnum | undefined,
+      category: req.query.category as string | undefined,
+      fromDate: req.query.from ? new Date(req.query.from as string) : undefined,
+      toDate: req.query.to ? new Date(req.query.to as string) : undefined,
       recurringStatus: req.query.recurringStatus as
         | "RECURRING"
         | "NON_RECURRING"
@@ -169,6 +172,7 @@ export const exportTransactionsEmailController = asyncHandler(
     const filters = {
       keyword: req.query.keyword as string | undefined,
       type: req.query.type as keyof typeof TransactionTypeEnum | undefined,
+      category: req.query.category as string | undefined,
       fromDate: req.query.from ? new Date(req.query.from as string) : undefined,
       toDate: req.query.to ? new Date(req.query.to as string) : undefined,
     };

@@ -51,6 +51,9 @@ export const getAllTransactionService = async (
   filters: {
     keyword?: string;
     type?: keyof typeof TransactionTypeEnum;
+    category?: string;
+    fromDate?: Date;
+    toDate?: Date;
     recurringStatus?: "RECURRING" | "NON_RECURRING";
   },
   pagination: {
@@ -58,7 +61,7 @@ export const getAllTransactionService = async (
     pageNumber: number;
   }
 ) => {
-  const { keyword, type, recurringStatus } = filters;
+  const { keyword, type, category, fromDate, toDate, recurringStatus } = filters;
 
   const filterConditions: Record<string, any> = {
     userId,
@@ -73,6 +76,16 @@ export const getAllTransactionService = async (
 
   if (type) {
     filterConditions.type = type;
+  }
+
+  if (category) {
+    filterConditions.category = { $regex: new RegExp(`^${category}$`, "i") };
+  }
+
+  if (fromDate || toDate) {
+    filterConditions.date = {};
+    if (fromDate) filterConditions.date.$gte = fromDate;
+    if (toDate) filterConditions.date.$lte = toDate;
   }
 
   if (recurringStatus) {
@@ -202,7 +215,7 @@ export const deleteTransactionService = async (
   userId: string,
   transactionId: string
 ) => {
-  const deleted = await TransactionModel.findByIdAndDelete({
+  const deleted = await TransactionModel.findOneAndDelete({
     _id: transactionId,
     userId,
   });
@@ -242,7 +255,7 @@ export const bulkTransactionService = async (
           isRecurring: false,
           nextRecurringDate: null,
           recurringInterval: null,
-          lastProcesses: null,
+          lastProcessed: null,
           createdAt: new Date(),
           updatedAt: new Date(),
         },
@@ -268,9 +281,7 @@ export const scanReceiptService = async (
   if (!file) throw new BadRequestException("No file uploaded");
 
   try {
-    if (!file.path) throw new BadRequestException("failed to upload file");
-
-    console.log(file.path);
+    if (!file.path) throw new BadRequestException("Failed to upload file");
 
     const responseData = await axios.get(file.path, {
       responseType: "arraybuffer",
@@ -297,29 +308,29 @@ export const scanReceiptService = async (
     const response = result.text;
     const cleanedText = response?.replace(/```(?:json)?\n?/g, "").trim();
 
-    if (!cleanedText)
-      return {
-        error: "Could not read reciept  content",
-      };
+    if (!cleanedText) {
+      throw new BadRequestException("Could not read receipt content");
+    }
 
     const data = JSON.parse(cleanedText);
 
     if (!data.amount || !data.date) {
-      return { error: "Reciept missing required information" };
+      throw new BadRequestException("Receipt missing required information (amount or date)");
     }
 
     return {
       title: data.title || "Receipt",
       amount: data.amount,
       date: data.date,
-      description: data.description,
-      category: data.category,
-      paymentMethod: data.paymentMethod,
-      type: data.type,
+      description: data.description || "",
+      category: (data.category || "other").toLowerCase(),
+      paymentMethod: data.paymentMethod || "CASH",
+      type: data.type || "EXPENSE",
       receiptUrl: file.path,
     };
-  } catch (error) {
-    return { error: "Reciept scanning  service unavailable" };
+  } catch (error: any) {
+    if (error instanceof BadRequestException) throw error;
+    throw new BadRequestException(error?.message || "Receipt scanning service unavailable");
   }
 };
 export const exportTransactionsEmailService = async (
@@ -328,11 +339,12 @@ export const exportTransactionsEmailService = async (
   filters: {
     keyword?: string;
     type?: keyof typeof TransactionTypeEnum;
+    category?: string;
     fromDate?: Date;
     toDate?: Date;
   }
 ) => {
-  const { keyword, type, fromDate, toDate } = filters;
+  const { keyword, type, category, fromDate, toDate } = filters;
 
   const filterConditions: Record<string, any> = {
     userId,
@@ -347,6 +359,10 @@ export const exportTransactionsEmailService = async (
 
   if (type) {
     filterConditions.type = type;
+  }
+
+  if (category) {
+    filterConditions.category = { $regex: new RegExp(`^${category}$`, "i") };
   }
 
   if (fromDate || toDate) {

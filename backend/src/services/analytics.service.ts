@@ -6,7 +6,7 @@ import TransactionModel, {
 import { getDateRange } from "../utils/date";
 import { differenceInDays, subDays, subYears } from "date-fns";
 import { convertToUnit } from "../utils/format-currency";
-import { GoogleGenAI } from "@google/genai";
+import { genAI, genAIModel } from "../config/google-ai.config";
 import { Env } from "../config/env.config";
 import { getBudgetService } from "./budget.service";
 
@@ -523,8 +523,6 @@ export const generateAiInsightsService = async (userId: string) => {
   const summary = await summaryAnalyticsService(userId);
   const expenseBreakdown = await expensePieChartBreakdownService(userId);
 
-  const ai = new GoogleGenAI({ apiKey: Env.GEMINI_API_KEY });
-
   const prompt = `
     You are a strictly analytical Quantitative Analyst for ObsidianFinance.
     Analyze the precise statistical breakdown of the portfolio metrics.
@@ -553,8 +551,8 @@ export const generateAiInsightsService = async (userId: string) => {
   `;
 
   try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+    const response = await genAI.models.generateContent({
+      model: genAIModel,
       contents: prompt,
     });
 

@@ -2,8 +2,15 @@ import { Request, Response } from "express";
 import { HTTPSTATUS } from "../config/http.config";
 import { asyncHandler } from "../middlewares/asyncHandler.middlerware";
 import { loginSchema, registerSchema } from "../validators/auth.validator";
-import { loginService, registerService, googleLoginService } from "../services/auth.service";
+import {
+  loginService,
+  registerService,
+  googleLoginService,
+  refreshTokenService,
+} from "../services/auth.service";
 import { UnauthorizedException } from "../utils/app-error";
+import jwt from "jsonwebtoken";
+import { Env } from "../config/env.config";
 
 export const registerController = asyncHandler(
   async (req: Request, res: Response) => {
@@ -50,6 +57,48 @@ export const googleLoginController = asyncHandler(
       accessToken,
       expiresAt,
       reportSetting,
+    });
+  }
+);
+
+export const refreshTokenController = asyncHandler(
+  async (req: Request, res: Response) => {
+    let userId = req.user?._id?.toString();
+
+    if (!userId) {
+      const authHeader = req.headers.authorization;
+      if (authHeader && authHeader.startsWith("Bearer ")) {
+        const token = authHeader.split(" ")[1];
+        try {
+          const decoded: any = jwt.verify(token, Env.JWT_SECRET, { ignoreExpiration: true });
+          userId = decoded.userId;
+        } catch {
+          throw new UnauthorizedException("Invalid token for refresh");
+        }
+      }
+    }
+
+    if (!userId) {
+      throw new UnauthorizedException("Authentication token required for refresh");
+    }
+
+    const { user, accessToken, expiresAt, reportSetting } =
+      await refreshTokenService(userId);
+
+    return res.status(HTTPSTATUS.OK).json({
+      message: "Token refreshed successfully",
+      user,
+      accessToken,
+      expiresAt,
+      reportSetting,
+    });
+  }
+);
+
+export const logoutController = asyncHandler(
+  async (req: Request, res: Response) => {
+    return res.status(HTTPSTATUS.OK).json({
+      message: "Logged out successfully",
     });
   }
 );

@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import ReportSettingModel from "../models/report-setting.model";
-import ReportModel from "../models/report.model";
+import ReportModel, { ReportStatusEnum } from "../models/report.model";
+import UserModel from "../models/user.model";
 import TransactionModel, {
   TransactionTypeEnum,
 } from "../models/transaction.model";
@@ -8,10 +9,11 @@ import { NotFoundException } from "../utils/app-error";
 import { calulateNextReportDate } from "../utils/helper";
 import { UpdateReportSettingType } from "../validators/report.validator";
 import { convertToUnit } from "../utils/format-currency";
-import { format } from "date-fns";
+import { endOfMonth, format, startOfMonth, subMonths } from "date-fns";
 import { genAI, genAIModel } from "../config/google-ai.config";
 import { createUserContent } from "@google/genai";
 import { reportInsightPrompt } from "../utils/prompt";
+import { sendReportEmail } from "../mailers/report.mailer";
 
 export const getAllReportsService = async (
   userId: string,
@@ -80,6 +82,107 @@ export const updateReportSettingService = async (
   });
 
   await existingReportSetting.save();
+};
+
+export const resendReportService = async (
+  userId: string,
+  reportId: string
+) => {
+  const report = await ReportModel.findOne({ _id: reportId, userId });
+  if (!report) throw new NotFoundException("Report not found");
+
+  const user = await UserModel.findById(userId);
+  if (!user || !user.email) throw new NotFoundException("User not found");
+
+  const setting = await ReportSettingModel.findOne({ userId });
+  const frequency = setting?.frequency || "MONTHLY";
+
+  const sentMonth = report.sentDate || report.createdAt;
+  const from = startOfMonth(subMonths(sentMonth, 1));
+  const to = endOfMonth(subMonths(sentMonth, 1));
+
+  const generated = await generateReportService(userId, from, to);
+
+  await sendReportEmail({
+    email: user.email,
+    username: user.name || "User",
+    report: {
+      period: report.period,
+      totalIncome: generated?.summary.income || 0,
+      totalExpenses: generated?.summary.expenses || 0,
+      availableBalance: generated?.summary.balance || 0,
+      savingsRate: generated?.summary.savingsRate || 0,
+      topSpendingCategories: generated?.summary.topCategories || [],
+      insights: generated?.insights || ["Monthly financial summary"],
+    },
+    frequency,
+  });
+
+  report.sentDate = new Date();
+  report.status = ReportStatusEnum.SENT;
+  await report.save();
+
+  return report;
+};
+
+export const createInstantReportService = async (
+  userId: string,
+  fromDate: Date,
+  toDate: Date,
+  shouldSendEmail: boolean = true
+) => {
+  const report = await generateReportService(userId, fromDate, toDate);
+  if (!report) {
+    throw new NotFoundException(
+      "No financial activity found for this period to generate a report."
+    );
+  }
+
+  const user = await UserModel.findById(userId);
+  if (!user) throw new NotFoundException("User not found");
+
+  const setting = await ReportSettingModel.findOne({ userId });
+  const frequency = setting?.frequency || "MONTHLY";
+
+  let emailSent = false;
+  if (shouldSendEmail && user.email) {
+    try {
+      await sendReportEmail({
+        email: user.email,
+        username: user.name || "User",
+        report: {
+          period: report.period,
+          totalIncome: report.summary.income,
+          totalExpenses: report.summary.expenses,
+          availableBalance: report.summary.balance,
+          savingsRate: report.summary.savingsRate,
+          topSpendingCategories: report.summary.topCategories,
+          insights: report.insights,
+        },
+        frequency,
+      });
+      emailSent = true;
+    } catch (err) {
+      console.error("Failed to email instant report:", err);
+    }
+  }
+
+  const savedReport = await ReportModel.create({
+    userId,
+    period: report.period,
+    sentDate: new Date(),
+    status: emailSent
+      ? ReportStatusEnum.SENT
+      : shouldSendEmail
+      ? ReportStatusEnum.FAILED
+      : ReportStatusEnum.PENDING,
+  });
+
+  return {
+    ...report,
+    savedReport,
+    emailSent,
+  };
 };
 
 export const generateReportService = async (

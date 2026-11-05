@@ -23,6 +23,7 @@ import { DateRangeType } from "@/components/date-range-select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatCurrency } from "@/lib/format-currency";
 import { useChartAnalyticsQuery } from "@/features/analytics/analyticsAPI";
+import { useTypedSelector } from "@/app/hook";
 
 interface PropsType {
   dateRange?: DateRangeType;
@@ -45,6 +46,8 @@ const chartConfig = {
 const DashboardDataChart: React.FC<PropsType> = (props) => {
   const { dateRange } = props;
   const isMobile = useIsMobile();
+  const { user } = useTypedSelector((state) => state.auth);
+  const currency = user?.currency || "INR";
 
   const { data, isFetching } = useChartAnalyticsQuery({
     preset: dateRange?.value,
@@ -156,6 +159,7 @@ const DashboardDataChart: React.FC<PropsType> = (props) => {
                             showSign: true,
                             compact: true,
                             isExpense,
+                            currency,
                           })}
                         </span>,
                         isExpense ? "Expenses" : "Income",

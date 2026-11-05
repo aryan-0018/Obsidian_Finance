@@ -20,6 +20,7 @@ import { GoogleLogin } from "@react-oauth/google";
 import { useAppDispatch } from "@/app/hook";
 import { setCredentials } from "@/features/auth/authSlice";
 import { PROTECTED_ROUTES } from "@/routes/common/routePath";
+import Logo from "@/components/logo/logo";
 const schema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
   email: z.string().email("Invalid email address"),
@@ -62,7 +63,10 @@ const SignUpForm = () => {
         onSubmit={form.handleSubmit(onSubmit)}
         className="flex flex-col gap-6"
       >
-        <div className="flex flex-col items-center gap-2 text-center">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <div className="mb-1">
+            <Logo url="/" />
+          </div>
           <h1 className="text-2xl font-light tracking-tight">Join ObsidianFinance</h1>
           <p className="text-balance text-sm text-muted-foreground font-light">
             Create your secure profile below

@@ -22,7 +22,7 @@ const Dashboard = () => {
         <div className="space-y-6 w-full mt-2">
           {/* Welcome Title - AT THE VERY TOP */}
           <DashboardHeader
-            title={`Welcome back, ${user?.name || "Unknow"}`}
+            title={`Welcome back, ${user?.name || "User"}`}
             subtitle="This is your overview report for the selected period"
             dateRange={dateRange}
             setDateRange={_setDateRange}

@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { toast } from "sonner";
 import { usePapaParse } from "react-papaparse";
+import { CATEGORIES } from "@/constant";
 
 export default function ExportTransactionModal() {
     const [isOpen, setIsOpen] = useState(false);
@@ -36,14 +37,13 @@ export default function ExportTransactionModal() {
     );
 
     const transactions = transactionRes?.transations || [];
-    const categoriesMap = new Map();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    transactions.forEach((t: any) => {
-        if (t.category && t.category._id) {
-            categoriesMap.set(t.category._id, t.category.name);
-        }
-    });
-    const categories = Array.from(categoriesMap.entries()).map(([id, name]) => ({ id, name }));
+    const uniqueCategories = Array.from(
+        new Set([
+            ...CATEGORIES.map((c) => c.value),
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            ...transactions.map((t: any) => (typeof t.category === "string" ? t.category.toLowerCase() : "")),
+        ])
+    ).filter(Boolean);
 
     const { jsonToCSV } = usePapaParse();
     const [exportTransactionsEmail, { isLoading: isExportingEmail }] = useExportTransactionsEmailMutation();
@@ -66,7 +66,7 @@ export default function ExportTransactionModal() {
         if (category !== "all") {
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             exportTransactions = exportTransactions.filter((t: any) =>
-                t.category && typeof t.category === "object" && "_id" in t.category ? t.category._id === category : false
+                typeof t.category === "string" && t.category.toLowerCase() === category.toLowerCase()
             );
         }
 
@@ -81,7 +81,7 @@ export default function ExportTransactionModal() {
             Date: format(new Date(t.date), "yyyy-MM-dd"),
             Title: t.title,
             Type: t.type,
-            Category: t.category && t.category.name ? t.category.name : "Uncategorized",
+            Category: t.category ? (t.category.charAt(0).toUpperCase() + t.category.slice(1)) : "Uncategorized",
             Amount: t.amount,
             Description: t.description || "",
             Status: t.status || "completed",
@@ -107,7 +107,7 @@ export default function ExportTransactionModal() {
             await exportTransactionsEmail({
                 from: dateRange?.from?.toISOString(),
                 to: dateRange?.to?.toISOString(),
-                type: category !== "all" ? category : undefined,
+                category: category !== "all" ? category : undefined,
             }).unwrap();
             toast.success("Export report has been emailed to your registered address.");
             setIsOpen(false);
@@ -148,9 +148,9 @@ export default function ExportTransactionModal() {
                             </SelectTrigger>
                             <SelectContent className="bg-[#111] border-[#c1a063]/30 text-white">
                                 <SelectItem value="all">All Categories</SelectItem>
-                                {categories.map((cat: { id: string, name: string }) => (
-                                    <SelectItem key={cat.id} value={cat.id}>
-                                        {cat.name}
+                                {uniqueCategories.map((cat: string) => (
+                                    <SelectItem key={cat} value={cat} className="capitalize">
+                                        {cat}
                                     </SelectItem>
                                 ))}
                             </SelectContent>

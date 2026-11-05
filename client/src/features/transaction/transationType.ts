@@ -24,6 +24,9 @@ export interface CreateTransactionBody {
 export interface GetAllTransactionParams {
   keyword?: string;
   type?: _TransactionType;
+  category?: string;
+  from?: string;
+  to?: string;
   recurringStatus?: "RECURRING" | "NON_RECURRING";
   pageNumber?: number;
   pageSize?: number;

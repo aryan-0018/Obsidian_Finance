@@ -17,6 +17,8 @@ const Analytics = () => {
                     <DashboardSummary
                         dateRange={dateRange}
                         setDateRange={_setDateRange}
+                        title="Quantitative Analytics"
+                        subtitle="Prescriptive metrics, cashflow velocity, and algorithmic portfolio trajectory"
                     />
                 }
             >

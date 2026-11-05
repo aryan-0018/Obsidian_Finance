@@ -62,7 +62,7 @@ app.use(errorHandler);
 app.listen(Env.PORT, async () => {
   await connctDatabase();
 
-  if (Env.NODE_ENV === "development") {
+  if (process.env.DISABLE_CRONS !== "true") {
     await initializeCrons();
   }
 

@@ -20,6 +20,7 @@ import { useLoginMutation, useGoogleLoginMutation } from "@/features/auth/authAP
 import { useAppDispatch } from "@/app/hook";
 import { setCredentials } from "@/features/auth/authSlice";
 import { GoogleLogin } from "@react-oauth/google";
+import Logo from "@/components/logo/logo";
 
 const schema = z.object({
   email: z.string().email("Invalid email address"),
@@ -68,7 +69,10 @@ const SignInForm = ({
         className={cn("flex flex-col gap-6", className)}
         {...props}
       >
-        <div className="flex flex-col items-center gap-2 text-center">
+        <div className="flex flex-col items-center gap-3 text-center">
+          <div className="mb-1">
+            <Logo url="/" />
+          </div>
           <h1 className="text-2xl font-light tracking-tight">Access your portfolio</h1>
           <p className="text-balance text-sm text-muted-foreground font-light">
             Enter your credentials securely to access your account

@@ -7,6 +7,9 @@ import {
   startOfMonth,
   startOfYear,
   endOfDay,
+  startOfQuarter,
+  endOfQuarter,
+  subQuarters,
 } from "date-fns";
 import { Button } from "@/components/ui/button";
 import {
@@ -20,9 +23,11 @@ import { ChevronDownIcon } from "lucide-react";
 export const DateRangeEnum = {
   LAST_30_DAYS: "30days",
   LAST_MONTH: "lastMonth",
+  THIS_MONTH: "thisMonth",
+  THIS_QUARTER: "thisQuarter",
+  LAST_QUARTER: "lastQuarter",
   LAST_3_MONTHS: "last3Months",
   LAST_YEAR: "lastYear",
-  THIS_MONTH: "thisMonth",
   THIS_YEAR: "thisYear",
   ALL_TIME: "allTime",
   CUSTOM: "custom",
@@ -102,6 +107,26 @@ const presets: DateRangePreset[] = [
       to: today,
       value: DateRangeEnum.THIS_MONTH,
       label: "for This Month",
+    }),
+  },
+  {
+    label: "This Quarter",
+    value: DateRangeEnum.THIS_QUARTER,
+    getRange: () => ({
+      from: startOfQuarter(today),
+      to: today,
+      value: DateRangeEnum.THIS_QUARTER,
+      label: "for This Quarter",
+    }),
+  },
+  {
+    label: "Last Quarter",
+    value: DateRangeEnum.LAST_QUARTER,
+    getRange: () => ({
+      from: startOfQuarter(subQuarters(today, 1)),
+      to: endOfQuarter(subQuarters(today, 1)),
+      value: DateRangeEnum.LAST_QUARTER,
+      label: "for Last Quarter",
     }),
   },
   {

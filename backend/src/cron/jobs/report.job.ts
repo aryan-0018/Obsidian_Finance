@@ -132,8 +132,8 @@ export const processReportJob = async () => {
             }
 
             await Promise.all([
-              ReportModel.bulkWrite(bulkReports, { ordered: false }),
-              ReportSettingModel.bulkWrite(bulkSettings, { ordered: false }),
+              ReportModel.bulkWrite(bulkReports, { ordered: false, session }),
+              ReportSettingModel.bulkWrite(bulkSettings, { ordered: false, session }),
             ]);
           },
           {

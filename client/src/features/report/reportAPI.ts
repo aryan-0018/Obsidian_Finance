@@ -13,6 +13,7 @@ export const reportApi = apiClient.injectEndpoints({
           params: { pageNumber, pageSize },
         });
       },
+      providesTags: ["reports"],
     }),
 
     updateReportSetting: builder.mutation<void, UpdateReportSettingParams>({
@@ -21,11 +22,34 @@ export const reportApi = apiClient.injectEndpoints({
         method: "PUT",
         body: payload,
       }),
+      invalidatesTags: ["reports"],
+    }),
+
+    resendReport: builder.mutation<void, string>({
+      query: (id) => ({
+        url: `/report/resend/${id}`,
+        method: "POST",
+      }),
+      invalidatesTags: ["reports"],
+    }),
+
+    createInstantReport: builder.mutation<
+      any,
+      { from?: string; to?: string; sendEmail?: boolean }
+    >({
+      query: (body) => ({
+        url: "/report/instant",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["reports"],
     }),
   }),
 });
 
 export const {
     useGetAllReportsQuery,
-    useUpdateReportSettingMutation
+    useUpdateReportSettingMutation,
+    useResendReportMutation,
+    useCreateInstantReportMutation,
 } = reportApi;

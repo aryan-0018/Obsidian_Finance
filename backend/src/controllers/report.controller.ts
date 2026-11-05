@@ -5,6 +5,8 @@ import {
   generateReportService,
   getAllReportsService,
   updateReportSettingService,
+  resendReportService,
+  createInstantReportService,
 } from "../services/report.service";
 import { updateReportSettingSchema } from "../validators/report.validator";
 
@@ -51,6 +53,44 @@ export const generateReportController = asyncHandler(
     return res.status(HTTPSTATUS.OK).json({
       message: "Report generated successfully",
       ...result,
+    });
+  }
+);
+
+export const resendReportController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = req.user?._id;
+    const reportId = req.params.id;
+
+    const result = await resendReportService(userId, reportId);
+
+    return res.status(HTTPSTATUS.OK).json({
+      message: "Report resent successfully to registered email",
+      report: result,
+    });
+  }
+);
+
+export const createInstantReportController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = req.user?._id;
+    const { from, to, sendEmail } = req.body;
+    const fromDate = from ? new Date(from as string) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+    const toDate = to ? new Date(to as string) : new Date();
+    const shouldSendEmail = sendEmail === true || sendEmail === "true";
+
+    const result = await createInstantReportService(
+      userId,
+      fromDate,
+      toDate,
+      shouldSendEmail
+    );
+
+    return res.status(HTTPSTATUS.CREATED).json({
+      message: shouldSendEmail
+        ? "Instant report generated and emailed successfully"
+        : "Instant report generated successfully",
+      data: result,
     });
   }
 );

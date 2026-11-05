@@ -19,6 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { formatPercentage } from "@/lib/format-percentage";
 import { EmptyState } from "@/components/empty-state";
 import { useExpensePieChartBreakdownQuery } from "@/features/analytics/analyticsAPI";
+import { useTypedSelector } from "@/app/hook";
 
 const COLORS = [
   "var(--color-chart-1)",
@@ -36,6 +37,8 @@ const chartConfig = {
 
 const ExpensePieChart = (props: { dateRange?: DateRangeType }) => {
   const { dateRange } = props;
+  const { user } = useTypedSelector((state) => state.auth);
+  const currency = user?.currency || "INR";
 
   const { data, isFetching } = useExpensePieChartBreakdownQuery({
     preset: dateRange?.value,
@@ -62,7 +65,7 @@ const ExpensePieChart = (props: { dateRange?: DateRangeType }) => {
               </span>
               <div className="flex items-center gap-2">
                 <span className="text-xs text-muted-foreground whitespace-nowrap">
-                  {formatCurrency(entry.value)}
+                  {formatCurrency(entry.value, { currency })}
                 </span>
                 <span className="text-xs text-muted-foreground/60">
                   ({formatPercentage(entry.percentage, { decimalPlaces: 0 })})
@@ -131,7 +134,7 @@ const ExpensePieChart = (props: { dateRange?: DateRangeType }) => {
                               y={viewBox.cy}
                               className="fill-foreground text-2xl font-bold"
                             >
-                              {formatCurrency(totalSpent)}
+                              {formatCurrency(totalSpent, { currency })}
                             </tspan>
                             <tspan
                               x={viewBox.cx}
