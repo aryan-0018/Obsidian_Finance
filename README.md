@@ -1,10 +1,21 @@
-# Obsidian Finance: MERN AI Financial Platform
+## Obsidian Finance – Curating Elite Wealth 
+
+AI-powered financial management platform built with the MERN stack.
 
 ![MERN Stack](https://img.shields.io/badge/MERN-Stack-blue?logo=react)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-38B2AC?logo=tailwind-css&logoColor=white)
 ![Google Gemini AI](https://img.shields.io/badge/Google_Gemini-AI-orange?logo=google)
+![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
 
-Obsidian Finance is a financial platform built on the MERN stack. It integrates advanced AI capabilities, comprehensive financial tracking, and a stunning modern user interface to deliver a premium user experience.
+
+## Application Access
+
+**Live Application :**  https://obsidian-finance.vercel.app
+
+**Backend API :**  https://obsidian-finance-backend.onrender.com
+
+
+Obsidian Finance enables intelligent financial analysis, secure user authentication, automated insights, and real-time expense tracking through a modern and scalable architecture.
 
 ## ✨ Key Features
 
@@ -13,7 +24,7 @@ Obsidian Finance is a financial platform built on the MERN stack. It integrates 
 - **Secure Authentication:** JWT, Google OAuth integration, and secure password hashing.
 - **Transactions Management:** Easily track, categorize, and manage your income and expenses.
 - **Cloud Storage:** Image and media handling using Cloudinary.
-- **Modern UI/UX:** Built with React, Radix UI components, Tailwind CSS v4, and dynamic themes (dark/light mode).
+- **Modern UI/UX:** Built with React, Radix UI components, Tailwind CSS v4.
 - **Automated Tasks:** Background cron jobs for financial summaries and alerts.
 
 ## 🛠️ Tech Stack
@@ -102,8 +113,8 @@ VITE_GOOGLE_CLIENT_ID=your_google_oauth_client_id
    npm run dev
    ```
 
-The application will be running at `http://localhost:5173/`.
+The application will be available locally at `http://localhost:5173/`.
 
 ## 📄 License
 
-This project is licensed under the ISC License.
+This project is licensed under the MIT License.
