@@ -57,6 +57,20 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+/* Forces popovers, calendars and dropdown portals rendered inside modals/drawers to accept clicks */
+[data-radix-popper-content-wrapper] {
+  pointer-events: auto !important;
+  z-index: 9999 !important;
+}
+
+.rdp-button,
+.rdp-day,
+button[name="day"],
+.rdp-nav_button {
+  cursor: pointer !important;
+  pointer-events: auto !important;
+}
+
 .recurring-control button span {
   text-transform: capitalize !important;
 }

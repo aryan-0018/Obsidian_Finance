@@ -11,8 +11,9 @@ node_modules
 dist
 dist-ssr
 *.local
-import-transaction-dialog
-_billing.tsx
+.env
+.env.*
+!.env.example
 
 # Editor directories and files
 .vscode/*

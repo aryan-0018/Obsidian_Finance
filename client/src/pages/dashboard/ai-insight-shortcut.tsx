@@ -17,12 +17,12 @@ export default function AiInsightShortcut() {
                 </div>
                 <h3 className="text-lg font-light tracking-tight text-[#c1a063] mb-2 truncate">Obsidian Intelligence</h3>
                 <p className="text-sm text-neutral-400 font-light leading-relaxed">
-                    Access elite predictive financial modeling and bespoke wealth accumulation insights powered by our proprietary Gemini engine.
+                    Get intelligent spending breakdowns, cash flow analysis, and financial insights powered by Gemini AI.
                 </p>
             </div>
 
             <div className="mt-4 flex items-center text-sm font-light text-[#c1a063] group-hover:text-white transition-colors">
-                Generate Portfolio Insight
+                View Financial Insights
                 <ArrowRight className="ml-2 h-4 w-4 transform group-hover:translate-x-1 transition-transform" />
             </div>
         </div>

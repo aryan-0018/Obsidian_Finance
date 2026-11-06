@@ -1,166 +1,201 @@
 import PageLayout from "@/components/page-layout";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
-import { PieChart, Shield, LayoutDashboard, Database } from "lucide-react";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
+import {
+  Shield,
+  LayoutDashboard,
+  Database,
+  FileCheck,
+} from "lucide-react";
 
 const Help = () => {
-    return (
-        <PageLayout
-            title="Obsidian Wealth Guide"
-            subtitle="Comprehensive instructions on managing your portfolio and leveraging our proprietary intelligence."
-            addMarginTop
-        >
-            <div className="flex flex-col gap-8 max-w-4xl mx-auto pb-10">
+  return (
+    <PageLayout
+      title="Obsidian Wealth & Platform Guide"
+      subtitle="Comprehensive documentation on configuring, managing, and maximizing your Obsidian Finance ecosystem."
+      addMarginTop
+    >
+      <div className="flex flex-col gap-8 max-w-4xl mx-auto pb-12">
+        {/* Section I: Dashboard & Live Metrics */}
+        <Card className="border shadow-none bg-[#111] border-[#2a2520]">
+          <CardHeader className="pb-4 border-b border-[#2a2520]">
+            <CardTitle className="flex items-center gap-3 text-[#c1a063] font-serif font-light tracking-wide text-2xl">
+              <LayoutDashboard className="w-6 h-6" />
+              I. Executive Dashboard & Metrics
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <Accordion type="single" collapsible className="w-full">
+              <AccordionItem value="dash-1" className="border-[#2a2520]">
+                <AccordionTrigger className="text-white hover:text-[#c1a063] hover:no-underline font-light tracking-wide">
+                  Understanding Summary Metrics & Balance Calculation
+                </AccordionTrigger>
+                <AccordionContent className="text-[#e8e0d4]/70 leading-relaxed font-light space-y-2">
+                  <p>
+                    The dashboard consolidates your incoming cash flows and expenditures in real-time.
+                  </p>
+                  <ul className="list-disc pl-5 space-y-1 text-sm text-[#e8e0d4]/80">
+                    <li>
+                      <strong>Total Balance:</strong> Current calculated net capital derived from all inflows minus outflows.
+                    </li>
+                    <li>
+                      <strong>Income & Expenses:</strong> Dynamic aggregations respecting your selected date window (e.g., This Month, Last 30 Days, Year-to-Date, or All Time).
+                    </li>
+                    <li>
+                      <strong>Remaining Budget:</strong> Strict tracking against your personalized Monthly Budget ceiling, functioning independently of current income.
+                    </li>
+                  </ul>
+                </AccordionContent>
+              </AccordionItem>
 
-                {/* Section I: The Dashboard */}
-                <Card className="border shadow-none bg-[#111] border-[#2a2520]">
-                    <CardHeader className="pb-4 border-b border-[#2a2520]">
-                        <CardTitle className="flex items-center gap-3 text-[#c1a063] font-serif font-light tracking-wide text-2xl">
-                            <LayoutDashboard className="w-6 h-6" />
-                            I. The Intelligence Dashboard
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-6">
-                        <Accordion type="single" collapsible className="w-full">
-                            <AccordionItem value="item-1" className="border-[#2a2520]">
-                                <AccordionTrigger className="text-white hover:text-[#c1a063] hover:no-underline font-light tracking-wide">
-                                    Understanding the Summary Analytics
-                                </AccordionTrigger>
-                                <AccordionContent className="text-[#e8e0d4]/70 leading-relaxed font-light">
-                                    The dashboard provides real-time oversight of your wealth.
-                                    The <strong>Income</strong> and <strong>Expenses</strong> cards aggregate transactions executed within your designated date bounds.
-                                    The <strong>Remaining Budget</strong> strictly tracks your expenses against your defined Lifetime Budget Limit, completely independent of incoming capital.
-                                    Adjust the date pickers dynamically to filter legacy metrics.
-                                </AccordionContent>
-                            </AccordionItem>
-                            <AccordionItem value="item-2" className="border-[#2a2520]">
-                                <AccordionTrigger className="text-white hover:text-[#c1a063] hover:no-underline font-light tracking-wide">
-                                    Editing the Absolute Budget Limit
-                                </AccordionTrigger>
-                                <AccordionContent className="text-[#e8e0d4]/70 leading-relaxed font-light">
-                                    Within the 'Remaining' metric card on the dashboard, hover over the established budget value (e.g., / ₹500,000.00).
-                                    Click the <strong>edit icon</strong> to re-calibrate your monthly or absolute spending ceiling.
-                                    This instantly repopulates the available budget differential.
-                                </AccordionContent>
-                            </AccordionItem>
-                        </Accordion>
-                    </CardContent>
-                </Card>
+              <AccordionItem value="dash-2" className="border-[#2a2520]">
+                <AccordionTrigger className="text-white hover:text-[#c1a063] hover:no-underline font-light tracking-wide">
+                  Calibrating Your Spending Budget & Monthly Ceilings
+                </AccordionTrigger>
+                <AccordionContent className="text-[#e8e0d4]/70 leading-relaxed font-light">
+                  On the <strong>Remaining Budget</strong> card on your dashboard, locate the target spending limit. Click the edit icon to adjust your monthly ceiling. The gauge and percentage metrics update instantly across the entire application.
+                </AccordionContent>
+              </AccordionItem>
 
-                {/* Section II: The Ledger */}
-                <Card className="border shadow-none bg-[#111] border-[#2a2520]">
-                    <CardHeader className="pb-4 border-b border-[#2a2520]">
-                        <CardTitle className="flex items-center gap-3 text-[#c1a063] font-serif font-light tracking-wide text-2xl">
-                            <Database className="w-6 h-6" />
-                            II. Ledger & Transactions
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-6">
-                        <Accordion type="single" collapsible className="w-full">
-                            <AccordionItem value="item-1" className="border-[#2a2520]">
-                                <AccordionTrigger className="text-white hover:text-[#c1a063] hover:no-underline font-light tracking-wide">
-                                    Executing Capital Transfers (Adding Entries)
-                                </AccordionTrigger>
-                                <AccordionContent className="text-[#e8e0d4]/70 leading-relaxed font-light">
-                                    Navigate to <strong>Transactions</strong> and select 'Add Transaction'.
-                                    Define the principal <em>Amount</em>, assign an institutional <em>Category</em> (e.g., Equity, Real Estate, Procurement),
-                                    and declare whether it is an Inflow (Income) or Outflow (Expense).
-                                </AccordionContent>
-                            </AccordionItem>
-                            <AccordionItem value="item-2" className="border-[#2a2520]">
-                                <AccordionTrigger className="text-white hover:text-[#c1a063] hover:no-underline font-light tracking-wide">
-                                    Automated CSV Auto-Mapping
-                                </AccordionTrigger>
-                                <AccordionContent className="text-[#e8e0d4]/70 leading-relaxed font-light">
-                                    To import bulk institutional data, use the <strong>Import</strong> utility.
-                                    Upload a standard `.csv` file.
-                                    If your file contains header names matching the required schema (`amount`, `date`, `category`, `payee`, `notes`),
-                                    Obsidian Intelligence will <strong>automatically map</strong> the fields and bypass manual classification, importing hundreds of ledgers in seconds.
-                                </AccordionContent>
-                            </AccordionItem>
-                            <AccordionItem value="item-3" className="border-[#2a2520]">
-                                <AccordionTrigger className="text-white hover:text-[#c1a063] hover:no-underline font-light tracking-wide">
-                                    Exporting Secure Reports to Email
-                                </AccordionTrigger>
-                                <AccordionContent className="text-[#e8e0d4]/70 leading-relaxed font-light">
-                                    Need external reporting? Click <strong>Export</strong> from the Transactions ledger.
-                                    You may instruct the system to filter by specific dates, types, or ledgers.
-                                    Upon initiation, the system compiles a Base64 encoded CSV attachment and securely dispatches it directly to your registered private email inbox via Resend.
-                                </AccordionContent>
-                            </AccordionItem>
-                        </Accordion>
-                    </CardContent>
-                </Card>
+              <AccordionItem value="dash-3" className="border-[#2a2520]">
+                <AccordionTrigger className="text-white hover:text-[#c1a063] hover:no-underline font-light tracking-wide">
+                  Filtering Historical Time Horizons
+                </AccordionTrigger>
+                <AccordionContent className="text-[#e8e0d4]/70 leading-relaxed font-light">
+                  Use the global date range selector at the top-right of the dashboard to toggle between presets (e.g. <em>This Month</em>, <em>Last Month</em>, <em>Last 30 Days</em>, <em>This Year</em>, or <em>All Time</em>) or pick explicit custom calendar ranges.
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          </CardContent>
+        </Card>
 
-                {/* Section III: Intelligence & Analytics */}
-                <Card className="border shadow-none bg-[#111] border-[#2a2520]">
-                    <CardHeader className="pb-4 border-b border-[#2a2520]">
-                        <CardTitle className="flex items-center gap-3 text-[#c1a063] font-serif font-light tracking-wide text-2xl">
-                            <PieChart className="w-6 h-6" />
-                            III. AI Intelligence & Analytics
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-6">
-                        <Accordion type="single" collapsible className="w-full">
-                            <AccordionItem value="item-1" className="border-[#2a2520]">
-                                <AccordionTrigger className="text-white hover:text-[#c1a063] hover:no-underline font-light tracking-wide">
-                                    Consulting Obsidian AI
-                                </AccordionTrigger>
-                                <AccordionContent className="text-[#e8e0d4]/70 leading-relaxed font-light">
-                                    The dashboard features the <strong>Obsidian Intelligence</strong> module.
-                                    Click 'Ask AI' to interrogate your proprietary financial data.
-                                    The AI analyzes your entire ledger history, calculating velocity of spend, category risk, and trajectory, outputting hyper-specific executive summaries.
-                                </AccordionContent>
-                            </AccordionItem>
-                            <AccordionItem value="item-2" className="border-[#2a2520]">
-                                <AccordionTrigger className="text-white hover:text-[#c1a063] hover:no-underline font-light tracking-wide">
-                                    Reviewing Categorical Breakdowns
-                                </AccordionTrigger>
-                                <AccordionContent className="text-[#e8e0d4]/70 leading-relaxed font-light">
-                                    Under <strong>Analytics</strong>, observe macroscopic overviews of capital flow.
-                                    Visualize precise allocation percentages across asset classes and expenditures via the integrated pie charts, allowing for immediate re-balancing decisions.
-                                </AccordionContent>
-                            </AccordionItem>
-                        </Accordion>
-                    </CardContent>
-                </Card>
+        {/* Section II: Ledger & Transaction Operations */}
+        <Card className="border shadow-none bg-[#111] border-[#2a2520]">
+          <CardHeader className="pb-4 border-b border-[#2a2520]">
+            <CardTitle className="flex items-center gap-3 text-[#c1a063] font-serif font-light tracking-wide text-2xl">
+              <Database className="w-6 h-6" />
+              II. Ledger Management & Smart Ingestion
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <Accordion type="single" collapsible className="w-full">
+              <AccordionItem value="tx-1" className="border-[#2a2520]">
+                <AccordionTrigger className="text-white hover:text-[#c1a063] hover:no-underline font-light tracking-wide">
+                  Recording Inflows & Outflows
+                </AccordionTrigger>
+                <AccordionContent className="text-[#e8e0d4]/70 leading-relaxed font-light">
+                  Open the <strong>Add Transaction</strong> drawer from the dashboard or transactions page. Input the exact amount, date, payment method (Cash, Card, Bank Transfer, Auto-Debit), and classification. You can also flag recurring transfers with custom intervals (Daily, Weekly, Monthly, Yearly).
+                </AccordionContent>
+              </AccordionItem>
 
-                {/* Section IV: Account Security & Settings */}
-                <Card className="border shadow-none bg-[#111] border-[#2a2520]">
-                    <CardHeader className="pb-4 border-b border-[#2a2520]">
-                        <CardTitle className="flex items-center gap-3 text-[#c1a063] font-serif font-light tracking-wide text-2xl">
-                            <Shield className="w-6 h-6" />
-                            IV. Security & System Configuration
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-6">
-                        <Accordion type="single" collapsible className="w-full">
-                            <AccordionItem value="item-1" className="border-[#2a2520]">
-                                <AccordionTrigger className="text-white hover:text-[#c1a063] hover:no-underline font-light tracking-wide">
-                                    Currency Calibration
-                                </AccordionTrigger>
-                                <AccordionContent className="text-[#e8e0d4]/70 leading-relaxed font-light">
-                                    Ensure strict accuracy by setting your base currency.
-                                    Navigate to <strong>Settings {">"} Account</strong>.
-                                    Modify the display currency (e.g., INR or USD). The entire application's formatting protocols will instantaneously adapt.
-                                </AccordionContent>
-                            </AccordionItem>
-                            <AccordionItem value="item-2" className="border-[#2a2520]">
-                                <AccordionTrigger className="text-white hover:text-[#c1a063] hover:no-underline font-light tracking-wide">
-                                    Obsidian Private Wealth Status
-                                </AccordionTrigger>
-                                <AccordionContent className="text-[#e8e0d4]/70 leading-relaxed font-light">
-                                    Under <strong>Settings {">"} Billings</strong>, you can review your access tier.
-                                    You hold the <em>Private Wealth</em> designation, guaranteeing lifetime complimentary access to all high-performance analytics and infrastructure without recurring friction.
-                                </AccordionContent>
-                            </AccordionItem>
-                        </Accordion>
-                    </CardContent>
-                </Card>
+              <AccordionItem value="tx-2" className="border-[#2a2520]">
+                <AccordionTrigger className="text-white hover:text-[#c1a063] hover:no-underline font-light tracking-wide">
+                  AI Receipt Scanner (Optical Extraction)
+                </AccordionTrigger>
+                <AccordionContent className="text-[#e8e0d4]/70 leading-relaxed font-light">
+                  Inside the transaction creation drawer, use the <strong>Scan Receipt</strong> tool to upload a photo or invoice screenshot. Powered by Gemini Multimodal AI, the scanner extracts the merchant name, date, total amount, and category, pre-populating the form automatically.
+                </AccordionContent>
+              </AccordionItem>
 
-            </div>
-        </PageLayout>
-    );
+              <AccordionItem value="tx-3" className="border-[#2a2520]">
+                <AccordionTrigger className="text-white hover:text-[#c1a063] hover:no-underline font-light tracking-wide">
+                  CSV Bulk Ingestion & Column Mapping
+                </AccordionTrigger>
+                <AccordionContent className="text-[#e8e0d4]/70 leading-relaxed font-light">
+                  Use the <strong>Import</strong> button on the transactions page to upload bank statements in `.csv` format. Obsidian's intelligent column mapper matches header variations (such as <em>Debit</em>, <em>Cost</em>, <em>Payee</em>, <em>Transaction Date</em>) and previews valid rows prior to database ingestion.
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="tx-4" className="border-[#2a2520]">
+                <AccordionTrigger className="text-white hover:text-[#c1a063] hover:no-underline font-light tracking-wide">
+                  Data Portability & Secure CSV Export
+                </AccordionTrigger>
+                <AccordionContent className="text-[#e8e0d4]/70 leading-relaxed font-light">
+                  Export your full ledger or filtered queries anytime by selecting <strong>Export</strong>. Choose the format and timeframe, and a verified CSV file will be dispatched directly to your registered email address.
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          </CardContent>
+        </Card>
+
+        {/* Section III: Reports & Intelligence */}
+        <Card className="border shadow-none bg-[#111] border-[#2a2520]">
+          <CardHeader className="pb-4 border-b border-[#2a2520]">
+            <CardTitle className="flex items-center gap-3 text-[#c1a063] font-serif font-light tracking-wide text-2xl">
+              <FileCheck className="w-6 h-6" />
+              III. AI Intelligence & Financial Reports
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <Accordion type="single" collapsible className="w-full">
+              <AccordionItem value="rep-1" className="border-[#2a2520]">
+                <AccordionTrigger className="text-white hover:text-[#c1a063] hover:no-underline font-light tracking-wide">
+                  Instant On-Demand Reports via Email
+                </AccordionTrigger>
+                <AccordionContent className="text-[#e8e0d4]/70 leading-relaxed font-light">
+                  Under the <strong>Reports</strong> page, click <strong>Instant Report</strong>. Select any period—ranging from <em>This Month</em>, <em>Last 30 Days</em>, <em>This Quarter</em>, to <em>All Time</em>. The system analyzes your income and expenses, calculates savings rates, drafts 3 custom AI financial insights, and sends a styled executive email breakdown complete with your key transaction ledger.
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="rep-2" className="border-[#2a2520]">
+                <AccordionTrigger className="text-white hover:text-[#c1a063] hover:no-underline font-light tracking-wide">
+                  Automated Recurring Reports
+                </AccordionTrigger>
+                <AccordionContent className="text-[#e8e0d4]/70 leading-relaxed font-light">
+                  Configure automated report dispatches (Weekly or Monthly) from the Reports configuration panel. The cron background service processes your period-end ledger and delivers periodic summaries without manual action.
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="rep-3" className="border-[#2a2520]">
+                <AccordionTrigger className="text-white hover:text-[#c1a063] hover:no-underline font-light tracking-wide">
+                  Conversing with Obsidian AI Assistant
+                </AccordionTrigger>
+                <AccordionContent className="text-[#e8e0d4]/70 leading-relaxed font-light">
+                  Click the <strong>AI Assistant</strong> floating pill or navigate to the AI console to query your financial database using natural language (e.g., <em>"How much did I spend on dining this month?"</em> or <em>"What is my highest expense category?"</em>).
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          </CardContent>
+        </Card>
+
+        {/* Section IV: Account, Security & Privacy */}
+        <Card className="border shadow-none bg-[#111] border-[#2a2520]">
+          <CardHeader className="pb-4 border-b border-[#2a2520]">
+            <CardTitle className="flex items-center gap-3 text-[#c1a063] font-serif font-light tracking-wide text-2xl">
+              <Shield className="w-6 h-6" />
+              IV. Security, Currency & Account Settings
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-6">
+            <Accordion type="single" collapsible className="w-full">
+              <AccordionItem value="sec-1" className="border-[#2a2520]">
+                <AccordionTrigger className="text-white hover:text-[#c1a063] hover:no-underline font-light tracking-wide">
+                  Display Currency & Localization
+                </AccordionTrigger>
+                <AccordionContent className="text-[#e8e0d4]/70 leading-relaxed font-light">
+                  Obsidian supports localized standard formatting (INR ₹ / USD $). Ensure your display preferences are synced under <strong>Settings {">"} Account</strong>.
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="sec-2" className="border-[#2a2520]">
+                <AccordionTrigger className="text-white hover:text-[#c1a063] hover:no-underline font-light tracking-wide">
+                  Session Privacy & Authentication
+                </AccordionTrigger>
+                <AccordionContent className="text-[#e8e0d4]/70 leading-relaxed font-light">
+                  Your credentials and session tokens are strictly isolated. For maximum security, sign out of shared terminals and review your registered email address under profile settings.
+                </AccordionContent>
+              </AccordionItem>
+            </Accordion>
+          </CardContent>
+        </Card>
+      </div>
+    </PageLayout>
+  );
 };
 
 export default Help;

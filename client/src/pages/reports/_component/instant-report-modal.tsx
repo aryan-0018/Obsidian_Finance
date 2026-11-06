@@ -29,6 +29,7 @@ import {
   subQuarters,
   startOfYear,
   endOfDay,
+  subDays,
 } from "date-fns";
 
 export default function InstantReportModal() {
@@ -44,7 +45,10 @@ export default function InstantReportModal() {
     let from = startOfMonth(today);
     let to = today;
 
-    if (preset === "LAST_MONTH") {
+    if (preset === "LAST_30_DAYS") {
+      from = subDays(today, 29);
+      to = today;
+    } else if (preset === "LAST_MONTH") {
       const prevMonth = subMonths(today, 1);
       from = startOfMonth(prevMonth);
       to = startOfMonth(today);
@@ -57,6 +61,9 @@ export default function InstantReportModal() {
       to = endOfQuarter(prevQ);
     } else if (preset === "THIS_YEAR") {
       from = startOfYear(today);
+      to = today;
+    } else if (preset === "ALL_TIME") {
+      from = new Date("2020-01-01T00:00:00.000Z");
       to = today;
     }
 
@@ -115,10 +122,12 @@ export default function InstantReportModal() {
               </SelectTrigger>
               <SelectContent className="bg-[#202020] border-gray-700 text-white">
                 <SelectItem value="THIS_MONTH">This Month</SelectItem>
+                <SelectItem value="LAST_30_DAYS">Last 30 Days</SelectItem>
                 <SelectItem value="LAST_MONTH">Last Month</SelectItem>
                 <SelectItem value="THIS_QUARTER">This Quarter</SelectItem>
                 <SelectItem value="LAST_QUARTER">Last Quarter</SelectItem>
                 <SelectItem value="THIS_YEAR">This Year (Year to Date)</SelectItem>
+                <SelectItem value="ALL_TIME">All Time</SelectItem>
               </SelectContent>
             </Select>
           </div>

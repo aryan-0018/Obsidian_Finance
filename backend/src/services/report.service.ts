@@ -10,7 +10,7 @@ import { calulateNextReportDate } from "../utils/helper";
 import { UpdateReportSettingType } from "../validators/report.validator";
 import { convertToUnit } from "../utils/format-currency";
 import { endOfMonth, format, startOfMonth, subMonths } from "date-fns";
-import { genAI, genAIModel } from "../config/google-ai.config";
+import { genAI, genAIModel, generateContentWithRetry } from "../config/google-ai.config";
 import { createUserContent } from "@google/genai";
 import { reportInsightPrompt } from "../utils/prompt";
 import { sendReportEmail } from "../mailers/report.mailer";
@@ -74,8 +74,6 @@ export const updateReportSettingService = async (
     }
   }
 
-  console.log(nextReportDate, "nextReportDate");
-
   existingReportSetting.set({
     ...body,
     nextReportDate,
@@ -114,6 +112,7 @@ export const resendReportService = async (
       savingsRate: generated?.summary.savingsRate || 0,
       topSpendingCategories: generated?.summary.topCategories || [],
       insights: generated?.insights || ["Monthly financial summary"],
+      recentTransactions: generated?.recentTransactions || [],
     },
     frequency,
   });
@@ -141,9 +140,6 @@ export const createInstantReportService = async (
   const user = await UserModel.findById(userId);
   if (!user) throw new NotFoundException("User not found");
 
-  const setting = await ReportSettingModel.findOne({ userId });
-  const frequency = setting?.frequency || "MONTHLY";
-
   let emailSent = false;
   if (shouldSendEmail && user.email) {
     try {
@@ -158,8 +154,9 @@ export const createInstantReportService = async (
           savingsRate: report.summary.savingsRate,
           topSpendingCategories: report.summary.topCategories,
           insights: report.insights,
+          recentTransactions: report.recentTransactions,
         },
-        frequency,
+        frequency: "Instant",
       });
       emailSent = true;
     } catch (err) {
@@ -270,8 +267,6 @@ export const generateReportService = async (
     categories = [],
   } = results[0] || {};
 
-  console.log(results[0], "results");
-
   const byCategory = categories.reduce(
     (acc: any, { _id, total }: any) => {
       acc[_id] = {
@@ -287,7 +282,34 @@ export const generateReportService = async (
   const availableBalance = totalIncome - totalExpenses;
   const savingsRate = calculateSavingRate(totalIncome, totalExpenses);
 
-  const periodLabel = `${format(fromDate, "MMMM d")} - ${format(toDate, "d, yyyy")}`;
+  // Accurate period formatting
+  const fromMonth = format(fromDate, "MMMM");
+  const toMonth = format(toDate, "MMMM");
+  const fromYear = format(fromDate, "yyyy");
+  const toYear = format(toDate, "yyyy");
+
+  let periodLabel = `${fromMonth} ${format(fromDate, "d")} - ${toMonth} ${format(toDate, "d, yyyy")}`;
+  if (fromYear === toYear && fromMonth === toMonth) {
+    periodLabel = `${fromMonth} ${format(fromDate, "d")} - ${format(toDate, "d, yyyy")}`;
+  } else if (fromYear !== toYear) {
+    periodLabel = `${format(fromDate, "MMM d, yyyy")} - ${format(toDate, "MMM d, yyyy")}`;
+  }
+
+  // Fetch transactions during this period for detailed email representation
+  const rawTransactions = await TransactionModel.find({
+    userId: new mongoose.Types.ObjectId(userId),
+    date: { $gte: fromDate, $lte: toDate },
+  })
+    .sort({ date: -1 })
+    .limit(20);
+
+  const recentTransactions = rawTransactions.map((tx) => ({
+    title: tx.title,
+    category: tx.category,
+    type: tx.type,
+    amount: Math.abs(tx.amount),
+    date: tx.date,
+  }));
 
   const insights = await generateInsightsAI({
     totalIncome,
@@ -311,6 +333,7 @@ export const generateReportService = async (
         percent: cat.percentage,
       })),
     },
+    recentTransactions,
     insights,
   };
 };
@@ -340,8 +363,7 @@ async function generateInsightsAI({
       periodLabel,
     });
 
-    const result = await genAI.models.generateContent({
-      model: genAIModel,
+    const result = await generateContentWithRetry({
       contents: [createUserContent([prompt])],
       config: {
         responseMimeType: "application/json",

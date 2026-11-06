@@ -4,6 +4,7 @@ import { useState } from "react";
 import { DateRangeType } from "@/components/date-range-select";
 import DashboardSummary from "@/pages/dashboard/dashboard-summary";
 import AiInsights from "./ai-insights";
+import AiAdvisorChat from "./ai-advisor-chat";
 import EditableBalanceCard from "@/pages/dashboard/editable-balance-card";
 
 const Analytics = () => {
@@ -17,18 +18,19 @@ const Analytics = () => {
                     <DashboardSummary
                         dateRange={dateRange}
                         setDateRange={_setDateRange}
-                        title="Quantitative Analytics"
-                        subtitle="Prescriptive metrics, cashflow velocity, and algorithmic portfolio trajectory"
                     />
                 }
             >
                 <div className="mb-6">
                     <h2 className="text-2xl font-light tracking-tight text-foreground">Advanced Analytics</h2>
-                    <p className="text-muted-foreground mt-1">Deep dive into your financial trajectory and category intensity.</p>
+                    <p className="text-muted-foreground mt-1">Deep dive into your financial spending and category trends.</p>
                 </div>
 
                 {/* Main Shared Portfolio Logic */}
                 <EditableBalanceCard />
+
+                {/* AI Interactive Chat Advisor */}
+                <AiAdvisorChat />
 
                 {/* AI Insights Engine */}
                 <AiInsights />

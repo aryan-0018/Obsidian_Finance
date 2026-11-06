@@ -7,6 +7,7 @@ import {
   expensePieChartBreakdownService,
   summaryAnalyticsService,
   generateAiInsightsService,
+  chatWithAiFinancialAdvisorService,
 } from "../services/analytics.service";
 
 export const summaryAnalyticsController = asyncHandler(
@@ -98,3 +99,29 @@ export const generateAiInsightsController = asyncHandler(
     });
   }
 );
+
+export const chatAiAdvisorController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = req.user?._id;
+    if (!userId) {
+      return res.status(HTTPSTATUS.UNAUTHORIZED).json({ message: "Unauthorized" });
+    }
+
+    const { message, history } = req.body;
+    if (!message || typeof message !== "string") {
+      return res.status(HTTPSTATUS.BAD_REQUEST).json({ message: "A message string is required" });
+    }
+
+    const result = await chatWithAiFinancialAdvisorService(
+      userId as string,
+      message,
+      Array.isArray(history) ? history : []
+    );
+
+    return res.status(HTTPSTATUS.OK).json({
+      message: "AI Advisor response generated",
+      ...result,
+    });
+  }
+);
+

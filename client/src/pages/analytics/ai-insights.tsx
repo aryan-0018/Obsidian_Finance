@@ -44,7 +44,7 @@ export default function AiInsights() {
             </div>
 
             <p className="text-sm text-neutral-400 mb-6 font-light">
-                Leverage our proprietary AI data models to analyze your recent cash flow velocity and wealth trajectory.
+                Analyze your recent spending patterns, cash flow, and financial trends with AI.
             </p>
 
             {!insight ? (
@@ -54,7 +54,7 @@ export default function AiInsights() {
                     className="bg-[#c1a063] hover:bg-[#a88a4e] text-black w-full sm:w-auto font-light"
                 >
                     {isLoading ? <Loader className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
-                    {isLoading ? "Synthesizing Data..." : "Generate Portfolio Insight"}
+                    {isLoading ? "Analyzing Data..." : "Generate Spending Insights"}
                 </Button>
             ) : (
                 <div className="space-y-4">
@@ -62,7 +62,7 @@ export default function AiInsights() {
                         {isLoading ? (
                             <div className="flex items-center text-[#c1a063]">
                                 <Loader className="h-4 w-4 animate-spin mr-2" />
-                                <span className="animate-pulse">Synthesizing real-time mathematical models...</span>
+                                <span className="animate-pulse">Analyzing your financial trends...</span>
                             </div>
                         ) : (
                             Array.isArray(insight) ? (

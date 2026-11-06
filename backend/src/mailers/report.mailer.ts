@@ -7,7 +7,7 @@ type ReportEmailParams = {
   email: string;
   username: string;
   report: ReportType;
-  frequency: string;
+  frequency?: string;
 };
 
 export const sendReportEmail = async (params: ReportEmailParams) => {
@@ -20,7 +20,11 @@ export const sendReportEmail = async (params: ReportEmailParams) => {
     frequency
   );
 
-  const text = `Your ${frequency} Financial Report (${report.period})
+  const subjectPrefix = frequency && !["INSTANT", "CUSTOM"].includes(frequency.toUpperCase())
+    ? `${frequency} Financial Report`
+    : `Financial Report`;
+
+  const text = `Your ${subjectPrefix} (${report.period})
     Income: ${formatCurrency(report.totalIncome)}
     Expenses: ${formatCurrency(report.totalExpenses)}
     Balance: ${formatCurrency(report.availableBalance)}
@@ -29,11 +33,9 @@ export const sendReportEmail = async (params: ReportEmailParams) => {
     ${report.insights.join("\n")}
 `;
 
-  console.log(text, "text mail");
-
   return sendEmail({
     to: email,
-    subject: `${frequency} Financial Report - ${report.period}`,
+    subject: `${subjectPrefix} - ${report.period}`,
     text,
     html,
   });

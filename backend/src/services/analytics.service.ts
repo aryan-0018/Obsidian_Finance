@@ -1,14 +1,36 @@
 import mongoose, { PipelineStage } from "mongoose";
 import { DateRangeEnum, DateRangePreset } from "../enums/date-range.enum";
 import TransactionModel, {
+  PaymentMethodEnum,
   TransactionTypeEnum,
 } from "../models/transaction.model";
 import { getDateRange } from "../utils/date";
-import { differenceInDays, subDays, subYears } from "date-fns";
+import {
+  differenceInDays,
+  subDays,
+  subYears,
+  startOfMonth,
+  subMonths,
+  startOfQuarter,
+  endOfQuarter,
+  subQuarters,
+  startOfYear,
+  endOfDay,
+} from "date-fns";
 import { convertToUnit } from "../utils/format-currency";
-import { genAI, genAIModel } from "../config/google-ai.config";
+import {
+  genAI,
+  genAIModel,
+  generateContentWithRetry,
+} from "../config/google-ai.config";
 import { Env } from "../config/env.config";
-import { getBudgetService } from "./budget.service";
+import { getBudgetService, updateBudgetService } from "./budget.service";
+import {
+  createTransactionService,
+  deleteTransactionService,
+  updateTransactionService,
+} from "./transaction.service";
+import { createInstantReportService } from "./report.service";
 
 export const summaryAnalyticsService = async (
   userId: string,
@@ -133,8 +155,6 @@ export const summaryAnalyticsService = async (
   // True remaining budget calculation: independent of Income
   const remainingBudget = budgetLimit - totalExpenses;
 
-  console.log(current, "current");
-
   let percentageChange: any = {
     income: 0,
     expenses: 0,
@@ -152,7 +172,6 @@ export const summaryAnalyticsService = async (
     //last 30 days  previous las 30 days,
 
     const period = differenceInDays(to, from) + 1;
-    console.log(`${differenceInDays(to, from)}`, period, "period");
 
     const isYearly = [
       DateRangeEnum.LAST_YEAR,
@@ -162,7 +181,6 @@ export const summaryAnalyticsService = async (
     const prevPeriodFrom = isYearly ? subYears(from, 1) : subDays(from, period);
 
     const prevPeriodTo = isYearly ? subYears(to, 1) : subDays(to, period);
-    console.log(prevPeriodFrom, prevPeriodTo, "Prev date");
 
     const prevPeriodPipeline = [
       {
@@ -201,7 +219,6 @@ export const summaryAnalyticsService = async (
 
     const [previous] = await TransactionModel.aggregate(prevPeriodPipeline);
 
-    console.log(previous, "Prvious Data");
     if (previous) {
       const prevIncome = previous.totalIncome || 0;
       const prevExpenses = previous.totalExpenses || 0;
@@ -524,8 +541,8 @@ export const generateAiInsightsService = async (userId: string) => {
   const expenseBreakdown = await expensePieChartBreakdownService(userId);
 
   const prompt = `
-    You are a strictly analytical Quantitative Analyst for ObsidianFinance.
-    Analyze the precise statistical breakdown of the portfolio metrics.
+    You are a financial analyst for Obsidian Finance.
+    Analyze the user's finances and provide clear, practical insights.
     
     Financial Summary:
     Total Income: ₹${summary.totalIncome}
@@ -546,13 +563,12 @@ export const generateAiInsightsService = async (userId: string) => {
     2. Format exactly like: ["Point 1", "Point 2", "Point 3"]
     3. Use Indian Rupees (₹) for all currencies. 
     4. Exclude all conversational filler, fluff, warnings, or moral advice.
-    5. Provide strictly advanced statistical analysis based entirely on the provided portfolio metrics.
+    5. Provide concise, realistic financial insights based on the user's spending and income.
     6. Ensure maximum 4 elements in the array.
   `;
 
   try {
-    const response = await genAI.models.generateContent({
-      model: genAIModel,
+    const response = await generateContentWithRetry({
       contents: prompt,
     });
 
@@ -564,6 +580,385 @@ export const generateAiInsightsService = async (userId: string) => {
     return Array.isArray(insightsArray) ? insightsArray : [text];
   } catch (error) {
     console.error("Gemini AI generation failed", error);
-    return ["Our mathematical models are currently calibrating. Please review the portfolio metrics manually."];
+    return ["AI insights are temporarily unavailable. Please try again shortly."];
   }
 };
+
+export const chatWithAiFinancialAdvisorService = async (
+  userId: string,
+  userMessage: string,
+  history: Array<{ role: "user" | "model"; parts: string }> = []
+) => {
+  if (!Env.GEMINI_API_KEY) {
+    throw new Error("GEMINI_API_KEY is missing from environment variables");
+  }
+
+  const transactions = await TransactionModel.find({
+    userId: new mongoose.Types.ObjectId(userId),
+  })
+    .sort({ date: -1 })
+    .limit(30)
+    .lean();
+
+  const summary = await summaryAnalyticsService(userId);
+  const expenseBreakdown = await expensePieChartBreakdownService(userId);
+
+  const todayStr = new Date().toISOString().split("T")[0];
+
+  const contextPrompt = `
+You are the Obsidian Finance AI Financial Assistant.
+You are embedded inside a luxury financial portfolio management platform.
+You have FULL AUTHORITY to execute financial actions on the user's behalf (add transactions, delete transactions, edit/update transactions and their dates, set budgets, generate reports) OR answer financial queries.
+
+CURRENT SYSTEM DATE: ${todayStr}
+
+CURRENT USER PORTFOLIO DATA:
+- Total Income: ₹${summary.totalIncome}
+- Total Expenses: ₹${summary.totalExpenses}
+- Available Balance: ₹${summary.availableBalance}
+- Savings Rate: ${summary.savingRate?.percentage || 0}%
+- Top Spending Categories: ${
+    expenseBreakdown.breakdown
+      .map((cat: any) => `${cat._id || cat.name}: ₹${cat.value}`)
+      .join(", ") || "None recorded yet"
+  }
+- Recent Transactions (latest 30):
+${
+  transactions
+    .map(
+      (t) =>
+        `* [ID: ${t._id}] ${new Date(t.date).toISOString().split("T")[0]}: ${
+          t.type
+        } of ₹${convertToUnit(t.amount)} in "${t.category}" - "${t.title}" (${
+          t.description || "N/A"
+        })`
+    )
+    .join("\n") || "No transactions recorded yet"
+}
+
+ALLOWED ACTIONS:
+1. "ADD_TRANSACTION": If the user wants to add an expense or income (e.g., "I spent 450 on coffee yesterday", "Add my 80000 salary on 2026-11-01").
+   Params: title (string), amount (positive number in INR), type ("INCOME" | "EXPENSE"), category (one of: groceries, dining, transportation, utilities, entertainment, shopping, healthcare, travel, housing, income, investments, other), paymentMethod ("CARD", "CASH", "BANK_TRANSFER", "AUTO_DEBIT", "MOBILE_PAYMENT", "OTHER"), date (ISO string YYYY-MM-DD, e.g. "2026-11-05", defaults to current date if not specified), description (optional).
+2. "DELETE_TRANSACTION": If the user wants to delete/remove a transaction (e.g., "Delete the coffee expense", "Remove my last transaction").
+   Params: keyword (e.g., "coffee", "last", or transaction title).
+3. "UPDATE_TRANSACTION": If the user wants to modify an existing transaction, including changing its date, amount, title, or category (e.g., "Change the date of my coffee expense to yesterday", "Move my salary transaction to Nov 1", "Update the amount of dinner to 1200").
+   Params: keyword (to match title or transaction ID), date (ISO string YYYY-MM-DD or full ISO date when user asks to adjust/change the date), amount (optional number), title (optional string), category (optional string).
+4. "SET_BUDGET": If the user wants to set or adjust their monthly budget limit (e.g., "Set budget to 50000").
+   Params: limit (positive number).
+5. "GENERATE_REPORT": If the user wants a financial report or summary for a period (e.g., "Generate report for this month", "Show my last quarter report").
+   Params: period ("THIS_MONTH" | "LAST_MONTH" | "THIS_QUARTER" | "THIS_YEAR"), sendEmail (boolean, DEFAULT FALSE. Only set to true if user explicitly mentions "email it to me", "send to my email", or "mail me").
+6. "NONE": For purely analytical questions, advisory tips, or portfolio assessments.
+
+OUTPUT FORMAT REQUIREMENTS:
+Output strictly valid JSON matching this schema.
+Write in a natural, elegant, human financial advisor tone. DO NOT use generic robotic phrases, pseudo-statistical filler, or raw markdown headers (###, **).
+{
+  "action": "ADD_TRANSACTION" | "DELETE_TRANSACTION" | "UPDATE_TRANSACTION" | "SET_BUDGET" | "GENERATE_REPORT" | "NONE",
+  "actionParams": {
+    "title": "string",
+    "amount": 0,
+    "type": "INCOME" | "EXPENSE",
+    "category": "string",
+    "paymentMethod": "CARD",
+    "date": "YYYY-MM-DD",
+    "description": "string",
+    "keyword": "string",
+    "limit": 0,
+    "period": "THIS_MONTH",
+    "sendEmail": false
+  },
+  "headline": "Short, elegant headline (e.g., 'Expense Added', 'Date Adjusted', 'Budget Updated', 'Spending Overview')",
+  "summary": "1-2 natural, clear sentences explaining what was done or answering the user directly. Never use robotic jargon or template phrases. Use Indian Rupees (₹) for values.",
+  "keyMetrics": [
+    { "label": "string", "value": "string" }
+  ],
+  "bulletPoints": [
+    "Helpful, direct insight 1",
+    "Helpful, direct insight 2"
+  ],
+  "recommendation": "Optional practical advice (or omit if action was a simple command)"
+}
+`;
+
+  try {
+    const formattedHistory = history.slice(-4).map((msg) => ({
+      role: msg.role === "user" ? ("user" as const) : ("model" as const),
+      parts: [{ text: msg.parts }],
+    }));
+
+    const contents = [
+      {
+        role: "user" as const,
+        parts: [{ text: contextPrompt }],
+      },
+      {
+        role: "model" as const,
+        parts: [
+          {
+            text: "{\"action\":\"NONE\",\"actionParams\":{},\"headline\":\"System Ready\",\"summary\":\"Obsidian Autonomous Agent initialized with full portfolio visibility and execution permissions.\",\"keyMetrics\":[],\"bulletPoints\":[],\"recommendation\":\"Ready for queries or commands.\"}",
+          },
+        ],
+      },
+      ...formattedHistory,
+      {
+        role: "user" as const,
+        parts: [{ text: userMessage }],
+      },
+    ];
+
+    const response = await generateContentWithRetry({
+      contents: contents as any,
+      config: {
+        responseMimeType: "application/json",
+      },
+    });
+
+    const rawText = response.text || "{}";
+    const cleaned = rawText.replace(/```(?:json)?\n?/g, "").trim();
+    let parsed: any = {};
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch {
+      parsed = {
+        action: "NONE",
+        headline: "Portfolio Intelligence",
+        summary: rawText,
+        keyMetrics: [],
+        bulletPoints: [],
+        recommendation: "",
+      };
+    }
+
+    // Now execute any requested financial action
+    let actionTaken: {
+      type: string;
+      description: string;
+      data?: any;
+    } | undefined = undefined;
+
+    const action = parsed.action || "NONE";
+    const params = parsed.actionParams || {};
+
+    if (action === "ADD_TRANSACTION" && params.amount) {
+      const type =
+        params.type === "INCOME"
+          ? TransactionTypeEnum.INCOME
+          : TransactionTypeEnum.EXPENSE;
+
+      const validCategories = [
+        "groceries",
+        "dining",
+        "transportation",
+        "utilities",
+        "entertainment",
+        "shopping",
+        "healthcare",
+        "travel",
+        "housing",
+        "income",
+        "investments",
+        "other",
+      ];
+
+      const category = validCategories.includes(params.category?.toLowerCase())
+        ? params.category.toLowerCase()
+        : type === TransactionTypeEnum.INCOME
+        ? "income"
+        : "other";
+
+      const validMethods = Object.values(PaymentMethodEnum);
+      const paymentMethod = validMethods.includes(params.paymentMethod)
+        ? params.paymentMethod
+        : PaymentMethodEnum.CARD;
+
+      let transactionDate = new Date();
+      if (params.date) {
+        const parsedDate = new Date(params.date);
+        if (!isNaN(parsedDate.getTime())) {
+          transactionDate = parsedDate;
+        }
+      }
+
+      const created = await createTransactionService(
+        {
+          title: params.title || "Transaction",
+          amount: Math.abs(Number(params.amount)),
+          type,
+          category,
+          date: transactionDate,
+          paymentMethod,
+          description: params.description || `Added via Obsidian AI Assistant`,
+          isRecurring: false,
+        },
+        userId
+      );
+
+      const formattedDateStr = transactionDate.toISOString().split("T")[0];
+      actionTaken = {
+        type: "ADD_TRANSACTION",
+        description: `Successfully added ${type.toLowerCase()} of ₹${Number(
+          params.amount
+        ).toLocaleString("en-IN")} for "${created.title}" under ${category} on ${formattedDateStr}.`,
+        data: created,
+      };
+    } else if (action === "DELETE_TRANSACTION") {
+      const keyword = (params.keyword || params.title || "").trim();
+      const query: any = { userId: new mongoose.Types.ObjectId(userId) };
+
+      if (keyword && keyword.toLowerCase() !== "last") {
+        query.title = { $regex: keyword, $options: "i" };
+      }
+
+      const candidate = await TransactionModel.findOne(query).sort({
+        date: -1,
+        createdAt: -1,
+      });
+
+      if (candidate) {
+        await deleteTransactionService(userId, candidate._id.toString());
+        actionTaken = {
+          type: "DELETE_TRANSACTION",
+          description: `Deleted transaction "${candidate.title}" (₹${convertToUnit(
+            candidate.amount
+          )}).`,
+          data: candidate,
+        };
+      } else {
+        actionTaken = {
+          type: "DELETE_TRANSACTION",
+          description: keyword
+            ? `No transaction found matching "${keyword}".`
+            : "No recent transactions found to delete.",
+        };
+      }
+    } else if (action === "UPDATE_TRANSACTION") {
+      const keyword = (params.keyword || params.title || "").trim();
+      let query: any = { userId: new mongoose.Types.ObjectId(userId) };
+
+      if (mongoose.Types.ObjectId.isValid(keyword)) {
+        query._id = new mongoose.Types.ObjectId(keyword);
+      } else if (keyword && keyword.toLowerCase() !== "last") {
+        query.title = { $regex: keyword, $options: "i" };
+      }
+
+      const candidate = await TransactionModel.findOne(query).sort({
+        date: -1,
+        createdAt: -1,
+      });
+
+      if (candidate) {
+        const updates: any = {};
+        if (params.amount) updates.amount = Math.abs(Number(params.amount));
+        if (params.title) updates.title = params.title;
+        if (params.category) updates.category = params.category.toLowerCase();
+        if (params.type) updates.type = params.type;
+        if (params.date) {
+          const parsedDate = new Date(params.date);
+          if (!isNaN(parsedDate.getTime())) {
+            updates.date = parsedDate;
+          }
+        }
+
+        await updateTransactionService(
+          userId,
+          candidate._id.toString(),
+          updates
+        );
+
+        const updatedDateStr = updates.date
+          ? ` on ${updates.date.toISOString().split("T")[0]}`
+          : "";
+
+        actionTaken = {
+          type: "UPDATE_TRANSACTION",
+          description: `Updated transaction "${candidate.title}"${updatedDateStr}.`,
+          data: { ...candidate.toObject(), ...updates },
+        };
+      } else {
+        actionTaken = {
+          type: "UPDATE_TRANSACTION",
+          description: `Could not find transaction matching "${keyword}" to update.`,
+        };
+      }
+    } else if (action === "SET_BUDGET" && params.limit !== undefined) {
+      const newLimit = Math.abs(Number(params.limit));
+      const budget = await updateBudgetService(userId, newLimit);
+      actionTaken = {
+        type: "SET_BUDGET",
+        description: `Monthly budget limit successfully updated to ₹${newLimit.toLocaleString(
+          "en-IN"
+        )}.`,
+        data: budget,
+      };
+    } else if (action === "GENERATE_REPORT") {
+      const now = new Date();
+      const today = endOfDay(now);
+      let from = startOfMonth(today);
+      let to = today;
+
+      const period = (params.period || "THIS_MONTH").toUpperCase();
+      if (period === "LAST_MONTH") {
+        from = startOfMonth(subMonths(today, 1));
+        to = startOfMonth(today);
+      } else if (period === "THIS_QUARTER") {
+        from = startOfQuarter(today);
+        to = today;
+      } else if (period === "LAST_QUARTER") {
+        const prevQ = subQuarters(today, 1);
+        from = startOfQuarter(prevQ);
+        to = endOfQuarter(prevQ);
+      } else if (period === "THIS_YEAR") {
+        from = startOfYear(today);
+        to = today;
+      }
+
+      const shouldEmail = Boolean(params.sendEmail);
+
+      const reportRes = await createInstantReportService(
+        userId,
+        from,
+        to,
+        shouldEmail
+      );
+
+      const periodLabels: Record<string, string> = {
+        THIS_MONTH: "this month",
+        LAST_MONTH: "last month",
+        THIS_QUARTER: "this quarter",
+        LAST_QUARTER: "last quarter",
+        THIS_YEAR: "this year",
+      };
+      const displayPeriod = periodLabels[period] || period.toLowerCase().replace("_", " ");
+
+      actionTaken = {
+        type: "GENERATE_REPORT",
+        description: shouldEmail
+          ? `Generated financial report for ${displayPeriod} and sent it to your email.`
+          : `Generated financial report for ${displayPeriod}.`,
+        data: reportRes,
+      };
+    }
+
+    const replyFallback =
+      parsed.summary +
+      (parsed.bulletPoints?.length
+        ? "\n\n" + parsed.bulletPoints.map((b: string) => `• ${b}`).join("\n")
+        : "") +
+      (parsed.recommendation ? `\n\nTip: ${parsed.recommendation}` : "");
+
+    return {
+      headline:
+        parsed.headline || (actionTaken ? "Action Completed" : "Obsidian Intelligence"),
+      summary: parsed.summary || replyFallback,
+      keyMetrics: Array.isArray(parsed.keyMetrics) ? parsed.keyMetrics : [],
+      bulletPoints: Array.isArray(parsed.bulletPoints) ? parsed.bulletPoints : [],
+      recommendation: parsed.recommendation || "",
+      actionTaken,
+      reply: replyFallback,
+    };
+  } catch (error: any) {
+    console.error("Gemini AI chat error:", error);
+    throw new Error(error.message || "Failed to communicate with AI advisor");
+  }
+};
+

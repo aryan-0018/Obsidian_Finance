@@ -87,7 +87,7 @@ export interface GetSingleTransactionResponse {
 
 export interface UpdateTransactionPayload {
   id: string;
-  transaction: CreateTransactionBody;
+  transaction: Partial<CreateTransactionBody>;
 }
 
 export interface BulkTransactionType {

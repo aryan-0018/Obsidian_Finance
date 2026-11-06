@@ -10,22 +10,28 @@ type Params = {
   attachments?: { filename: string; content: string | Buffer }[];
 };
 
-const mailer_sender = `ObsidianFinance <${Env.RESEND_MAILER_SENDER}>`;
-
 export const sendEmail = async ({
   to,
-  from = mailer_sender,
+  from,
   subject,
   text,
   html,
   attachments,
 }: Params) => {
-  return await resend.emails.send({
-    from,
+  if (!Env.RESEND_API_KEY) {
+    throw new Error("RESEND_API_KEY is not configured");
+  }
+
+  const resendSender = `ObsidianFinance <${Env.RESEND_MAILER_SENDER}>`;
+
+  const response = await resend.emails.send({
+    from: from || resendSender,
     to: Array.isArray(to) ? to : [to],
     text,
     subject,
     html,
     attachments,
   });
+
+  return response;
 };

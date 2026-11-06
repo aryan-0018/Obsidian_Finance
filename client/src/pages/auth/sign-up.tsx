@@ -27,8 +27,8 @@ const SignUp = () => {
 
             <div className="grid grid-cols-2 gap-8 mt-12 w-full max-w-lg text-left">
               <div className="border-l-2 border-[#c1a063]/40 pl-4">
-                <h3 className="text-[#c1a063] font-medium mb-1">Bespoke Reports</h3>
-                <p className="text-[#9a9080] text-sm">Automated, elite financial summaries.</p>
+                <h3 className="text-[#c1a063] font-medium mb-1">Monthly Reports</h3>
+                <p className="text-[#9a9080] text-sm">Automated, comprehensive financial summaries.</p>
               </div>
               <div className="border-l-2 border-[#c1a063]/40 pl-4">
                 <h3 className="text-[#c1a063] font-medium mb-1">Global Scale</h3>

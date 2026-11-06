@@ -54,12 +54,10 @@ export const reportInsightPrompt = ({
     )
     .join("\n");
 
-  console.log(categoryList, "category list");
-
   return `
-  You are an advanced quantitative financial system.
+  You are a smart, concise financial advisor.
 
-Your job is to provide **exactly 3 short, purely statistical insights** based strictly on the mathematical breakdown of the dataset. No conversational fluff.
+Your job is to provide **exactly 3 short, helpful insights** based on the financial breakdown of the user's dataset. Keep them clear, concise, and easy to understand.
 
 🧾 Report for: ${periodLabel}
 - Total Income: ₹${totalIncome.toFixed(2)}
@@ -71,21 +69,22 @@ Top Expense Categories:
 ${categoryList}
 
 📌 Guidelines:
-- Keep each insight to one factual, statistically grounded sentence.
+- Keep each insight to one clear, concise sentence.
 - Use only Indian Rupees (₹).
-- No greetings, no generic coaching advice, no robotic fluff. Purely numbers and trends.
+- Focus on key spending patterns, savings progress, and category trends.
 - Format your response **exactly** like this:
 
 ["Insight 1", "Insight 2", "Insight 3"]
 
 ✅ Example:
 [
-   "Capital retention is ₹7458.00, representing a savings velocity of strong mathematical stability.",
-   "Category 'Meals' accounted for 32% of total capital outflow this period.",
-   "Expense velocity sits under the target standard deviation threshold, maintaining portfolio equilibrium."
+   "Your savings rate is 42%, keeping you on track for healthy financial growth.",
+   "Category 'Meals' was your largest expense, accounting for 32% of total spending.",
+   "Total spending remained well within your income for this period."
 ]
 
-⚠️ Output only a **JSON array of 3 strings**. Do not include any explanation, markdown, or notes.
-  
+⚠️ Rules:
+- Refer to the timeframe as this period or explicitly "${periodLabel}". NEVER assume or state "monthly" unless the report is strictly a one-month duration.
+- Output only a **JSON array of 3 strings**. Do not include any explanation, markdown, or notes.
   `.trim();
 };

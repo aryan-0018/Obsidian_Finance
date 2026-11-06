@@ -18,30 +18,17 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import { ChevronDownIcon } from "lucide-react";
+import { ChevronDownIcon, Calendar as CalendarIcon, ArrowLeft } from "lucide-react";
+import { Calendar } from "@/components/ui/calendar";
+import { DateRange } from "react-day-picker";
 
-export const DateRangeEnum = {
-  LAST_30_DAYS: "30days",
-  LAST_MONTH: "lastMonth",
-  THIS_MONTH: "thisMonth",
-  THIS_QUARTER: "thisQuarter",
-  LAST_QUARTER: "lastQuarter",
-  LAST_3_MONTHS: "last3Months",
-  LAST_YEAR: "lastYear",
-  THIS_YEAR: "thisYear",
-  ALL_TIME: "allTime",
-  CUSTOM: "custom",
-} as const;
+import {
+  DateRangeEnum,
+  type DateRangeEnumType,
+  type DateRangeType,
+} from "./types";
 
-export type DateRangeEnumType =
-  (typeof DateRangeEnum)[keyof typeof DateRangeEnum];
-
-export type DateRangeType = {
-  from: Date | null;
-  to: Date | null;
-  value?: string;
-  label: string;
-} | null;
+export { DateRangeEnum, type DateRangeEnumType, type DateRangeType };
 
 type DateRangePreset = {
   label: string;
@@ -157,6 +144,12 @@ export const DateRangeSelect = ({
   defaultRange = DateRangeEnum.LAST_30_DAYS,
 }: DateRangeSelectProps) => {
   const [open, setOpen] = useState(false);
+  const [isCustomMode, setIsCustomMode] = useState(false);
+  const [customRange, setCustomRange] = useState<DateRange | undefined>(
+    dateRange?.from
+      ? { from: dateRange.from, to: dateRange.to || undefined }
+      : undefined
+  );
 
   const displayText = dateRange
     ? presets.find((p) => p.value === dateRange.value)?.label ||
@@ -172,46 +165,118 @@ export const DateRangeSelect = ({
     if (!dateRange) {
       const defaultPreset = presets.find((p) => p.value === defaultRange);
       if (defaultPreset) {
-        // console.log(defaultPreset.getRange(),"defaultPreset.getRange()")
         setDateRange(defaultPreset.getRange());
       }
     }
   }, [dateRange, defaultRange, setDateRange]);
 
+  const handleApplyCustom = () => {
+    if (customRange?.from) {
+      setDateRange({
+        from: customRange.from,
+        to: customRange.to || customRange.from,
+        value: DateRangeEnum.CUSTOM,
+        label: `${format(customRange.from, "MMM dd, y")} - ${
+          customRange.to ? format(customRange.to, "MMM dd, y") : format(customRange.from, "MMM dd, y")
+        }`,
+      });
+      setOpen(false);
+      setIsCustomMode(false);
+    }
+  };
+
   return (
-    <Popover open={open} onOpenChange={setOpen}>
+    <Popover open={open} onOpenChange={(val) => {
+      setOpen(val);
+      if (!val) setIsCustomMode(false);
+    }}>
       <PopoverTrigger asChild>
         <Button
           variant="outline"
           className={cn(
-            `w-[200px] flex items-center justify-between text-left font-normal !bg-[var(--secondary-dark-color)]
+            `w-[220px] flex items-center justify-between text-left font-normal !bg-[var(--secondary-dark-color)]
             border-gray-700 !text-white !cursor-pointer`,
             !dateRange && "text-muted-foreground"
           )}
         >
-          {displayText}
-          <ChevronDownIcon className="ml-2 h-4 w-4 opacity-50" />
+          <span className="truncate">{displayText}</span>
+          <ChevronDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-auto p-0" align="start">
-        <div className="grid py-1">
-          {presets.map((preset) => (
+        {isCustomMode ? (
+          <div className="p-3">
+            <div className="flex items-center justify-between pb-2 border-b border-gray-800 mb-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-7 text-xs flex items-center gap-1 cursor-pointer"
+                onClick={() => setIsCustomMode(false)}
+              >
+                <ArrowLeft className="h-3 w-3" />
+                Presets
+              </Button>
+              <span className="text-xs font-medium text-muted-foreground">Custom Range</span>
+            </div>
+            <Calendar
+              mode="range"
+              selected={customRange}
+              onSelect={(range) => {
+                setCustomRange(range);
+              }}
+              initialFocus
+            />
+            <div className="flex justify-end gap-2 pt-2 border-t border-gray-800 mt-2">
+              <Button
+                variant="outline"
+                size="sm"
+                className="cursor-pointer"
+                onClick={() => setIsCustomMode(false)}
+              >
+                Cancel
+              </Button>
+              <Button
+                size="sm"
+                className="cursor-pointer"
+                disabled={!customRange?.from}
+                onClick={handleApplyCustom}
+              >
+                Apply Range
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="grid py-1 min-w-[180px]">
+            {presets.map((preset) => (
+              <Button
+                key={preset.value}
+                variant="ghost"
+                className={cn(
+                  "justify-start text-left cursor-pointer",
+                  dateRange?.value === preset.value && "bg-accent text-primary"
+                )}
+                onClick={() => {
+                  setDateRange(preset.getRange());
+                  setOpen(false);
+                }}
+              >
+                {preset.label}
+              </Button>
+            ))}
+            <div className="border-t border-gray-800 my-1" />
             <Button
-              key={preset.value}
               variant="ghost"
               className={cn(
-                "justify-start text-left",
-                dateRange?.value === preset.value && "bg-accent"
+                "justify-start text-left cursor-pointer flex items-center gap-2 text-primary font-medium",
+                dateRange?.value === DateRangeEnum.CUSTOM && "bg-accent"
               )}
-              onClick={() => {
-                setDateRange(preset.getRange());
-                setOpen(false);
-              }}
+              onClick={() => setIsCustomMode(true)}
             >
-              {preset.label}
+              <CalendarIcon className="h-4 w-4" />
+              Custom Date Range...
             </Button>
-          ))}
-        </div>
+          </div>
+        )}
       </PopoverContent>
     </Popover>
   );

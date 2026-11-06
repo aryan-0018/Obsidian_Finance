@@ -1,6 +1,7 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import {
   ArrowUpDown,
+  Calendar as CalendarIcon,
   CircleDot,
   Copy,
   Loader,
@@ -29,9 +30,17 @@ import { _TRANSACTION_FREQUENCY, _TRANSACTION_TYPE } from "@/constant";
 import {
   useDeleteTransactionMutation,
   useDuplicateTransactionMutation,
+  useUpdateTransactionMutation,
 } from "@/features/transaction/transactionAPI";
 import { toast } from "sonner";
 import { useTypedSelector } from "@/app/hook";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { useState } from "react";
 
 const AmountCell = ({ amount, type }: { amount: number; type: string }) => {
   const { user } = useTypedSelector((state) => state.auth);
@@ -48,6 +57,68 @@ const AmountCell = ({ amount, type }: { amount: number; type: string }) => {
       {type === _TRANSACTION_TYPE.EXPENSE ? "-" : "+"}
       {formatCurrency(amount, { currency })}
     </div>
+  );
+};
+
+const EditableDateCell = ({ row }: { row: any }) => {
+  const transaction = row.original;
+  const transactionId = transaction._id || transaction.id;
+  const currentDate = new Date(transaction.date);
+  const [open, setOpen] = useState(false);
+  const [updateTransaction, { isLoading }] = useUpdateTransactionMutation();
+
+  const handleSelectDate = async (newDate: Date | undefined) => {
+    if (!newDate) return;
+    setOpen(false);
+    try {
+      const d = new Date(newDate);
+      d.setHours(12, 0, 0, 0);
+      await updateTransaction({
+        id: transactionId,
+        transaction: {
+          date: d.toISOString(),
+        },
+      }).unwrap();
+      toast.success(`Date updated to ${format(d, "MMM dd, yyyy")}`);
+    } catch (err: any) {
+      toast.error(err?.data?.message || "Failed to update date");
+    }
+  };
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          disabled={isLoading}
+          className="group flex items-center gap-1.5 text-xs text-left hover:text-[#c1a063] transition-colors cursor-pointer py-1 px-1.5 -ml-1.5 rounded hover:bg-neutral-800/50"
+          title="Click to edit date"
+        >
+          <span>{format(currentDate, "MMM dd, yyyy")}</span>
+          {isLoading ? (
+            <Loader className="size-3 animate-spin text-[#c1a063]" />
+          ) : (
+            <CalendarIcon className="size-3 text-neutral-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+          )}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent
+        className="w-auto p-0 z-[9999] bg-[#161616] border border-[#c1a063]/30 text-white pointer-events-auto"
+        align="start"
+        onPointerDown={(e) => e.stopPropagation()}
+        onMouseDown={(e) => e.stopPropagation()}
+      >
+        <div onPointerDown={(e) => e.stopPropagation()} onMouseDown={(e) => e.stopPropagation()}>
+          <CalendarComponent
+            mode="single"
+            selected={currentDate}
+            onSelect={handleSelectDate}
+            onDayClick={handleSelectDate}
+            initialFocus
+          />
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 };
 
@@ -163,7 +234,7 @@ export const transactionColumns: ColumnDef<TransactionType>[] = [
         <ArrowUpDown className="ml-2 h-4 w-4" />
       </Button>
     ),
-    cell: ({ row }) => format(row.original.date, "MMM dd, yyyy"),
+    cell: ({ row }) => <EditableDateCell row={row} />,
   },
   {
     accessorKey: "paymentMethod",

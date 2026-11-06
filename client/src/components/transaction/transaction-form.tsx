@@ -22,11 +22,6 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
@@ -85,6 +80,7 @@ const TransactionForm = (props: {
   const { onCloseDrawer, isEdit = false, transactionId } = props;
 
   const [isScanning, setIsScanning] = useState(false);
+  const [isCalendarOpen, setIsCalendarOpen] = useState(false);
 
   const { data, isLoading } = useGetSingleTransactionQuery(
     transactionId || "",
@@ -165,7 +161,11 @@ const TransactionForm = (props: {
       paymentMethod: values.paymentMethod,
       description: values.description || "",
       amount: Number(values.amount),
-      date: values.date.toISOString(),
+      date: (() => {
+        const d = new Date(values.date);
+        d.setHours(12, 0, 0, 0);
+        return d.toISOString();
+      })(),
       isRecurring: values.isRecurring || false,
       recurringInterval: values.frequency || null,
     };
@@ -334,47 +334,73 @@ const TransactionForm = (props: {
             <FormField
               control={form.control}
               name="date"
-              render={({ field }) => (
-                <FormItem className="flex flex-col">
-                  <FormLabel>Date</FormLabel>
-                  <Popover modal={false}>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant={"outline"}
-                          className={cn(
-                            "w-full pl-3 text-left font-normal",
-                            !field.value && "text-muted-foreground"
-                          )}
-                        >
-                          {field.value ? (
-                            format(field.value, "PPP")
-                          ) : (
-                            <span>Pick a date</span>
-                          )}
-                          <Calendar className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent
-                      className="w-auto p-0 !pointer-events-auto"
-                      align="start"
-                    >
-                      <CalendarComponent
-                        mode="single"
-                        selected={field.value}
-                        onSelect={(date) => {
-                          console.log(date);
-                          field.onChange(date); // This updates the form value
-                        }}
-                        disabled={(date) => date < new Date("2023-01-01")}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>
-              )}
+              render={({ field }) => {
+                const currentDate =
+                  field.value instanceof Date && !isNaN(field.value.getTime())
+                    ? field.value
+                    : field.value
+                    ? new Date(field.value)
+                    : new Date();
+
+                const handleDateSelect = (selectedDate: Date | undefined) => {
+                  if (selectedDate) {
+                    const d = new Date(selectedDate);
+                    d.setHours(12, 0, 0, 0);
+                    field.onChange(d);
+                    setIsCalendarOpen(false);
+                  }
+                };
+
+                return (
+                  <FormItem className="flex flex-col space-y-2">
+                    <FormLabel>Date</FormLabel>
+                    <FormControl>
+                      <Button
+                        type="button"
+                        variant={"outline"}
+                        onClick={() => setIsCalendarOpen((prev) => !prev)}
+                        className={cn(
+                          "w-full pl-3 text-left font-normal cursor-pointer flex items-center justify-between border-gray-700 bg-[#111111] text-[#e8e0d4] hover:bg-[#1a1610] hover:text-[#c1a063]",
+                          !field.value && "text-muted-foreground"
+                        )}
+                      >
+                        <span>
+                          {currentDate ? format(currentDate, "PPP") : "Pick a date"}
+                        </span>
+                        <Calendar className="ml-auto h-4 w-4 opacity-70 text-[#c1a063]" />
+                      </Button>
+                    </FormControl>
+
+                    {isCalendarOpen && (
+                      <div
+                        className="rounded-md border border-[#2a2520] bg-[#111111] p-3 flex flex-col items-center justify-center shadow-xl transition-all duration-200 animate-in fade-in-0 zoom-in-95"
+                        onPointerDown={(e) => e.stopPropagation()}
+                        onMouseDown={(e) => e.stopPropagation()}
+                      >
+                        <CalendarComponent
+                          mode="single"
+                          selected={currentDate}
+                          onSelect={handleDateSelect}
+                          onDayClick={handleDateSelect}
+                          className="rounded-md border border-gray-800/60 p-2 bg-[#0d0d0d]"
+                        />
+                        <div className="w-full flex justify-end pt-2 pr-1">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs text-muted-foreground hover:text-white cursor-pointer"
+                            onClick={() => setIsCalendarOpen(false)}
+                          >
+                            Close
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+                    <FormMessage />
+                  </FormItem>
+                );
+              }}
             />
 
             {/* Payment Method */}

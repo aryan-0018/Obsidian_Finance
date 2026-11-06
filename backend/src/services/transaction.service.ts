@@ -8,7 +8,7 @@ import {
   CreateTransactionType,
   UpdateTransactionType,
 } from "../validators/transaction.validator";
-import { genAI, genAIModel } from "../config/google-ai.config";
+import { genAI, genAIModel, generateContentWithRetry } from "../config/google-ai.config";
 import { createPartFromBase64, createUserContent } from "@google/genai";
 import { sendEmail } from "../mailers/mailer";
 import { receiptPrompt } from "../utils/prompt";
@@ -290,8 +290,7 @@ export const scanReceiptService = async (
 
     if (!base64String) throw new BadRequestException("Could not process file");
 
-    const result = await genAI.models.generateContent({
-      model: genAIModel,
+    const result = await generateContentWithRetry({
       contents: [
         createUserContent([
           receiptPrompt,
