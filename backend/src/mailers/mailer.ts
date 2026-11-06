@@ -8,7 +8,7 @@ type Params = {
   text: string;
   html: string;
   from?: string;
-  attachments?: { filename: string; content: string | Buffer }[];
+  attachments?: { filename: string; content: string | Buffer; contentType?: string }[];
 };
 
 export const sendEmail = async ({
@@ -37,6 +37,7 @@ export const sendEmail = async ({
       attachments: attachments?.map((att) => ({
         filename: att.filename,
         content: att.content,
+        contentType: att.contentType,
       })),
     };
 

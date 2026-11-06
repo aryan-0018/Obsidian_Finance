@@ -5,11 +5,18 @@ import UserModel from "../models/user.model";
 import TransactionModel, {
   TransactionTypeEnum,
 } from "../models/transaction.model";
-import { NotFoundException } from "../utils/app-error";
+import { NotFoundException, BadRequestException } from "../utils/app-error";
 import { calulateNextReportDate } from "../utils/helper";
 import { UpdateReportSettingType } from "../validators/report.validator";
 import { convertToUnit } from "../utils/format-currency";
-import { endOfMonth, format, startOfMonth, subMonths } from "date-fns";
+import {
+  endOfMonth,
+  format,
+  startOfMonth,
+  subMonths,
+  startOfDay,
+  endOfDay,
+} from "date-fns";
 import { genAI, genAIModel, generateContentWithRetry } from "../config/google-ai.config";
 import { createUserContent } from "@google/genai";
 import { reportInsightPrompt } from "../utils/prompt";
@@ -82,6 +89,63 @@ export const updateReportSettingService = async (
   await existingReportSetting.save();
 };
 
+export function parseReportPeriod(
+  period: string,
+  fallbackDate: Date = new Date()
+): { from: Date; to: Date } {
+  const p = (period || "").trim();
+  if (/^all\s*time$/i.test(p)) {
+    return { from: new Date(0), to: endOfDay(new Date()) };
+  }
+
+  // Single month pattern: e.g. "March 2026"
+  const singleMonthMatch = p.match(/^([a-zA-Z]+)\s+(\d{4})$/);
+  if (singleMonthMatch) {
+    const d = new Date(`${p} 1`);
+    if (!isNaN(d.getTime())) {
+      return { from: startOfMonth(d), to: endOfMonth(d) };
+    }
+  }
+
+  // Dash pattern: e.g. "Jan 1, 2020 - Nov 6, 2026" or "November 1 - 6, 2026"
+  const dashParts = p.split(/\s*-\s*/);
+  if (dashParts.length === 2) {
+    const p1 = dashParts[0].trim();
+    const p2 = dashParts[1].trim();
+
+    const yearMatch = p2.match(/\b(\d{4})\b/) || p1.match(/\b(\d{4})\b/);
+    const year = yearMatch
+      ? yearMatch[1]
+      : fallbackDate instanceof Date
+      ? fallbackDate.getFullYear()
+      : new Date().getFullYear();
+
+    let d2 = new Date(p2);
+    if (isNaN(d2.getTime())) {
+      const p1Month = p1.match(/^([a-zA-Z]+)/);
+      if (p1Month) {
+        d2 = new Date(`${p1Month[1]} ${p2}`);
+      }
+    }
+
+    let d1Str = p1;
+    if (!p1.match(/\b\d{4}\b/)) {
+      d1Str = `${p1}, ${year}`;
+    }
+    const d1 = new Date(d1Str);
+
+    if (!isNaN(d1.getTime()) && !isNaN(d2.getTime())) {
+      return { from: startOfDay(d1), to: endOfDay(d2) };
+    }
+  }
+
+  const sentMonth = fallbackDate instanceof Date ? fallbackDate : new Date();
+  return {
+    from: startOfMonth(subMonths(sentMonth, 1)),
+    to: endOfMonth(subMonths(sentMonth, 1)),
+  };
+}
+
 export const resendReportService = async (
   userId: string,
   reportId: string
@@ -90,36 +154,60 @@ export const resendReportService = async (
   if (!report) throw new NotFoundException("Report not found");
 
   const user = await UserModel.findById(userId);
-  if (!user || !user.email) throw new NotFoundException("User not found");
+  if (!user || !user.email)
+    throw new NotFoundException("User not found or email address missing");
 
   const setting = await ReportSettingModel.findOne({ userId });
   const frequency = setting?.frequency || "MONTHLY";
 
-  const sentMonth = report.sentDate || report.createdAt;
-  const from = startOfMonth(subMonths(sentMonth, 1));
-  const to = endOfMonth(subMonths(sentMonth, 1));
+  let from: Date | undefined = report.fromDate;
+  let to: Date | undefined = report.toDate;
+
+  if (!from || !to) {
+    const parsed = parseReportPeriod(
+      report.period,
+      report.sentDate || report.createdAt
+    );
+    from = parsed.from;
+    to = parsed.to;
+  }
 
   const generated = await generateReportService(userId, from, to);
+  if (!generated) {
+    throw new BadRequestException(
+      `No transaction records found for period "${report.period}" to resend.`
+    );
+  }
 
-  await sendReportEmail({
-    email: user.email,
-    username: user.name || "User",
-    report: {
-      period: report.period,
-      totalIncome: generated?.summary.income || 0,
-      totalExpenses: generated?.summary.expenses || 0,
-      availableBalance: generated?.summary.balance || 0,
-      savingsRate: generated?.summary.savingsRate || 0,
-      topSpendingCategories: generated?.summary.topCategories || [],
-      insights: generated?.insights || ["Monthly financial summary"],
-      recentTransactions: generated?.recentTransactions || [],
-    },
-    frequency,
-  });
+  try {
+    await sendReportEmail({
+      email: user.email,
+      username: user.name || "User",
+      report: {
+        period: report.period,
+        totalIncome: generated.summary.income,
+        totalExpenses: generated.summary.expenses,
+        availableBalance: generated.summary.balance,
+        savingsRate: generated.summary.savingsRate,
+        topSpendingCategories: generated.summary.topCategories,
+        insights: generated.insights,
+        recentTransactions: generated.recentTransactions,
+      },
+      frequency,
+    });
 
-  report.sentDate = new Date();
-  report.status = ReportStatusEnum.SENT;
-  await report.save();
+    report.sentDate = new Date();
+    report.status = ReportStatusEnum.SENT;
+    if (!report.fromDate) report.fromDate = from;
+    if (!report.toDate) report.toDate = to;
+    await report.save();
+  } catch (err: any) {
+    report.status = ReportStatusEnum.FAILED;
+    await report.save();
+    throw new BadRequestException(
+      `Failed to deliver report email: ${err?.message || "SMTP error"}`
+    );
+  }
 
   return report;
 };
@@ -167,6 +255,8 @@ export const createInstantReportService = async (
   const savedReport = await ReportModel.create({
     userId,
     period: report.period,
+    fromDate,
+    toDate,
     sentDate: new Date(),
     status: emailSent
       ? ReportStatusEnum.SENT
@@ -289,10 +379,25 @@ export const generateReportService = async (
   const toYear = format(toDate, "yyyy");
 
   let periodLabel = `${fromMonth} ${format(fromDate, "d")} - ${toMonth} ${format(toDate, "d, yyyy")}`;
-  if (fromYear === toYear && fromMonth === toMonth) {
-    periodLabel = `${fromMonth} ${format(fromDate, "d")} - ${format(toDate, "d, yyyy")}`;
+  if (fromDate.getFullYear() < 2000) {
+    periodLabel = "All Time";
+  } else if (fromYear === toYear && fromMonth === toMonth) {
+    if (
+      format(fromDate, "d") === "1" &&
+      format(toDate, "d") === format(endOfMonth(fromDate), "d")
+    ) {
+      periodLabel = `${fromMonth} ${fromYear}`;
+    } else {
+      periodLabel = `${fromMonth} ${format(fromDate, "d")} - ${format(
+        toDate,
+        "d, yyyy"
+      )}`;
+    }
   } else if (fromYear !== toYear) {
-    periodLabel = `${format(fromDate, "MMM d, yyyy")} - ${format(toDate, "MMM d, yyyy")}`;
+    periodLabel = `${format(fromDate, "MMM d, yyyy")} - ${format(
+      toDate,
+      "MMM d, yyyy"
+    )}`;
   }
 
   // Fetch transactions during this period for detailed email representation
@@ -353,6 +458,25 @@ async function generateInsightsAI({
   categories: Record<string, { amount: number; percentage: number }>;
   periodLabel: string;
 }) {
+  const topCatNames = Object.keys(categories);
+  const fallbackInsights = [
+    `Total expenditure for ${periodLabel} was ₹${convertToUnit(
+      totalExpenses
+    ).toLocaleString("en-IN")}, against an income of ₹${convertToUnit(
+      totalIncome
+    ).toLocaleString("en-IN")}.`,
+    `A savings rate of ${savingsRate.toFixed(
+      1
+    )}% was achieved with an available balance of ₹${convertToUnit(
+      availableBalance
+    ).toLocaleString("en-IN")}.`,
+    topCatNames.length > 0
+      ? `Highest spending category was ${topCatNames[0]} at ₹${Number(
+          categories[topCatNames[0]].amount
+        ).toLocaleString("en-IN")} (${categories[topCatNames[0]].percentage}%).`
+      : "Spending remained well within allocations during this period.",
+  ];
+
   try {
     const prompt = reportInsightPrompt({
       totalIncome: convertToUnit(totalIncome),
@@ -363,22 +487,27 @@ async function generateInsightsAI({
       periodLabel,
     });
 
-    const result = await generateContentWithRetry({
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("AI insights timeout")), 5000)
+    );
+
+    const generatePromise = generateContentWithRetry({
       contents: [createUserContent([prompt])],
       config: {
         responseMimeType: "application/json",
       },
     });
 
-    const response = result.text;
+    const result = await Promise.race([generatePromise, timeoutPromise]);
+    const response = (result as any).text;
     const cleanedText = response?.replace(/```(?:json)?\n?/g, "").trim();
 
-    if (!cleanedText) return [];
+    if (!cleanedText) return fallbackInsights;
 
     const data = JSON.parse(cleanedText);
-    return data;
+    return Array.isArray(data) && data.length > 0 ? data : fallbackInsights;
   } catch (error) {
-    return [];
+    return fallbackInsights;
   }
 }
 

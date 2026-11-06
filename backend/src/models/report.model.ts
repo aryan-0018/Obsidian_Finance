@@ -10,6 +10,8 @@ export enum ReportStatusEnum {
 export interface ReportDocument extends Document {
   userId: mongoose.Types.ObjectId;
   period: string;
+  fromDate?: Date;
+  toDate?: Date;
   sentDate: Date;
   status: keyof typeof ReportStatusEnum;
   createdAt: Date;
@@ -26,6 +28,14 @@ const reportSchema = new mongoose.Schema<ReportDocument>(
     period: {
       type: String,
       required: true,
+    },
+    fromDate: {
+      type: Date,
+      default: null,
+    },
+    toDate: {
+      type: Date,
+      default: null,
     },
     sentDate: {
       type: Date,

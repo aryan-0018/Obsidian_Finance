@@ -15,7 +15,10 @@ import {
   endOfQuarter,
   subQuarters,
   startOfYear,
+  endOfYear,
+  startOfDay,
   endOfDay,
+  endOfMonth,
 } from "date-fns";
 import { convertToUnit } from "../utils/format-currency";
 import {
@@ -29,8 +32,10 @@ import {
   createTransactionService,
   deleteTransactionService,
   updateTransactionService,
+  exportTransactionsEmailService,
 } from "./transaction.service";
 import { createInstantReportService } from "./report.service";
+import UserModel from "../models/user.model";
 
 export const summaryAnalyticsService = async (
   userId: string,
@@ -527,44 +532,91 @@ function calaulatePercentageChange(previous: number, current: number) {
   return parseFloat(cappedChange.toFixed(2));
 }
 
-export const generateAiInsightsService = async (userId: string) => {
+export const generateAiInsightsService = async (
+  userId: string,
+  dateRangePreset?: DateRangePreset,
+  customFrom?: Date,
+  customTo?: Date
+) => {
   if (!Env.GEMINI_API_KEY) {
     throw new Error("GEMINI_API_KEY is missing from environment variables");
   }
 
-  const transactions = await TransactionModel.find({ userId: new mongoose.Types.ObjectId(userId) })
+  const range = getDateRange(dateRangePreset, customFrom, customTo);
+  const { from, to, label: rangeLabel } = range;
+
+  const txFilter: any = { userId: new mongoose.Types.ObjectId(userId) };
+  if (from && to) {
+    txFilter.date = { $gte: from, $lte: to };
+  }
+
+  const transactions = await TransactionModel.find(txFilter)
     .sort({ date: -1 })
-    .limit(30)
+    .limit(50)
     .lean();
 
-  const summary = await summaryAnalyticsService(userId);
-  const expenseBreakdown = await expensePieChartBreakdownService(userId);
+  const summary = await summaryAnalyticsService(
+    userId,
+    dateRangePreset,
+    customFrom,
+    customTo
+  );
+  const expenseBreakdown = await expensePieChartBreakdownService(
+    userId,
+    dateRangePreset,
+    customFrom,
+    customTo
+  );
 
   const prompt = `
-    You are a financial analyst for Obsidian Finance.
-    Analyze the user's finances and provide clear, practical insights.
+    You are the Lead Financial Analyst at Obsidian Finance, a luxury wealth platform.
+    Analyze the user's financial records specifically for the active period: "${rangeLabel}".
     
-    Financial Summary:
-    Total Income: ₹${summary.totalIncome}
-    Total Expenses: ₹${summary.totalExpenses}
-    Available Balance: ₹${summary.availableBalance}
-    Saving Rate: ${summary.savingRate.percentage}%
-    Income Growth vs Previous Period: ${summary.percentageChange?.income || 0}%
-    Expense Growth vs Previous Period: ${summary.percentageChange?.expenses || 0}%
+    ANALYSIS TIMEFRAME: ${rangeLabel}
     
-    Category Spending Breakdown:
-    ${expenseBreakdown.breakdown.map((cat: any) => `- ${cat._id || cat.name}: ₹${cat.value}`).join("\n")}
+    METRICS FOR THIS PERIOD:
+    - Total Income: ₹${summary.totalIncome.toLocaleString("en-IN")}
+    - Total Expenses: ₹${summary.totalExpenses.toLocaleString("en-IN")}
+    - Net Savings / Available Balance: ₹${summary.availableBalance.toLocaleString("en-IN")}
+    - Savings Rate: ${summary.savingRate?.percentage || 0}%
+    - Total Transactions Recorded: ${summary.transactionCount || transactions.length}
+    - Income Growth vs Previous Period: ${summary.percentageChange?.income || 0}%
+    - Expense Growth vs Previous Period: ${summary.percentageChange?.expenses || 0}%
     
-    Recent Transactions: 
-    ${transactions.map(t => `- ${t.date.toISOString().split('T')[0]}: ${t.type} of ₹${convertToUnit(t.amount)} for ${t.category} (${t.description || "N/A"})`).join("\n")}
+    SPENDING BY CATEGORY (${rangeLabel}):
+    ${
+      expenseBreakdown.breakdown?.length
+        ? expenseBreakdown.breakdown
+            .map(
+              (cat: any) =>
+                `- ${cat._id || cat.name}: ₹${Number(cat.value).toLocaleString("en-IN")}`
+            )
+            .join("\n")
+        : "No categorized expenses recorded in this period"
+    }
+    
+    LEDGER ENTRIES (${rangeLabel}):
+    ${
+      transactions.length
+        ? transactions
+            .map(
+              (t) =>
+                `- ${new Date(t.date).toISOString().split("T")[0]}: ${
+                  t.type
+                } of ₹${convertToUnit(t.amount).toLocaleString("en-IN")} for ${
+                  t.category
+                } ("${t.title || t.description || "N/A"}")`
+            )
+            .join("\n")
+        : "No transactions recorded for this period"
+    }
     
     OUTPUT REQUIREMENTS:
-    1. Output strictly as a valid JSON array of strings. No markdown formatting, asterisks, or nested objects.
-    2. Format exactly like: ["Point 1", "Point 2", "Point 3"]
-    3. Use Indian Rupees (₹) for all currencies. 
-    4. Exclude all conversational filler, fluff, warnings, or moral advice.
-    5. Provide concise, realistic financial insights based on the user's spending and income.
-    6. Ensure maximum 4 elements in the array.
+    1. Output strictly as a valid JSON array of 3 to 4 distinct strings. No markdown formatting, backticks, asterisks, or nested objects.
+    2. Format exactly like: ["Insight 1", "Insight 2", "Insight 3"]
+    3. Explicitly contextualize the insights around "${rangeLabel}" and cite concrete figures in Indian Rupees (₹) where relevant.
+    4. Provide razor-sharp, actionable observations: high-impact categories, savings discipline, burn rate, or noteworthy inflows/outflows.
+    5. No generic conversational filler, greetings, or robotic templates.
   `;
 
   try {
@@ -572,88 +624,168 @@ export const generateAiInsightsService = async (userId: string) => {
       contents: prompt,
     });
 
-    // Clean and parse the json response
     const text = response.text || "[]";
-    const jsonStr = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    const jsonStr = text.replace(/```(?:json)?\n?/g, "").trim();
     const insightsArray = JSON.parse(jsonStr);
 
     return Array.isArray(insightsArray) ? insightsArray : [text];
   } catch (error) {
     console.error("Gemini AI generation failed", error);
-    return ["AI insights are temporarily unavailable. Please try again shortly."];
+    return [
+      `Summary for ${rangeLabel}: Income ₹${summary.totalIncome.toLocaleString(
+        "en-IN"
+      )}, Expenses ₹${summary.totalExpenses.toLocaleString(
+        "en-IN"
+      )}, Net Balance ₹${summary.availableBalance.toLocaleString(
+        "en-IN"
+      )}, Savings Rate ${summary.savingRate?.percentage || 0}%.`,
+    ];
   }
 };
 
 export const chatWithAiFinancialAdvisorService = async (
   userId: string,
   userMessage: string,
-  history: Array<{ role: "user" | "model"; parts: string }> = []
+  history: Array<{ role: "user" | "model"; parts: string }> = [],
+  currentRange?: {
+    label?: string;
+    value?: string;
+    from?: string | Date;
+    to?: string | Date;
+  }
 ) => {
   if (!Env.GEMINI_API_KEY) {
     throw new Error("GEMINI_API_KEY is missing from environment variables");
   }
 
+  const user = await UserModel.findById(userId).lean();
+  const userName = user?.name || "Client";
+  const userEmail = user?.email || "";
+
+  // 1. All-time portfolio summary
+  const allTimeSummary = await summaryAnalyticsService(
+    userId,
+    DateRangeEnum.ALL_TIME
+  );
+  const allTimeBreakdown = await expensePieChartBreakdownService(
+    userId,
+    DateRangeEnum.ALL_TIME
+  );
+
+  // 2. Active viewing period summary
+  let activePreset: DateRangePreset | undefined = undefined;
+  if (currentRange?.value) {
+    activePreset = currentRange.value as DateRangePreset;
+  }
+  const currentSummary = await summaryAnalyticsService(
+    userId,
+    activePreset,
+    currentRange?.from ? new Date(currentRange.from) : undefined,
+    currentRange?.to ? new Date(currentRange.to) : undefined
+  );
+  const currentBreakdown = await expensePieChartBreakdownService(
+    userId,
+    activePreset,
+    currentRange?.from ? new Date(currentRange.from) : undefined,
+    currentRange?.to ? new Date(currentRange.to) : undefined
+  );
+
+  // 3. User budget
+  const budget = await getBudgetService(userId);
+  const budgetLimit = budget?.limit || 0;
+  const currentMonthSpent = currentSummary.totalExpenses || 0;
+
+  // 4. Up to 100 recent transactions across all dates
   const transactions = await TransactionModel.find({
     userId: new mongoose.Types.ObjectId(userId),
   })
     .sort({ date: -1 })
-    .limit(30)
+    .limit(100)
     .lean();
 
-  const summary = await summaryAnalyticsService(userId);
-  const expenseBreakdown = await expensePieChartBreakdownService(userId);
-
   const todayStr = new Date().toISOString().split("T")[0];
+  const activePeriodLabel = currentRange?.label || "Last 30 Days";
 
   const contextPrompt = `
-You are the Obsidian Finance AI Financial Assistant.
+You are the Obsidian Finance Autonomous Financial Advisor & Wealth Strategist for ${userName} (${userEmail}).
 You are embedded inside a luxury financial portfolio management platform.
-You have FULL AUTHORITY to execute financial actions on the user's behalf (add transactions, delete transactions, edit/update transactions and their dates, set budgets, generate reports) OR answer financial queries.
+You have FULL AUTHORITY to execute financial actions on the user's behalf (add transactions, delete transactions, edit/update transactions, set budgets, generate and email financial reports, or export transaction ledgers) OR answer analytical questions with exact, non-generic figures.
 
 CURRENT SYSTEM DATE: ${todayStr}
+CURRENT DASHBOARD VIEWING PERIOD: "${activePeriodLabel}"
 
-CURRENT USER PORTFOLIO DATA:
-- Total Income: ₹${summary.totalIncome}
-- Total Expenses: ₹${summary.totalExpenses}
-- Available Balance: ₹${summary.availableBalance}
-- Savings Rate: ${summary.savingRate?.percentage || 0}%
-- Top Spending Categories: ${
-    expenseBreakdown.breakdown
-      .map((cat: any) => `${cat._id || cat.name}: ₹${cat.value}`)
+PORTFOLIO INTELLIGENCE:
+1. ALL-TIME METRICS:
+- Total Income: ₹${allTimeSummary.totalIncome.toLocaleString("en-IN")}
+- Total Expenses: ₹${allTimeSummary.totalExpenses.toLocaleString("en-IN")}
+- Net Available Balance: ₹${allTimeSummary.availableBalance.toLocaleString("en-IN")}
+- All-Time Savings Rate: ${allTimeSummary.savingRate?.percentage || 0}%
+- Total Ledger Entries: ${allTimeSummary.transactionCount}
+- Top All-Time Categories: ${
+    allTimeBreakdown.breakdown
+      .map(
+        (cat: any) =>
+          `${cat._id || cat.name}: ₹${Number(cat.value).toLocaleString("en-IN")}`
+      )
       .join(", ") || "None recorded yet"
   }
-- Recent Transactions (latest 30):
+
+2. CURRENT ACTIVE PERIOD METRICS ("${activePeriodLabel}"):
+- Income: ₹${currentSummary.totalIncome.toLocaleString("en-IN")}
+- Expenses: ₹${currentSummary.totalExpenses.toLocaleString("en-IN")}
+- Net Balance: ₹${currentSummary.availableBalance.toLocaleString("en-IN")}
+- Savings Rate: ${currentSummary.savingRate?.percentage || 0}%
+- Top Categories: ${
+    currentBreakdown.breakdown
+      .map(
+        (cat: any) =>
+          `${cat._id || cat.name}: ₹${Number(cat.value).toLocaleString("en-IN")}`
+      )
+      .join(", ") || "None recorded in this period"
+  }
+
+3. MONTHLY BUDGET:
+- Budget Limit: ₹${budgetLimit.toLocaleString("en-IN")}
+- Current Month Spending: ₹${currentMonthSpent.toLocaleString("en-IN")}
+- Budget Remaining: ₹${Math.max(0, budgetLimit - currentMonthSpent).toLocaleString("en-IN")}
+
+4. COMPLETE TRANSACTION LEDGER (Latest ${transactions.length} entries):
 ${
   transactions
     .map(
       (t) =>
         `* [ID: ${t._id}] ${new Date(t.date).toISOString().split("T")[0]}: ${
           t.type
-        } of ₹${convertToUnit(t.amount)} in "${t.category}" - "${t.title}" (${
-          t.description || "N/A"
-        })`
+        } of ₹${convertToUnit(t.amount).toLocaleString("en-IN")} in "${
+          t.category
+        }" - "${t.title}" (${t.description || "N/A"})`
     )
     .join("\n") || "No transactions recorded yet"
 }
 
 ALLOWED ACTIONS:
-1. "ADD_TRANSACTION": If the user wants to add an expense or income (e.g., "I spent 450 on coffee yesterday", "Add my 80000 salary on 2026-11-01").
-   Params: title (string), amount (positive number in INR), type ("INCOME" | "EXPENSE"), category (one of: groceries, dining, transportation, utilities, entertainment, shopping, healthcare, travel, housing, income, investments, other), paymentMethod ("CARD", "CASH", "BANK_TRANSFER", "AUTO_DEBIT", "MOBILE_PAYMENT", "OTHER"), date (ISO string YYYY-MM-DD, e.g. "2026-11-05", defaults to current date if not specified), description (optional).
+1. "ADD_TRANSACTION": If the user wants to add an expense or income (e.g., "Spent 450 on coffee", "Add my 80000 salary on 2026-11-01").
+   Params: title (string), amount (positive number in INR), type ("INCOME" | "EXPENSE"), category (one of: groceries, dining, transportation, utilities, entertainment, shopping, healthcare, travel, housing, income, investments, other), paymentMethod ("CARD", "CASH", "BANK_TRANSFER", "AUTO_DEBIT", "MOBILE_PAYMENT", "OTHER"), date (ISO string YYYY-MM-DD, defaults to current date if not specified), description (optional).
 2. "DELETE_TRANSACTION": If the user wants to delete/remove a transaction (e.g., "Delete the coffee expense", "Remove my last transaction").
    Params: keyword (e.g., "coffee", "last", or transaction title).
-3. "UPDATE_TRANSACTION": If the user wants to modify an existing transaction, including changing its date, amount, title, or category (e.g., "Change the date of my coffee expense to yesterday", "Move my salary transaction to Nov 1", "Update the amount of dinner to 1200").
-   Params: keyword (to match title or transaction ID), date (ISO string YYYY-MM-DD or full ISO date when user asks to adjust/change the date), amount (optional number), title (optional string), category (optional string).
+3. "UPDATE_TRANSACTION": If the user wants to modify an existing transaction, including changing its date, amount, title, or category (e.g., "Change the date of my coffee expense to yesterday", "Move my salary transaction to Nov 1", "Update amount to 1200").
+   Params: keyword (to match title or transaction ID), date (ISO string YYYY-MM-DD), amount (optional number), title (optional string), category (optional string).
 4. "SET_BUDGET": If the user wants to set or adjust their monthly budget limit (e.g., "Set budget to 50000").
    Params: limit (positive number).
-5. "GENERATE_REPORT": If the user wants a financial report or summary for a period (e.g., "Generate report for this month", "Show my last quarter report").
-   Params: period ("THIS_MONTH" | "LAST_MONTH" | "THIS_QUARTER" | "THIS_YEAR"), sendEmail (boolean, DEFAULT FALSE. Only set to true if user explicitly mentions "email it to me", "send to my email", or "mail me").
-6. "NONE": For purely analytical questions, advisory tips, or portfolio assessments.
+5. "GENERATE_REPORT": If the user asks for a financial report, summary for any timeframe, or asks to email/mail a report (e.g. "Generate report for this month", "Show all time report", "March 2026 report", "Mail me the report", "Send report to my email").
+   Params: 
+   - period: "ALL_TIME" | "THIS_MONTH" | "LAST_MONTH" | "THIS_QUARTER" | "LAST_QUARTER" | "THIS_YEAR" | "LAST_YEAR" | "LAST_30_DAYS" | "CUSTOM"
+   - fromDate: string (YYYY-MM-DD if custom or specific month, e.g. "2026-03-01")
+   - toDate: string (YYYY-MM-DD if custom or specific month, e.g. "2026-03-31")
+   - sendEmail: boolean (Set to true whenever user mentions "email", "mail", "inbox", "send to my email", "mail me", or asks to send the report)
+6. "EXPORT_TRANSACTIONS": If user wants to export transaction CSV or email transaction data (e.g., "export my transactions", "mail transaction records", "send CSV to my email").
+   Params: fromDate (optional), toDate (optional), category (optional), type (optional).
+7. "NONE": For purely analytical questions, financial questions, or portfolio assessments. When answering, cite exact numbers from the metrics and ledger above. Never give generic boilerplate advice.
 
 OUTPUT FORMAT REQUIREMENTS:
-Output strictly valid JSON matching this schema.
-Write in a natural, elegant, human financial advisor tone. DO NOT use generic robotic phrases, pseudo-statistical filler, or raw markdown headers (###, **).
+Output strictly valid JSON matching this schema:
 {
-  "action": "ADD_TRANSACTION" | "DELETE_TRANSACTION" | "UPDATE_TRANSACTION" | "SET_BUDGET" | "GENERATE_REPORT" | "NONE",
+  "action": "ADD_TRANSACTION" | "DELETE_TRANSACTION" | "UPDATE_TRANSACTION" | "SET_BUDGET" | "GENERATE_REPORT" | "EXPORT_TRANSACTIONS" | "NONE",
   "actionParams": {
     "title": "string",
     "amount": 0,
@@ -664,19 +796,21 @@ Write in a natural, elegant, human financial advisor tone. DO NOT use generic ro
     "description": "string",
     "keyword": "string",
     "limit": 0,
-    "period": "THIS_MONTH",
+    "period": "ALL_TIME",
+    "fromDate": "YYYY-MM-DD",
+    "toDate": "YYYY-MM-DD",
     "sendEmail": false
   },
-  "headline": "Short, elegant headline (e.g., 'Expense Added', 'Date Adjusted', 'Budget Updated', 'Spending Overview')",
-  "summary": "1-2 natural, clear sentences explaining what was done or answering the user directly. Never use robotic jargon or template phrases. Use Indian Rupees (₹) for values.",
+  "headline": "Short, elegant headline (e.g., 'Expense Added', 'Date Adjusted', 'Report Generated', 'Portfolio Analysis')",
+  "summary": "1-2 natural, razor-sharp sentences answering the user directly or confirming the action with exact numbers in ₹. Never use robotic phrases or generic filler.",
   "keyMetrics": [
     { "label": "string", "value": "string" }
   ],
   "bulletPoints": [
-    "Helpful, direct insight 1",
-    "Helpful, direct insight 2"
+    "Insight or detail 1",
+    "Insight or detail 2"
   ],
-  "recommendation": "Optional practical advice (or omit if action was a simple command)"
+  "recommendation": "Optional practical, tailored wealth strategy or advice"
 }
 `;
 
@@ -890,53 +1024,222 @@ Write in a natural, elegant, human financial advisor tone. DO NOT use generic ro
         )}.`,
         data: budget,
       };
-    } else if (action === "GENERATE_REPORT") {
+    } else if (
+      action === "GENERATE_REPORT" ||
+      /\b(report|financial\s*summary)\b/i.test(userMessage) ||
+      (/\b(mail|email|send)\b/i.test(userMessage) && !/\b(csv|export)\b/i.test(userMessage))
+    ) {
       const now = new Date();
       const today = endOfDay(now);
-      let from = startOfMonth(today);
-      let to = today;
+      let from: Date = startOfMonth(today);
+      let to: Date = today;
 
-      const period = (params.period || "THIS_MONTH").toUpperCase();
-      if (period === "LAST_MONTH") {
+      const requestedPeriod = (params.period || "").toUpperCase();
+      const emailKeywords = /\b(mail|email|inbox|send.*(?:mail|email|me)|forward)\b/i;
+      const shouldEmail = Boolean(params.sendEmail) || emailKeywords.test(userMessage);
+
+      // 1. Explicit fromDate & toDate
+      if (params.fromDate) {
+        from = startOfDay(new Date(params.fromDate));
+        to = params.toDate ? endOfDay(new Date(params.toDate)) : today;
+      }
+      // 2. All Time
+      else if (
+        requestedPeriod === "ALL_TIME" ||
+        /\b(all\s*time|entire\s*history|overall|everything|all)\b/i.test(userMessage)
+      ) {
+        from = new Date(0);
+        to = today;
+      }
+      // 3. Last Month
+      else if (
+        requestedPeriod === "LAST_MONTH" ||
+        /\blast\s*month\b/i.test(userMessage)
+      ) {
         from = startOfMonth(subMonths(today, 1));
-        to = startOfMonth(today);
-      } else if (period === "THIS_QUARTER") {
+        to = endOfMonth(subMonths(today, 1));
+      }
+      // 4. This Month
+      else if (
+        requestedPeriod === "THIS_MONTH" ||
+        /\bthis\s*month\b/i.test(userMessage)
+      ) {
+        from = startOfMonth(today);
+        to = today;
+      }
+      // 5. This Quarter
+      else if (
+        requestedPeriod === "THIS_QUARTER" ||
+        /\bthis\s*quarter\b/i.test(userMessage)
+      ) {
         from = startOfQuarter(today);
         to = today;
-      } else if (period === "LAST_QUARTER") {
+      }
+      // 6. Last Quarter
+      else if (
+        requestedPeriod === "LAST_QUARTER" ||
+        /\blast\s*quarter\b/i.test(userMessage)
+      ) {
         const prevQ = subQuarters(today, 1);
         from = startOfQuarter(prevQ);
         to = endOfQuarter(prevQ);
-      } else if (period === "THIS_YEAR") {
+      }
+      // 7. This Year or specific year 2026
+      else if (
+        requestedPeriod === "THIS_YEAR" ||
+        /\b(this\s*year|2026)\b/i.test(userMessage)
+      ) {
         from = startOfYear(today);
+        to = endOfYear(today);
+      }
+      // 8. Last Year
+      else if (
+        requestedPeriod === "LAST_YEAR" ||
+        /\blast\s*year\b/i.test(userMessage)
+      ) {
+        const prevY = subYears(today, 1);
+        from = startOfYear(prevY);
+        to = endOfYear(prevY);
+      }
+      // 9. Last 30 Days
+      else if (
+        requestedPeriod === "LAST_30_DAYS" ||
+        /\b(?:30\s*days|last\s*30)\b/i.test(userMessage)
+      ) {
+        from = subDays(today, 30);
         to = today;
       }
+      // 10. Check if user mentioned a specific month and optional year, e.g. "March", "March 2026", "Sept 2026"
+      else {
+        const monthNames = [
+          "january|jan",
+          "february|feb",
+          "march|mar",
+          "april|apr",
+          "may",
+          "june|jun",
+          "july|jul",
+          "august|aug",
+          "september|sept|sep",
+          "october|oct",
+          "november|nov",
+          "december|dec",
+        ];
+        let matchedMonth = false;
+        for (let m = 0; m < 12; m++) {
+          const mRegex = new RegExp(`\\b(${monthNames[m]})\\b(?:\\s*(\\d{4}))?`, "i");
+          const match = userMessage.match(mRegex);
+          if (match) {
+            const year = match[2] ? parseInt(match[2], 10) : today.getFullYear();
+            from = startOfMonth(new Date(year, m, 1));
+            to = endOfMonth(new Date(year, m, 1));
+            matchedMonth = true;
+            break;
+          }
+        }
 
-      const shouldEmail = Boolean(params.sendEmail);
+        // 11. If no month matched, check if currentRange is active
+        if (!matchedMonth) {
+          if (
+            currentRange?.value === DateRangeEnum.ALL_TIME ||
+            currentRange?.label?.toLowerCase().includes("all time")
+          ) {
+            from = new Date(0);
+            to = today;
+          } else if (currentRange?.from && currentRange?.to) {
+            from = startOfDay(new Date(currentRange.from));
+            to = endOfDay(new Date(currentRange.to));
+          }
+        }
+      }
 
-      const reportRes = await createInstantReportService(
-        userId,
-        from,
-        to,
-        shouldEmail
-      );
+      try {
+        const reportRes = await createInstantReportService(
+          userId,
+          from,
+          to,
+          shouldEmail
+        );
 
-      const periodLabels: Record<string, string> = {
-        THIS_MONTH: "this month",
-        LAST_MONTH: "last month",
-        THIS_QUARTER: "this quarter",
-        LAST_QUARTER: "last quarter",
-        THIS_YEAR: "this year",
-      };
-      const displayPeriod = periodLabels[period] || period.toLowerCase().replace("_", " ");
+        actionTaken = {
+          type: "GENERATE_REPORT",
+          description: shouldEmail
+            ? `Generated financial report for ${reportRes.period} and delivered to ${
+                userEmail || "your email"
+              }.`
+            : `Generated financial report for ${reportRes.period}.`,
+          data: reportRes,
+        };
+
+        const formattedIncome =
+          "₹" + Number(reportRes.summary.income).toLocaleString("en-IN");
+        const formattedExpenses =
+          "₹" + Number(reportRes.summary.expenses).toLocaleString("en-IN");
+        const formattedBalance =
+          "₹" + Number(reportRes.summary.balance).toLocaleString("en-IN");
+        const formattedSavingsRate = `${reportRes.summary.savingsRate}%`;
+
+        parsed.headline = `Financial Report: ${reportRes.period}`;
+        parsed.summary = `Your financial report for ${reportRes.period} has been generated.${
+          reportRes.emailSent
+            ? ` A copy with complete breakdowns and insights has been delivered to ${userEmail}.`
+            : ""
+        }`;
+
+        parsed.keyMetrics = [
+          { label: "Total Income", value: formattedIncome },
+          { label: "Total Expenses", value: formattedExpenses },
+          { label: "Net Balance", value: formattedBalance },
+          { label: "Savings Rate", value: formattedSavingsRate },
+        ];
+
+        if (reportRes.insights && reportRes.insights.length > 0) {
+          parsed.bulletPoints = reportRes.insights;
+        }
+      } catch (err: any) {
+        actionTaken = {
+          type: "GENERATE_REPORT",
+          description: err.message || "No financial activity found for this period.",
+        };
+        parsed.headline = "No Transactions Found";
+        parsed.summary = `No financial activity or transactions were recorded for the selected period.`;
+        parsed.keyMetrics = [
+          { label: "Total Income", value: "₹0" },
+          { label: "Total Expenses", value: "₹0" },
+        ];
+        parsed.bulletPoints = [
+          "Try requesting a broader period like 'All Time' or 'This Year' to view your records.",
+        ];
+      }
+    } else if (
+      action === "EXPORT_TRANSACTIONS" ||
+      (/\b(export|csv)\b/i.test(userMessage) &&
+        /\b(mail|email|send)\b/i.test(userMessage))
+    ) {
+      const targetEmail = userEmail;
+
+      if (!targetEmail) {
+        throw new Error("No user email address found on file to export transactions.");
+      }
+
+      await exportTransactionsEmailService(userId, targetEmail, {
+        type: params.type,
+        category: params.category,
+        fromDate: params.fromDate ? new Date(params.fromDate) : undefined,
+        toDate: params.toDate ? new Date(params.toDate) : undefined,
+      });
 
       actionTaken = {
-        type: "GENERATE_REPORT",
-        description: shouldEmail
-          ? `Generated financial report for ${displayPeriod} and sent it to your email.`
-          : `Generated financial report for ${displayPeriod}.`,
-        data: reportRes,
+        type: "EXPORT_TRANSACTIONS",
+        description: `Exported transactions CSV and delivered to ${targetEmail}.`,
       };
+
+      parsed.headline = "Transaction Export Delivered";
+      parsed.summary = `Your transaction ledger has been exported to CSV and sent directly to ${targetEmail}.`;
+      parsed.keyMetrics = [
+        { label: "Recipient", value: targetEmail },
+        { label: "Format", value: "CSV Spreadsheet" },
+      ];
     }
 
     const replyFallback =

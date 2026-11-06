@@ -12,13 +12,13 @@ import {
   CheckCircle2,
   Lightbulb,
   PlusCircle,
-  Trash2,
   TrendingUp,
   Calendar,
   RotateCcw,
 } from "lucide-react";
 import { useChatWithAiAdvisorMutation } from "@/features/analytics/analyticsAPI";
 import { toast } from "sonner";
+import { DateRangeType } from "@/components/date-range-select/types";
 
 interface StructuredMessage {
   role: "user" | "model";
@@ -33,6 +33,10 @@ interface StructuredMessage {
     description: string;
     data?: any;
   };
+}
+
+interface AiAdvisorChatProps {
+  dateRange?: DateRangeType;
 }
 
 const CHAT_STORAGE_KEY = "obsidian_ai_chat_history_v1";
@@ -102,7 +106,7 @@ function FormattedText({ text }: { text: string }) {
   );
 }
 
-export default function AiAdvisorChat() {
+export default function AiAdvisorChat({ dateRange }: AiAdvisorChatProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [inputMessage, setInputMessage] = useState("");
 
@@ -154,12 +158,22 @@ export default function AiAdvisorChat() {
     setInputMessage("");
 
     try {
+      const currentRangePayload = dateRange
+        ? {
+            label: dateRange.label,
+            value: dateRange.value,
+            from: dateRange.from ? new Date(dateRange.from).toISOString() : undefined,
+            to: dateRange.to ? new Date(dateRange.to).toISOString() : undefined,
+          }
+        : undefined;
+
       const response = await chatWithAi({
         message: query,
         history: messages.slice(1).map((m) => ({
           role: m.role,
           parts: m.parts || m.summary || "",
         })),
+        currentRange: currentRangePayload,
       }).unwrap();
 
       const modelMsg: StructuredMessage = {
@@ -203,29 +217,34 @@ export default function AiAdvisorChat() {
 
   const quickActionPrompts = [
     {
+      label: "All-Time Report",
+      icon: Calendar,
+      prompt: "Generate my all-time financial report.",
+    },
+    {
+      label: "Mail Me Report",
+      icon: Sparkles,
+      prompt: "Please email me my financial report.",
+    },
+    {
+      label: "March 2026 Report",
+      icon: Calendar,
+      prompt: "Generate financial report for March 2026.",
+    },
+    {
+      label: "Export CSV to Email",
+      icon: TrendingUp,
+      prompt: "Export my transactions and email them to me.",
+    },
+    {
       label: "+ Add ₹450 Lunch",
       icon: PlusCircle,
       prompt: "Add an expense of 450 for lunch today.",
     },
     {
-      label: "+ Add ₹80,000 Salary",
-      icon: TrendingUp,
-      prompt: "Add income of 80000 for monthly salary.",
-    },
-    {
-      label: "Delete Last Transaction",
-      icon: Trash2,
-      prompt: "Delete my last transaction.",
-    },
-    {
       label: "Set Budget to ₹50,000",
       icon: Sparkles,
       prompt: "Set my monthly budget limit to 50000.",
-    },
-    {
-      label: "Generate Monthly Report",
-      icon: Calendar,
-      prompt: "Generate my financial report for this month.",
     },
   ];
 
@@ -248,6 +267,10 @@ export default function AiAdvisorChat() {
               <span className="text-[10px] uppercase font-semibold tracking-widest px-2.5 py-0.5 rounded-full bg-[#c1a063]/10 text-[#c1a063] border border-[#c1a063]/30 flex items-center gap-1">
                 <span className="size-1.5 rounded-full bg-[#c1a063] animate-pulse" />
                 Live Assistant
+              </span>
+              <span className="hidden sm:inline-flex items-center gap-1 text-[11px] px-2.5 py-0.5 rounded-full bg-black/60 border border-white/10 text-neutral-300">
+                <Calendar className="size-3 text-[#c1a063]" />
+                {dateRange?.label || "All Time"}
               </span>
             </div>
             <p className="text-xs text-neutral-400 mt-0.5 font-light">

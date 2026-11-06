@@ -91,7 +91,17 @@ export const generateAiInsightsController = asyncHandler(
       return res.status(HTTPSTATUS.UNAUTHORIZED).json({ message: "Unauthorized" });
     }
 
-    const insight = await generateAiInsightsService(userId as string);
+    const { preset, from, to } = req.query;
+    const dateRangePreset = preset as DateRangePreset | undefined;
+    const customFrom = from ? new Date(from as string) : undefined;
+    const customTo = to ? new Date(to as string) : undefined;
+
+    const insight = await generateAiInsightsService(
+      userId as string,
+      dateRangePreset,
+      customFrom,
+      customTo
+    );
 
     return res.status(HTTPSTATUS.OK).json({
       message: "AI Insight generated successfully",
@@ -107,7 +117,7 @@ export const chatAiAdvisorController = asyncHandler(
       return res.status(HTTPSTATUS.UNAUTHORIZED).json({ message: "Unauthorized" });
     }
 
-    const { message, history } = req.body;
+    const { message, history, currentRange } = req.body;
     if (!message || typeof message !== "string") {
       return res.status(HTTPSTATUS.BAD_REQUEST).json({ message: "A message string is required" });
     }
@@ -115,7 +125,8 @@ export const chatAiAdvisorController = asyncHandler(
     const result = await chatWithAiFinancialAdvisorService(
       userId as string,
       message,
-      Array.isArray(history) ? history : []
+      Array.isArray(history) ? history : [],
+      currentRange
     );
 
     return res.status(HTTPSTATUS.OK).json({

@@ -44,7 +44,16 @@ export const analyticsApi = apiClient.injectEndpoints({
     }),
     chatWithAiAdvisor: builder.mutation<
       AiAdvisorChatResponse,
-      { message: string; history?: Array<{ role: "user" | "model"; parts: string }> }
+      {
+        message: string;
+        history?: Array<{ role: "user" | "model"; parts: string }>;
+        currentRange?: {
+          label?: string;
+          value?: string;
+          from?: string | Date;
+          to?: string | Date;
+        };
+      }
     >({
       query: (body) => ({
         url: "/analytics/ai-chat",

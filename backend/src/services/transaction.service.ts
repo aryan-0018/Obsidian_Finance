@@ -12,6 +12,7 @@ import { genAI, genAIModel, generateContentWithRetry } from "../config/google-ai
 import { createPartFromBase64, createUserContent } from "@google/genai";
 import { sendEmail } from "../mailers/mailer";
 import { receiptPrompt } from "../utils/prompt";
+import UserModel from "../models/user.model";
 
 export const createTransactionService = async (
   body: CreateTransactionType,
@@ -334,15 +335,27 @@ export const scanReceiptService = async (
 };
 export const exportTransactionsEmailService = async (
   userId: string,
-  userEmail: string,
+  userEmail?: string,
   filters: {
     keyword?: string;
     type?: keyof typeof TransactionTypeEnum;
     category?: string;
     fromDate?: Date;
     toDate?: Date;
-  }
+  } = {}
 ) => {
+  let targetEmail = userEmail;
+  if (!targetEmail) {
+    const user = await UserModel.findById(userId);
+    targetEmail = user?.email;
+  }
+
+  if (!targetEmail) {
+    throw new BadRequestException(
+      "No registered email address found on file to export transactions."
+    );
+  }
+
   const { keyword, type, category, fromDate, toDate } = filters;
 
   const filterConditions: Record<string, any> = {
@@ -360,7 +373,7 @@ export const exportTransactionsEmailService = async (
     filterConditions.type = type;
   }
 
-  if (category) {
+  if (category && category.toLowerCase() !== "all") {
     filterConditions.category = { $regex: new RegExp(`^${category}$`, "i") };
   }
 
@@ -370,34 +383,69 @@ export const exportTransactionsEmailService = async (
     if (toDate) filterConditions.date.$lte = toDate;
   }
 
-  const transactions = await TransactionModel.find(filterConditions).sort({ date: -1 });
+  const transactions = await TransactionModel.find(filterConditions).sort({
+    date: -1,
+  });
 
   if (transactions.length === 0) {
-    throw new BadRequestException("No transactions found to export");
+    throw new BadRequestException(
+      "No transactions found matching the selected filters to export."
+    );
   }
 
-  // Simple CSV generation
-  const headers = ["Date", "Title", "Type", "Category", "Amount", "Description"];
+  const escapeCsv = (val: any) => {
+    const str = String(val ?? "");
+    if (
+      str.includes(",") ||
+      str.includes('"') ||
+      str.includes("\n") ||
+      str.includes("\r")
+    ) {
+      return `"${str.replace(/"/g, '""')}"`;
+    }
+    return str;
+  };
+
+  const headers = [
+    "Date",
+    "Title",
+    "Type",
+    "Category",
+    "Amount (INR)",
+    "Payment Method",
+    "Description",
+  ];
+
   const rows = transactions.map((t) => [
-    t.date.toISOString().split("T")[0],
-    t.title,
-    t.type,
-    t.category,
-    t.amount,
-    t.description || "",
+    escapeCsv(new Date(t.date).toISOString().split("T")[0]),
+    escapeCsv(t.title),
+    escapeCsv(t.type),
+    escapeCsv(
+      t.category
+        ? t.category.charAt(0).toUpperCase() + t.category.slice(1)
+        : "Other"
+    ),
+    escapeCsv(Math.abs(t.amount)),
+    escapeCsv(t.paymentMethod || "CARD"),
+    escapeCsv(t.description || ""),
   ]);
 
-  const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join("\n");
+  const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join(
+    "\r\n"
+  );
+
+  const todayStr = new Date().toISOString().split("T")[0];
 
   await sendEmail({
-    to: userEmail,
-    subject: "Your Requested Transaction Export - ObsidianFinance",
-    text: "Please find your requested transaction export attached to this email.",
-    html: "<p>Please find your requested transaction export attached to this email.</p>",
+    to: targetEmail,
+    subject: `Your Requested Transaction Export - Obsidian Finance (${todayStr})`,
+    text: `Please find your requested transaction export (${transactions.length} records) attached as a CSV spreadsheet.`,
+    html: `<p>Hello,</p><p>Please find attached your requested Obsidian Finance transaction export (<strong>${transactions.length}</strong> records).</p><p>Best regards,<br>The Obsidian Finance Team</p>`,
     attachments: [
       {
-        filename: `Obsidian_Export_${new Date().toISOString().split("T")[0]}.csv`,
-        content: Buffer.from(csvContent).toString("base64"),
+        filename: `Obsidian_Transactions_${todayStr}.csv`,
+        content: csvContent,
+        contentType: "text/csv",
       },
     ],
   });

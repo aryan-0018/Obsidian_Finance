@@ -30,10 +30,10 @@ const Analytics = () => {
                 <EditableBalanceCard />
 
                 {/* AI Interactive Chat Advisor */}
-                <AiAdvisorChat />
+                <AiAdvisorChat dateRange={dateRange} />
 
                 {/* AI Insights Engine */}
-                <AiInsights />
+                <AiInsights dateRange={dateRange} />
 
                 {/* Advanced Analytics Charts */}
                 <DetailedCharts dateRange={dateRange} />

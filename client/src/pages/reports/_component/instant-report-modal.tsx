@@ -30,6 +30,7 @@ import {
   startOfYear,
   endOfDay,
   subDays,
+  endOfMonth,
 } from "date-fns";
 
 export default function InstantReportModal() {
@@ -51,7 +52,7 @@ export default function InstantReportModal() {
     } else if (preset === "LAST_MONTH") {
       const prevMonth = subMonths(today, 1);
       from = startOfMonth(prevMonth);
-      to = startOfMonth(today);
+      to = endOfMonth(prevMonth);
     } else if (preset === "THIS_QUARTER") {
       from = startOfQuarter(today);
       to = today;
@@ -63,7 +64,7 @@ export default function InstantReportModal() {
       from = startOfYear(today);
       to = today;
     } else if (preset === "ALL_TIME") {
-      from = new Date("2020-01-01T00:00:00.000Z");
+      from = new Date(0);
       to = today;
     }
 
