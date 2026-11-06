@@ -19,9 +19,16 @@ const envConfig = () => ({
   CLOUDINARY_API_KEY: getEnv("CLOUDINARY_API_KEY"),
   CLOUDINARY_API_SECRET: getEnv("CLOUDINARY_API_SECRET"),
 
-  // Resend Email Service
+  // Resend Email Service (Fallback)
   RESEND_API_KEY: getEnv("RESEND_API_KEY", ""),
   RESEND_MAILER_SENDER: getEnv("RESEND_MAILER_SENDER", "onboarding@resend.dev"),
+
+  // Nodemailer SMTP Service (Primary)
+  SMTP_HOST: getEnv("SMTP_HOST", "smtp.gmail.com"),
+  SMTP_PORT: getEnv("SMTP_PORT", "587"),
+  SMTP_USER: getEnv("SMTP_USER", ""),
+  SMTP_PASS: getEnv("SMTP_PASS", ""),
+  SMTP_SENDER: getEnv("SMTP_SENDER", ""),
 
   FRONTEND_ORIGIN: getEnv("FRONTEND_ORIGIN", "localhost"),
 

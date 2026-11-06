@@ -1,4 +1,5 @@
 import { Env } from "../config/env.config";
+import { transporter } from "../config/nodemailer.config";
 import { resend } from "../config/resend.config";
 
 type Params = {
@@ -18,20 +19,44 @@ export const sendEmail = async ({
   html,
   attachments,
 }: Params) => {
-  if (!Env.RESEND_API_KEY) {
-    throw new Error("RESEND_API_KEY is not configured");
+  const recipientList = Array.isArray(to) ? to : [to];
+
+  // 1. Primary: Nodemailer SMTP
+  if (Env.SMTP_USER && Env.SMTP_PASS) {
+    const sender =
+      from ||
+      Env.SMTP_SENDER ||
+      `"Obsidian Finance" <${Env.SMTP_USER}>`;
+
+    const mailOptions = {
+      from: sender,
+      to: recipientList.join(", "),
+      subject,
+      text,
+      html,
+      attachments: attachments?.map((att) => ({
+        filename: att.filename,
+        content: att.content,
+      })),
+    };
+
+    return await transporter.sendMail(mailOptions);
   }
 
-  const resendSender = `ObsidianFinance <${Env.RESEND_MAILER_SENDER}>`;
+  // 2. Secondary / Fallback: Resend API
+  if (Env.RESEND_API_KEY) {
+    const resendSender =
+      from || `ObsidianFinance <${Env.RESEND_MAILER_SENDER}>`;
 
-  const response = await resend.emails.send({
-    from: from || resendSender,
-    to: Array.isArray(to) ? to : [to],
-    text,
-    subject,
-    html,
-    attachments,
-  });
+    return await resend.emails.send({
+      from: resendSender,
+      to: recipientList,
+      text,
+      subject,
+      html,
+      attachments,
+    });
+  }
 
-  return response;
+  throw new Error("No email service configured. Please provide SMTP credentials or a RESEND_API_KEY.");
 };
