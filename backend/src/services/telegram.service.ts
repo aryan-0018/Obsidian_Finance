@@ -47,6 +47,16 @@ export const initTelegramBot = async () => {
     return;
   }
 
+  // Gracefully stop any existing instance in memory before reinitializing
+  if (bot) {
+    try {
+      bot.stop("RELOAD");
+    } catch {
+      // ignore
+    }
+    bot = null;
+  }
+
   try {
     bot = new Telegraf(token);
 
@@ -58,8 +68,15 @@ export const initTelegramBot = async () => {
         errMsg.includes("ETIMEDOUT") ||
         errMsg.includes("ECONNRESET");
 
+      const isConflict =
+        err?.response?.error_code === 409 ||
+        errMsg.includes("409") ||
+        errMsg.includes("Conflict");
+
       if (isRoutineTimeout) {
         console.log("[Telegram Copilot] Polling connection cycle refreshed.");
+      } else if (isConflict) {
+        console.warn("[Telegram Copilot] Notice: Concurrent polling detected. Instance will retry momentarily.");
       } else {
         console.error("[Telegram Copilot] Global bot error:", err);
       }
@@ -573,23 +590,77 @@ If this is purely an analytical question (e.g. "what did I spend?"), set "isTran
       }
     });
 
-    bot.launch()
-      .then(() => {
+    const launchPolling = async (retries = 6, delayMs = 3500): Promise<void> => {
+      if (!bot) return;
+
+      try {
+        // Clear any lingering webhook or pending updates lock before starting long-polling
+        try {
+          await bot.telegram.deleteWebhook({ drop_pending_updates: true });
+        } catch {
+          // ignore
+        }
+
+        await bot.launch({
+          dropPendingUpdates: true,
+        });
         console.log(`[Telegram Copilot] Bot polling running actively as @${botUsername}`);
-      })
-      .catch((err: any) => {
+      } catch (err: any) {
         const errMsg = String(err?.message || err);
+        const isConflict =
+          err?.response?.error_code === 409 ||
+          errMsg.includes("409") ||
+          errMsg.includes("Conflict");
+
+        if (isConflict && retries > 0) {
+          console.warn(
+            `[Telegram Copilot] Notice: 409 Conflict (previous bot process is disconnecting from Telegram). Auto-retrying in ${Math.round(
+              delayMs / 1000
+            )}s... (${retries} attempts left)`
+          );
+          setTimeout(() => {
+            launchPolling(retries - 1, delayMs);
+          }, delayMs);
+          return;
+        }
+
         if (err?.name === "TimeoutError" || errMsg.includes("timed out")) {
           console.log("[Telegram Copilot] Launch polling cycle completed.");
         } else {
-          console.error("[Telegram Copilot] Failed to initiate polling:", err);
+          console.error("[Telegram Copilot] Failed to initiate polling:", errMsg);
         }
-      });
+      }
+    };
 
-    process.once("SIGINT", () => bot?.stop("SIGINT"));
-    process.once("SIGTERM", () => bot?.stop("SIGTERM"));
+    launchPolling();
+
+    const cleanShutdown = (signal: string) => {
+      if (bot) {
+        try {
+          bot.stop(signal);
+        } catch {
+          // ignore
+        }
+      }
+    };
+
+    process.once("SIGINT", () => cleanShutdown("SIGINT"));
+    process.once("SIGTERM", () => cleanShutdown("SIGTERM"));
+    process.once("SIGUSR2", () => cleanShutdown("SIGUSR2"));
+    process.once("beforeExit", () => cleanShutdown("beforeExit"));
   } catch (err) {
     console.error("[Telegram Copilot] Failed to launch bot:", err);
+  }
+};
+
+export const stopTelegramBot = async () => {
+  if (bot) {
+    try {
+      bot.stop("SHUTDOWN");
+    } catch {
+      // ignore
+    }
+    bot = null;
   }
 };
 
