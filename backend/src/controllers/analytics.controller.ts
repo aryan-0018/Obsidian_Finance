@@ -9,6 +9,7 @@ import {
   generateAiInsightsService,
   chatWithAiFinancialAdvisorService,
 } from "../services/analytics.service";
+import { processVoiceCommandService } from "../services/voice-terminal.service";
 
 export const summaryAnalyticsController = asyncHandler(
   async (req: Request, res: Response) => {
@@ -135,4 +136,19 @@ export const chatAiAdvisorController = asyncHandler(
     });
   }
 );
+
+export const voiceTerminalCommandController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = req.user?._id?.toString();
+    const transcript = req.body?.transcript;
+
+    const result = await processVoiceCommandService(userId, transcript);
+
+    return res.status(HTTPSTATUS.OK).json({
+      message: "Voice command processed successfully",
+      data: result,
+    });
+  }
+);
+
 

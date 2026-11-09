@@ -21,7 +21,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from "@/lib/utils";
 import { format } from "date-fns";
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
@@ -135,19 +134,44 @@ const TransactionForm = (props: {
   );
 
   const handleScanComplete = (data: AIScanReceiptData) => {
-    form.reset({
-      ...form.getValues(),
-      title: data.title || "",
-      amount: data.amount.toString(),
-      type: data.type || _TRANSACTION_TYPE.EXPENSE,
-      category: data.category?.toLowerCase() || "",
-      date: new Date(data.date),
-      paymentMethod: data.paymentMethod || "",
-      isRecurring: false,
-      frequency: null,
-      description: data.description || "",
-      receiptUrl: data.receiptUrl || "",
+    form.setValue("title", data.title || "Scanned Receipt", {
+      shouldValidate: true,
+      shouldDirty: true,
     });
+    form.setValue("amount", data.amount ? data.amount.toString() : "0", {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+    form.setValue("type", data.type || _TRANSACTION_TYPE.EXPENSE, {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+    form.setValue("category", data.category?.toLowerCase() || "shopping", {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+    form.setValue("date", data.date ? new Date(data.date) : new Date(), {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+    form.setValue("paymentMethod", data.paymentMethod || "CARD", {
+      shouldValidate: true,
+      shouldDirty: true,
+    });
+    form.setValue(
+      "description",
+      data.description || "Scanned receipt",
+      {
+        shouldValidate: true,
+        shouldDirty: true,
+      }
+    );
+    if (data.receiptUrl) {
+      form.setValue("receiptUrl", data.receiptUrl, {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
+    }
   };
 
   // Handle form submission
@@ -207,57 +231,43 @@ const TransactionForm = (props: {
               />
             )}
 
-            {/* Transaction Type */}
+            {/* Segmented Control: Transaction Type */}
             <FormField
               control={form.control}
               name="type"
               render={({ field }) => (
-                <FormItem className="space-y-1">
-                  <FormLabel>Transaction Type</FormLabel>
-                  <RadioGroup
-                    onValueChange={field.onChange}
-                    defaultValue={field.value}
-                    className="flex space-x-2"
-                    disabled={isScanning}
-                  >
-                    <label
-                      htmlFor={_TRANSACTION_TYPE.INCOME}
+                <FormItem className="space-y-1.5">
+                  <FormLabel className="text-xs font-medium text-[#a1a1aa]">
+                    Transaction Type
+                  </FormLabel>
+                  <div className="flex p-1 rounded-xl bg-black/60 border border-white/[0.08] select-none">
+                    <button
+                      type="button"
+                      disabled={isScanning}
+                      onClick={() => field.onChange(_TRANSACTION_TYPE.EXPENSE)}
                       className={cn(
-                        `text-sm font-normal leading-none cursor-pointer
-                        flex items-center space-x-2 rounded-md 
-                        shadow-sm border p-2 flex-1 justify-center 
-                        `,
-                        field.value === _TRANSACTION_TYPE.INCOME &&
-                        "!border-primary"
+                        "flex-1 py-2 text-xs font-semibold rounded-lg transition-all duration-150 cursor-pointer flex items-center justify-center gap-1.5",
+                        field.value === _TRANSACTION_TYPE.EXPENSE
+                          ? "bg-[#f43f5e] text-white shadow-[0_2px_10px_rgba(244,63,94,0.3)]"
+                          : "text-[#a1a1aa] hover:text-white hover:bg-white/5"
                       )}
                     >
-                      <RadioGroupItem
-                        value={_TRANSACTION_TYPE.INCOME}
-                        id={_TRANSACTION_TYPE.INCOME}
-                        className="!border-primary"
-                      />
-                      Income
-                    </label>
-
-                    <label
-                      htmlFor={_TRANSACTION_TYPE.EXPENSE}
+                      <span>- Expense</span>
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isScanning}
+                      onClick={() => field.onChange(_TRANSACTION_TYPE.INCOME)}
                       className={cn(
-                        `text-sm font-normal leading-none cursor-pointer
-                        flex items-center space-x-2 rounded-md 
-                        shadow-sm border p-2 flex-1 justify-center 
-                        `,
-                        field.value === _TRANSACTION_TYPE.EXPENSE &&
-                        "!border-primary"
+                        "flex-1 py-2 text-xs font-semibold rounded-lg transition-all duration-150 cursor-pointer flex items-center justify-center gap-1.5",
+                        field.value === _TRANSACTION_TYPE.INCOME
+                          ? "bg-gradient-to-r from-[#e5c158] via-[#c1a063] to-[#b09055] text-black shadow-xs font-semibold"
+                          : "text-[#a1a1aa] hover:text-white hover:bg-white/5"
                       )}
                     >
-                      <RadioGroupItem
-                        value={_TRANSACTION_TYPE.EXPENSE}
-                        id={_TRANSACTION_TYPE.EXPENSE}
-                        className="!border-primary"
-                      />
-                      Expense
-                    </label>
-                  </RadioGroup>
+                      <span>+ Income</span>
+                    </button>
+                  </div>
                   <FormMessage />
                 </FormItem>
               )}
@@ -360,20 +370,20 @@ const TransactionForm = (props: {
                         variant={"outline"}
                         onClick={() => setIsCalendarOpen((prev) => !prev)}
                         className={cn(
-                          "w-full pl-3 text-left font-normal cursor-pointer flex items-center justify-between border-gray-700 bg-[#111111] text-[#e8e0d4] hover:bg-[#1a1610] hover:text-[#c1a063]",
+                          "w-full pl-3 text-left font-normal cursor-pointer flex items-center justify-between border-white/[0.10] bg-white/[0.03] text-white hover:bg-white/[0.06] hover:text-[#e5c158]",
                           !field.value && "text-muted-foreground"
                         )}
                       >
                         <span>
                           {currentDate ? format(currentDate, "PPP") : "Pick a date"}
                         </span>
-                        <Calendar className="ml-auto h-4 w-4 opacity-70 text-[#c1a063]" />
+                        <Calendar className="ml-auto h-4 w-4 opacity-70 text-[#e5c158]" />
                       </Button>
                     </FormControl>
 
                     {isCalendarOpen && (
                       <div
-                        className="rounded-md border border-[#2a2520] bg-[#111111] p-3 flex flex-col items-center justify-center shadow-xl transition-all duration-200 animate-in fade-in-0 zoom-in-95"
+                        className="rounded-xl border border-white/[0.10] bg-[#0b0b0e] p-3 flex flex-col items-center justify-center shadow-xl transition-all duration-200 animate-in fade-in-0 zoom-in-95"
                         onPointerDown={(e) => e.stopPropagation()}
                         onMouseDown={(e) => e.stopPropagation()}
                       >
@@ -382,7 +392,7 @@ const TransactionForm = (props: {
                           selected={currentDate}
                           onSelect={handleDateSelect}
                           onDayClick={handleDateSelect}
-                          className="rounded-md border border-gray-800/60 p-2 bg-[#0d0d0d]"
+                          className="rounded-xl border border-white/[0.08] p-2 bg-[#070709]"
                         />
                         <div className="w-full flex justify-end pt-2 pr-1">
                           <Button

@@ -12,16 +12,17 @@ interface PropsType {
   renderPageHeader?: React.ReactNode
 }
 
-const PageLayout = ({ children, className,
+const PageLayout = ({
+  children,
+  className,
   title,
   subtitle,
   rightAction,
   showHeader = true,
-  addMarginTop = false,
   renderPageHeader,
- }: PropsType) => {
+}: PropsType) => {
   return (
-    <div>
+    <div className="w-full min-h-[calc(100vh-4rem)] flex flex-col">
       {showHeader && (
         <PageHeader 
           title={title} 
@@ -30,11 +31,14 @@ const PageLayout = ({ children, className,
           renderPageHeader={renderPageHeader}
         />
       )}
-    <div className={cn("w-full max-w-[var(--max-width)] mx-auto pt-8",
-      addMarginTop && "-mt-20",
-      className)}>
-      {children}
-    </div>
+      <div
+        className={cn(
+          "w-full max-w-[var(--max-width)] mx-auto py-6 sm:py-8 px-4 sm:px-6 lg:px-8 flex-1",
+          className
+        )}
+      >
+        {children}
+      </div>
     </div>
   );
 };

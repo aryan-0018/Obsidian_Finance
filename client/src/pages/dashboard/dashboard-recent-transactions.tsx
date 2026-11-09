@@ -11,25 +11,34 @@ import {
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { PROTECTED_ROUTES } from "@/routes/common/routePath";
+import { ArrowRight } from "lucide-react";
 
 const DashboardRecentTransactions = () => {
   return (
-    <Card className="!shadow-none border-1 border-gray-100 dark:border-border">
-      <CardHeader className="!pb-0">
-        <CardTitle className="text-xl">Recent Transactions</CardTitle>
-        <CardDescription>Showing all recent transactions</CardDescription>
-        <CardAction>
-          <Button
-            asChild
-            variant="link"
-            className="!text-gray-700 dark:!text-gray-200 !font-normal"
-          >
-            <Link to={PROTECTED_ROUTES.TRANSACTIONS}>View all</Link>
-          </Button>
-        </CardAction>
-        <Separator className="mt-3 !bg-gray-100 dark:!bg-gray-800" />
+    <Card className="obsidian-card rounded-2xl overflow-hidden">
+      <CardHeader className="!pb-3 pt-5 px-4 sm:px-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 w-full">
+          <div>
+            <CardTitle className="text-base sm:text-lg font-semibold text-white tracking-tight">Recent Transactions</CardTitle>
+            <CardDescription className="text-xs text-[#a1a1aa] font-normal">Latest verified inflows, outflows, and transfers</CardDescription>
+          </div>
+          <CardAction>
+            <Button
+              asChild
+              variant="outline"
+              size="sm"
+              className="rounded-xl border-white/[0.10] bg-white/[0.03] text-white hover:text-[#e5c158] hover:border-[#c1a063]/40 text-xs active:scale-[0.98] transition-all gap-1.5 cursor-pointer shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+            >
+              <Link to={PROTECTED_ROUTES.TRANSACTIONS}>
+                <span>View All Transactions</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </Button>
+          </CardAction>
+        </div>
+        <Separator className="mt-4 bg-white/[0.06]" />
       </CardHeader>
-      <CardContent className="pt-0">
+      <CardContent className="pt-2 px-3 sm:px-6 pb-6">
         <TransactionTable pageSize={10} isShowPagination={false} />
       </CardContent>
     </Card>

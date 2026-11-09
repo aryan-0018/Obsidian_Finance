@@ -504,7 +504,19 @@ async function generateInsightsAI({
 
     if (!cleanedText) return fallbackInsights;
 
-    const data = JSON.parse(cleanedText);
+    let data: any = [];
+    try {
+      data = JSON.parse(cleanedText);
+    } catch {
+      const match = cleanedText.match(/\[[\s\S]*\]/);
+      if (match) {
+        try {
+          data = JSON.parse(match[0]);
+        } catch {
+          // fallback
+        }
+      }
+    }
     return Array.isArray(data) && data.length > 0 ? data : fallbackInsights;
   } catch (error) {
     return fallbackInsights;

@@ -20,6 +20,11 @@ import {
   updateTransactionService,
   exportTransactionsEmailService,
 } from "../services/transaction.service";
+import {
+  parseBankStatementService,
+  bulkCommitBankTransactionsService,
+} from "../services/bank-statement.service";
+import { verifyLedgerIntegrityService } from "../services/ledger-audit.service";
 import { TransactionTypeEnum } from "../models/transaction.model";
 
 export const createTransactionController = asyncHandler(
@@ -184,3 +189,54 @@ export const exportTransactionsEmailController = asyncHandler(
     });
   }
 );
+
+export const parseBankStatementController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const file = req.file;
+    const password = req.body?.password;
+    const userId = req.user?._id?.toString();
+
+    const result = await parseBankStatementService(file, password, userId);
+
+    return res.status(HTTPSTATUS.OK).json({
+      message: "Bank statement parsed successfully",
+      data: result,
+    });
+  }
+);
+
+export const bulkCommitBankTransactionsController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = req.user?._id?.toString();
+    const transactions = req.body?.transactions;
+
+    const result = await bulkCommitBankTransactionsService(
+      userId,
+      transactions
+    );
+
+    return res.status(HTTPSTATUS.OK).json({
+      message: `Successfully imported ${result.importedCount} transactions`,
+      data: result,
+    });
+  }
+);
+
+export const ledgerAuditController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = req.user?._id?.toString();
+    const simulateTamper =
+      req.query.simulateTamper !== undefined
+        ? Number(req.query.simulateTamper)
+        : undefined;
+
+    const result = await verifyLedgerIntegrityService(userId, simulateTamper);
+
+    return res.status(HTTPSTATUS.OK).json({
+      message: "Ledger verification completed",
+      data: result,
+    });
+  }
+);
+
+

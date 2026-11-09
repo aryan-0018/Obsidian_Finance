@@ -1,6 +1,8 @@
+import mongoose from "mongoose";
 import axios from "axios";
 import TransactionModel, {
   TransactionTypeEnum,
+  PaymentMethodEnum,
 } from "../models/transaction.model";
 import { BadRequestException, NotFoundException } from "../utils/app-error";
 import { calculateNextOccurrence } from "../utils/helper";
@@ -13,6 +15,14 @@ import { createPartFromBase64, createUserContent } from "@google/genai";
 import { sendEmail } from "../mailers/mailer";
 import { receiptPrompt } from "../utils/prompt";
 import UserModel from "../models/user.model";
+import { convertToSmallestUnit } from "../utils/format-currency";
+import { computeTransactionBlockHash, getGenesisHash } from "./ledger-audit.service";
+import { PDFParse } from "pdf-parse";
+import {
+  parseBankDate,
+  detectIndianMerchantAndCategory,
+  parseIndianCurrencyExpression,
+} from "../utils/nlp-parser";
 
 export const createTransactionService = async (
   body: CreateTransactionType,
@@ -33,6 +43,13 @@ export const createTransactionService = async (
         : calulatedDate;
   }
 
+  // Find previous transaction for Merkle hash chain continuity
+  const lastTx = await TransactionModel.findOne({ userId })
+    .sort({ createdAt: -1, _id: -1 })
+    .select("ledgerHash");
+
+  const prevLedgerHash = lastTx?.ledgerHash || getGenesisHash();
+
   const transaction = await TransactionModel.create({
     ...body,
     userId,
@@ -42,7 +59,20 @@ export const createTransactionService = async (
     recurringInterval: body.recurringInterval || null,
     nextRecurringDate,
     lastProcessed: null,
+    prevLedgerHash,
   });
+
+  // Calculate and commit cryptographic block hash for tamper-proof ledger
+  const blockHash = computeTransactionBlockHash(prevLedgerHash, {
+    _id: transaction._id,
+    date: transaction.date,
+    amount: convertToSmallestUnit(Number(body.amount)),
+    type: transaction.type,
+    title: transaction.title,
+  });
+
+  transaction.ledgerHash = blockHash;
+  await transaction.save();
 
   return transaction;
 };
@@ -104,7 +134,7 @@ export const getAllTransactionService = async (
     TransactionModel.find(filterConditions)
       .skip(skip)
       .limit(pageSize)
-      .sort({ createdAt: -1 }),
+      .sort({ date: -1, createdAt: -1 }),
     TransactionModel.countDocuments(filterConditions),
   ]);
 
@@ -207,6 +237,16 @@ export const updateTransactionService = async (
     nextRecurringDate,
   });
 
+  const prevHash = existingTransaction.prevLedgerHash || getGenesisHash();
+  const rawUnitAmount = body.amount !== undefined ? Number(body.amount) : Number(existingTransaction.amount);
+  existingTransaction.ledgerHash = computeTransactionBlockHash(prevHash, {
+    _id: existingTransaction._id,
+    date,
+    amount: convertToSmallestUnit(rawUnitAmount),
+    type: existingTransaction.type,
+    title: existingTransaction.title,
+  });
+
   await existingTransaction.save();
 
   return;
@@ -248,20 +288,44 @@ export const bulkTransactionService = async (
   transactions: CreateTransactionType[]
 ) => {
   try {
-    const bulkOps = transactions.map((tx) => ({
-      insertOne: {
-        document: {
-          ...tx,
-          userId,
-          isRecurring: false,
-          nextRecurringDate: null,
-          recurringInterval: null,
-          lastProcessed: null,
-          createdAt: new Date(),
-          updatedAt: new Date(),
+    const lastTx = await TransactionModel.findOne({ userId })
+      .sort({ createdAt: -1, _id: -1 })
+      .select("ledgerHash");
+    let runningHash = lastTx?.ledgerHash || getGenesisHash();
+
+    const bulkOps = transactions.map((tx) => {
+      const smallestAmount = convertToSmallestUnit(tx.amount);
+      const txDate = tx.date ? new Date(tx.date) : new Date();
+      const tempId = new mongoose.Types.ObjectId();
+      const prev = runningHash;
+      runningHash = computeTransactionBlockHash(prev, {
+        _id: tempId,
+        date: txDate,
+        amount: smallestAmount,
+        type: tx.type,
+        title: tx.title,
+      });
+
+      return {
+        insertOne: {
+          document: {
+            ...tx,
+            _id: tempId,
+            amount: smallestAmount,
+            userId,
+            date: txDate,
+            isRecurring: false,
+            nextRecurringDate: null,
+            recurringInterval: null,
+            lastProcessed: null,
+            prevLedgerHash: prev,
+            ledgerHash: runningHash,
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          },
         },
-      },
-    }));
+      };
+    });
 
     const result = await TransactionModel.bulkWrite(bulkOps, {
       ordered: true,
@@ -279,54 +343,219 @@ export const bulkTransactionService = async (
 export const scanReceiptService = async (
   file: Express.Multer.File | undefined
 ) => {
-  if (!file) throw new BadRequestException("No file uploaded");
+  if (!file) throw new BadRequestException("No receipt file provided");
+
+  const isPdf =
+    file.mimetype === "application/pdf" ||
+    file.originalname.toLowerCase().endsWith(".pdf");
 
   try {
-    if (!file.path) throw new BadRequestException("Failed to upload file");
+    let base64String = "";
+    let extractedPdfText = "";
 
-    const responseData = await axios.get(file.path, {
-      responseType: "arraybuffer",
-    });
-    const base64String = Buffer.from(responseData.data).toString("base64");
-
-    if (!base64String) throw new BadRequestException("Could not process file");
-
-    const result = await generateContentWithRetry({
-      contents: [
-        createUserContent([
-          receiptPrompt,
-          createPartFromBase64(base64String, file.mimetype),
-        ]),
-      ],
-      config: {
-        temperature: 0,
-        topP: 1,
-        responseMimeType: "application/json",
-      },
-    });
-
-    const response = result.text;
-    const cleanedText = response?.replace(/```(?:json)?\n?/g, "").trim();
-
-    if (!cleanedText) {
-      throw new BadRequestException("Could not read receipt content");
+    if (file.buffer && file.buffer.length > 0) {
+      base64String = file.buffer.toString("base64");
+    } else if (file.path) {
+      if (file.path.startsWith("http://") || file.path.startsWith("https://")) {
+        const responseData = await axios.get(file.path, {
+          responseType: "arraybuffer",
+        });
+        base64String = Buffer.from(responseData.data).toString("base64");
+      } else {
+        const fs = await import("fs");
+        base64String = fs.readFileSync(file.path).toString("base64");
+      }
     }
 
-    const data = JSON.parse(cleanedText);
-
-    if (!data.amount || !data.date) {
-      throw new BadRequestException("Receipt missing required information (amount or date)");
+    if (!base64String) {
+      throw new BadRequestException("Could not read receipt file content");
     }
+
+    // Clean data URL prefix if present
+    base64String = base64String.replace(/^data:[a-z0-9/+-]+;base64,/i, "").trim();
+
+    // If PDF, also extract text using pdf-parse for zero-failure redundancy
+    if (isPdf && file.buffer && file.buffer.length > 0) {
+      try {
+        const pdfParser = new PDFParse({ data: file.buffer });
+        const textResult = await pdfParser.getText();
+        extractedPdfText = textResult?.text?.trim() || "";
+        await pdfParser.destroy();
+      } catch (pdfErr) {
+        console.warn("[Receipt Scanner] PDF text extraction notice:", pdfErr);
+      }
+    }
+
+    let parsedData: any = null;
+
+    // Strategy A: If PDF text was cleanly extracted, run high-speed text prompt first
+    if (extractedPdfText && extractedPdfText.length > 20) {
+      try {
+        const textPrompt = `
+Analyze this receipt text and extract transaction details matching this exact JSON format:
+{
+  "title": "Clean merchant or business name",
+  "amount": 0.00,
+  "date": "YYYY-MM-DD",
+  "description": "Itemized overview or summary (max 60 words)",
+  "category": "groceries | dining | transportation | utilities | entertainment | shopping | healthcare | travel | housing | other",
+  "paymentMethod": "CARD | CASH | BANK_TRANSFER | AUTO_DEBIT | MOBILE_PAYMENT | OTHER",
+  "subtotal": 0.00,
+  "tax": 0.00,
+  "discount": 0.00,
+  "confidence": "HIGH",
+  "items": [
+    { "name": "Item name", "quantity": 1, "price": 0.00 }
+  ]
+}
+
+Receipt text:
+${extractedPdfText.slice(0, 15000)}
+`;
+        const result = await generateContentWithRetry({
+          contents: textPrompt,
+          config: {
+            temperature: 0.1,
+            responseMimeType: "application/json",
+          },
+        });
+        const cleaned = result.text?.replace(/```(?:json)?\n?/g, "").trim();
+        if (cleaned) parsedData = JSON.parse(cleaned);
+      } catch (textErr) {
+        console.warn("[Receipt Scanner] Text prompt fallback to vision multimodal:", textErr);
+      }
+    }
+
+    // Strategy B: Multimodal Vision OCR (primary for image photos, or fallback for PDFs)
+    if (!parsedData || !parsedData.amount) {
+      const mimeType = isPdf ? "application/pdf" : (file.mimetype || "image/jpeg");
+      const result = await generateContentWithRetry({
+        contents: [
+          createUserContent([
+            receiptPrompt,
+            createPartFromBase64(base64String, mimeType),
+          ]),
+        ],
+        config: {
+          temperature: 0.1,
+          topP: 0.95,
+          responseMimeType: "application/json",
+        },
+      });
+
+      const response = result.text;
+      const cleanedText = response?.replace(/```(?:json)?\n?/g, "").trim();
+      if (cleanedText) {
+        parsedData = JSON.parse(cleanedText);
+      }
+    }
+
+    // Strategy C: Deterministic Local Extraction Fallback (Zero crash even if Gemini times out on text PDF)
+    if (!parsedData && extractedPdfText) {
+      const detectedAmount = parseIndianCurrencyExpression(extractedPdfText) || 0;
+      const { title, category, paymentMethod } = detectIndianMerchantAndCategory(extractedPdfText);
+      parsedData = {
+        title,
+        amount: detectedAmount,
+        date: new Date().toISOString().split("T")[0],
+        category,
+        paymentMethod,
+        subtotal: detectedAmount,
+        tax: 0,
+        discount: 0,
+        confidence: "MEDIUM",
+        items: [],
+      };
+    }
+
+    if (!parsedData) {
+      throw new BadRequestException("Could not extract readable details from this receipt. Please enter manually.");
+    }
+
+    // Sanitize amount
+    let rawAmount = parsedData.amount;
+    if (typeof rawAmount === "string") {
+      rawAmount = Number(rawAmount.replace(/[^0-9.-]+/g, ""));
+    }
+    let amount = !isNaN(Number(rawAmount)) && Number(rawAmount) > 0 ? Math.abs(Number(rawAmount)) : 0;
+
+    // Fallback: If amount is missing, calculate sum of line items if present
+    if (!amount && Array.isArray(parsedData.items) && parsedData.items.length > 0) {
+      const itemsSum = parsedData.items.reduce((acc: number, item: any) => acc + (Number(item.price) || 0), 0);
+      if (itemsSum > 0) amount = itemsSum;
+    }
+
+    if (!amount) {
+      throw new BadRequestException("Could not detect total amount on this receipt. Please enter manually.");
+    }
+
+    // Sanitize date using robust multi-format parseBankDate
+    const parsedDateObj = parseBankDate(parsedData.date);
+    const dateStr = parsedDateObj.toISOString().split("T")[0];
+
+    // Refine category & merchant normalization
+    const detectedMerchant = detectIndianMerchantAndCategory(parsedData.title || "");
+    const finalTitle = parsedData.title && parsedData.title.trim() && parsedData.title !== "Scanned Receipt"
+      ? parsedData.title.trim()
+      : (detectedMerchant.title || "Scanned Receipt");
+
+    const validCategories = [
+      "groceries",
+      "dining",
+      "transportation",
+      "utilities",
+      "entertainment",
+      "shopping",
+      "healthcare",
+      "travel",
+      "housing",
+      "income",
+      "investments",
+      "other",
+    ];
+
+    let category = (parsedData.category || "").toLowerCase();
+    if (!validCategories.includes(category) || category === "other" || category === "shopping") {
+      if (detectedMerchant.category && detectedMerchant.category !== "other") {
+        category = detectedMerchant.category;
+      } else if (!validCategories.includes(category)) {
+        category = "shopping";
+      }
+    }
+
+    const validMethods = Object.values(PaymentMethodEnum);
+    const paymentMethod = validMethods.includes(parsedData.paymentMethod)
+      ? parsedData.paymentMethod
+      : (detectedMerchant.paymentMethod || PaymentMethodEnum.CARD);
+
+    const subtotal = Number(parsedData.subtotal) > 0 ? Number(parsedData.subtotal) : amount;
+    const tax = Number(parsedData.tax) >= 0 ? Number(parsedData.tax) : 0;
+    const discount = Number(parsedData.discount) >= 0 ? Number(parsedData.discount) : 0;
+    const confidence = ["HIGH", "MEDIUM", "LOW"].includes(parsedData.confidence) ? parsedData.confidence : "HIGH";
+    const items = Array.isArray(parsedData.items)
+      ? parsedData.items
+          .filter((i: any) => i && i.name)
+          .map((i: any) => ({
+            name: String(i.name).trim(),
+            quantity: Number(i.quantity) || 1,
+            price: Number(i.price) || 0,
+          }))
+      : [];
 
     return {
-      title: data.title || "Receipt",
-      amount: data.amount,
-      date: data.date,
-      description: data.description || "",
-      category: (data.category || "other").toLowerCase(),
-      paymentMethod: data.paymentMethod || "CASH",
-      type: data.type || "EXPENSE",
-      receiptUrl: file.path,
+      title: finalTitle,
+      amount,
+      date: dateStr,
+      description: parsedData.description || "Scanned via Gemini Vision OCR",
+      category,
+      paymentMethod,
+      type: "EXPENSE",
+      receiptUrl: file.path || "",
+      subtotal,
+      tax,
+      discount,
+      confidence,
+      items,
     };
   } catch (error: any) {
     if (error instanceof BadRequestException) throw error;

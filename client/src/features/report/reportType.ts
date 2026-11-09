@@ -27,3 +27,21 @@ export interface GetAllReportResponse {
 export interface UpdateReportSettingParams {
     isEnabled: boolean;
 }
+
+export interface InstantReportResponse {
+    message: string;
+    data: {
+        period: string;
+        summary: {
+            income: number;
+            expenses: number;
+            balance: number;
+            savingsRate: number;
+            topCategories: Array<{ category: string; amount: number; percentage: number }>;
+        };
+        insights: string[];
+        recentTransactions: Array<Record<string, unknown>>;
+        savedReport: ReportType;
+        emailSent: boolean;
+    };
+}

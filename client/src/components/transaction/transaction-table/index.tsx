@@ -1,7 +1,8 @@
 import { DataTable } from "@/components/data-table";
 import { transactionColumns } from "./column";
 import { _TRANSACTION_TYPE, _TransactionType, CATEGORIES } from "@/constant";
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import useDebouncedSearch from "@/hooks/use-debounce-search";
 import {
   useBulkDeleteTransactionMutation,
@@ -10,12 +11,14 @@ import {
 import { toast } from "sonner";
 import {
   startOfMonth,
+  endOfMonth,
   subMonths,
   startOfQuarter,
   endOfQuarter,
   subQuarters,
   subDays,
   startOfYear,
+  endOfYear,
   subYears,
   endOfDay,
 } from "date-fns";
@@ -45,7 +48,7 @@ const computePeriodRange = (period?: string) => {
       const prevMonth = subMonths(today, 1);
       return {
         from: startOfMonth(prevMonth).toISOString(),
-        to: startOfMonth(today).toISOString(),
+        to: endOfDay(endOfMonth(prevMonth)).toISOString(),
       };
     }
     case "THIS_QUARTER":
@@ -69,7 +72,7 @@ const computePeriodRange = (period?: string) => {
       const threeMonthsAgo = subMonths(today, 3);
       return {
         from: startOfMonth(threeMonthsAgo).toISOString(),
-        to: startOfMonth(today).toISOString(),
+        to: today.toISOString(),
       };
     }
     case "THIS_YEAR":
@@ -81,7 +84,7 @@ const computePeriodRange = (period?: string) => {
       const prevYear = subYears(today, 1);
       return {
         from: startOfYear(prevYear).toISOString(),
-        to: startOfYear(today).toISOString(),
+        to: endOfDay(endOfYear(prevYear)).toISOString(),
       };
     }
     default:
@@ -93,10 +96,15 @@ const TransactionTable = (props: {
   pageSize?: number;
   isShowPagination?: boolean;
 }) => {
+  const [searchParams] = useSearchParams();
+  const urlKeyword = searchParams.get("keyword") || "";
+  const urlCategory = searchParams.get("category") || "";
+  const urlType = (searchParams.get("type") as _TransactionType) || undefined;
+
   const [filter, setFilter] = useState<FilterType>({
-    type: undefined,
+    type: urlType,
     recurringStatus: undefined,
-    category: undefined,
+    category: urlCategory || undefined,
     period: undefined,
     from: undefined,
     to: undefined,
@@ -104,9 +112,15 @@ const TransactionTable = (props: {
     pageSize: props.pageSize || 10,
   });
 
-  const { debouncedTerm, setSearchTerm } = useDebouncedSearch("", {
+  const { debouncedTerm, setSearchTerm } = useDebouncedSearch(urlKeyword, {
     delay: 500,
   });
+
+  useEffect(() => {
+    if (urlKeyword && urlKeyword !== debouncedTerm) {
+      setSearchTerm(urlKeyword);
+    }
+  }, [urlKeyword]);
 
   const [bulkDeleteTransaction, { isLoading: isBulkDeleting }] =
     useBulkDeleteTransactionMutation();
@@ -173,6 +187,11 @@ const TransactionTable = (props: {
       data={transactions}
       columns={transactionColumns}
       searchPlaceholder="Search transactions..."
+      initialSearchTerm={urlKeyword}
+      initialFilters={{
+        ...(urlType ? { type: urlType } : {}),
+        ...(urlCategory ? { category: urlCategory } : {}),
+      }}
       isLoading={isFetching}
       isBulkDeleting={isBulkDeleting}
       isShowPagination={props.isShowPagination}

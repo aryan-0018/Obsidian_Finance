@@ -11,6 +11,7 @@ import {
   RefreshCw,
   //StopCircleIcon,
   Trash2,
+  Send,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -42,16 +43,17 @@ import {
 import { Calendar as CalendarComponent } from "@/components/ui/calendar";
 import { useState } from "react";
 
+// eslint-disable-next-line react-refresh/only-export-components
 const AmountCell = ({ amount, type }: { amount: number; type: string }) => {
   const { user } = useTypedSelector((state) => state.auth);
   const currency = user?.currency || "INR";
 
   return (
     <div
-      className={`text-right font-medium ${
+      className={`text-right font-medium tracking-tight text-sm tabular-nums ${
         type === _TRANSACTION_TYPE.INCOME
-          ? "text-green-600"
-          : "text-destructive"
+          ? "text-[#30d158]"
+          : "text-[#ff453a]"
       }`}
     >
       {type === _TRANSACTION_TYPE.EXPENSE ? "-" : "+"}
@@ -60,6 +62,7 @@ const AmountCell = ({ amount, type }: { amount: number; type: string }) => {
   );
 };
 
+// eslint-disable-next-line react-refresh/only-export-components
 const EditableDateCell = ({ row }: { row: any }) => {
   const transaction = row.original;
   const transactionId = transaction._id || transaction.id;
@@ -134,9 +137,10 @@ type FrequencyMapType = {
 export const transactionColumns: ColumnDef<TransactionType>[] = [
   {
     id: "select",
+    meta: { className: "w-8 text-center" },
     header: ({ table }) => (
       <Checkbox
-        className="!border-black data-[state=checked]:!bg-gray-800 !text-white"
+        className="border-white/20 data-[state=checked]:bg-[#c1a063] data-[state=checked]:border-[#c1a063] text-black rounded-[4px]"
         checked={table.getIsAllPageRowsSelected()}
         onCheckedChange={(value) => table.toggleAllPageRowsSelected(!!value)}
         aria-label="Select all"
@@ -144,7 +148,7 @@ export const transactionColumns: ColumnDef<TransactionType>[] = [
     ),
     cell: ({ row }) => (
       <Checkbox
-        className="!border-black data-[state=checked]:!bg-gray-800 !text-white"
+        className="border-white/20 data-[state=checked]:bg-[#c1a063] data-[state=checked]:border-[#c1a063] text-black rounded-[4px]"
         checked={row.getIsSelected()}
         onCheckedChange={(value) => row.toggleSelected(!!value)}
         aria-label="Select row"
@@ -155,6 +159,7 @@ export const transactionColumns: ColumnDef<TransactionType>[] = [
   },
   {
     accessorKey: "createdAt",
+    meta: { className: "hidden xl:table-cell" },
     header: ({ column }) => (
       <Button
         variant="ghost"
@@ -168,10 +173,43 @@ export const transactionColumns: ColumnDef<TransactionType>[] = [
   },
   {
     accessorKey: "title",
+    meta: { className: "min-w-[120px]" },
     header: "Title",
+    cell: ({ row }) => {
+      const title = row.getValue("title") as string;
+      const desc = row.original.description || "";
+      const isTelegram = desc.toLowerCase().includes("telegram");
+      const category = row.original.category;
+      const date = row.original.date;
+      return (
+        <div className="flex flex-col gap-0.5">
+          <div className="flex items-center gap-2">
+            <span className="font-medium text-white text-xs sm:text-sm">{title}</span>
+            {isTelegram && (
+              <span
+                title={desc}
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] bg-white/[0.04] text-[#a1a1aa] border border-white/[0.08] shrink-0 font-normal"
+              >
+                <Send className="h-2.5 w-2.5 text-[#e5c158]" /> Telegram
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 md:hidden text-[11px] text-[#a1a1aa]">
+            <span className="capitalize">{category}</span>
+            {date && (
+              <>
+                <span>•</span>
+                <span>{format(new Date(date), "MMM dd")}</span>
+              </>
+            )}
+          </div>
+        </div>
+      );
+    },
   },
   {
     accessorKey: "category",
+    meta: { className: "hidden md:table-cell" },
     header: ({ column }) => (
       <Button
         variant="ghost"
@@ -184,11 +222,16 @@ export const transactionColumns: ColumnDef<TransactionType>[] = [
     ),
     cell: ({ row }) => {
       const category = row.original.category;
-      return <div className="capitalize">{category}</div>;
+      return (
+        <span className="capitalize text-[13px] text-[#fcfcfc] font-normal">
+          {category}
+        </span>
+      );
     },
   },
   {
     accessorKey: "type",
+    meta: { className: "table-cell" },
     header: ({ column }) => (
       <Button
         variant="ghost"
@@ -198,24 +241,29 @@ export const transactionColumns: ColumnDef<TransactionType>[] = [
         <ArrowUpDown className="ml-2 h-4 w-4" />
       </Button>
     ),
-    cell: ({ row }) => (
-      <div className="capitalize">
-        <span
-          className={`px-2 py-1 rounded-sm border text-xs font-medium tracking-wide ${row.getValue("type") === _TRANSACTION_TYPE.INCOME
-              ? "bg-[#c1a063]/10 text-[#c1a063] border-[#c1a063]/30"
-              : "bg-red-500/10 text-red-400 border-red-500/20"
+    cell: ({ row }) => {
+      const isIncome = row.getValue("type") === _TRANSACTION_TYPE.INCOME;
+      return (
+        <div className="capitalize">
+          <span
+            className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] font-medium tracking-wide ${
+              isIncome
+                ? "bg-[#e5c158]/10 text-[#e5c158] border-[#e5c158]/25"
+                : "bg-[#f43f5e]/10 text-[#f43f5e] border-[#f43f5e]/25"
             }`}
-        >
-          {row.getValue("type")}
-        </span>
-      </div>
-    ),
+          >
+            {row.getValue("type")}
+          </span>
+        </div>
+      );
+    },
     filterFn: (row, id, value) => {
       return value.includes(row.getValue(id));
     },
   },
   {
     accessorKey: "amount",
+    meta: { className: "table-cell text-right" },
     header: () => <div className="text-right">Amount</div>,
     cell: ({ row }) => {
       const amount = parseFloat(row.getValue("amount"));
@@ -225,6 +273,7 @@ export const transactionColumns: ColumnDef<TransactionType>[] = [
   },
   {
     accessorKey: "date",
+    meta: { className: "hidden md:table-cell" },
     header: ({ column }) => (
       <Button
         variant="ghost"
@@ -238,6 +287,7 @@ export const transactionColumns: ColumnDef<TransactionType>[] = [
   },
   {
     accessorKey: "paymentMethod",
+    meta: { className: "hidden lg:table-cell" },
     header: "Payment Method",
     cell: ({ row }) => {
       const paymentMethod = row.original.paymentMethod;
@@ -251,6 +301,7 @@ export const transactionColumns: ColumnDef<TransactionType>[] = [
   },
   {
     accessorKey: "recurringInterval",
+    meta: { className: "hidden xl:table-cell" },
     header: ({ column }) => (
       <Button
         variant="ghost"
@@ -307,6 +358,7 @@ export const transactionColumns: ColumnDef<TransactionType>[] = [
   },
   {
     id: "actions",
+    meta: { className: "table-cell w-10 text-right" },
     enableHiding: false,
     cell: ({ row }) => <ActionsCell row={row} />,
   },
@@ -358,7 +410,7 @@ const ActionsCell = ({ row }: { row: any }) => {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
-        className="w-44"
+        className="w-44 obsidian-card rounded-2xl bg-[#111111]/95 backdrop-blur-2xl border border-white/[0.08] shadow-[0_15px_35px_rgba(0,0,0,0.6)] p-1.5 text-white"
         align="end"
         onCloseAutoFocus={(e) => {
           if (isDeleting || isDuplicating) {
@@ -366,40 +418,32 @@ const ActionsCell = ({ row }: { row: any }) => {
           }
         }}
       >
-        <DropdownMenuItem onClick={() => onOpenDrawer(transactionId)}>
-          <Pencil className="mr-1 h-4 w-4" />
+        <DropdownMenuItem onClick={() => onOpenDrawer(transactionId)} className="rounded-xl cursor-pointer hover:bg-white/5 focus:bg-white/10 text-xs">
+          <Pencil className="mr-2 h-3.5 w-3.5 text-[#c1a063]" />
           Edit
         </DropdownMenuItem>
         <DropdownMenuItem
-          className="relative"
+          className="relative rounded-xl cursor-pointer hover:bg-white/5 focus:bg-white/10 text-xs"
           disabled={isDuplicating}
           onSelect={handleDuplicate}
         >
-          <Copy className="mr-1 h-4 w-4" />
+          <Copy className="mr-2 h-3.5 w-3.5 text-[#c1a063]" />
           Duplicate
           {isDuplicating && (
-            <Loader className="ml-1 h-4 w-4 absolute right-2 animate-spin" />
+            <Loader className="ml-1 h-3.5 w-3.5 absolute right-2 animate-spin text-[#c1a063]" />
           )}
         </DropdownMenuItem>
 
-        {/* {isRecurring && (
-          <>
-            <DropdownMenuItem>
-              <StopCircleIcon className="mr-1 h-4 w-4" />
-              Stop Recurring
-            </DropdownMenuItem>
-          </>
-        )} */}
-        <DropdownMenuSeparator />
+        <DropdownMenuSeparator className="bg-white/[0.06] my-1" />
         <DropdownMenuItem
-          className="relative !text-destructive"
+          className="relative rounded-xl cursor-pointer hover:bg-rose-500/10 focus:bg-rose-500/15 text-xs text-rose-400 focus:text-rose-300"
           disabled={isDeleting}
           onSelect={handleDelete}
         >
-          <Trash2 className="mr-1 h-4 w-4 !text-destructive" />
+          <Trash2 className="mr-2 h-3.5 w-3.5 text-rose-400" />
           Delete
           {isDeleting && (
-            <Loader className="ml-1 h-4 w-4 absolute right-2 animate-spin" />
+            <Loader className="ml-1 h-3.5 w-3.5 absolute right-2 animate-spin text-rose-400" />
           )}
         </DropdownMenuItem>
       </DropdownMenuContent>

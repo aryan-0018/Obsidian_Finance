@@ -6,12 +6,15 @@ export default {
     extend: {
       fontFamily: {
         sans: [
-          'SF Pro Display',
-          'system-ui',
           '-apple-system',
           'BlinkMacSystemFont',
-          'Segoe UI',
-          'Roboto',
+          '"SF Pro Text"',
+          '"SF Pro Display"',
+          '"SF Pro"',
+          'system-ui',
+          '"Helvetica Neue"',
+          'Helvetica',
+          'Arial',
           'sans-serif',
         ],
       },

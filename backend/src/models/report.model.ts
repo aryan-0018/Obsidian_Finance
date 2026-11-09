@@ -52,5 +52,8 @@ const reportSchema = new mongoose.Schema<ReportDocument>(
   }
 );
 
+// High-performance index for report history fetching
+reportSchema.index({ userId: 1, createdAt: -1 });
+
 const ReportModel = mongoose.model<ReportDocument>("Report", reportSchema);
 export default ReportModel;

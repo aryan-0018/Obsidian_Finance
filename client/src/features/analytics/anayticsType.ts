@@ -32,6 +32,13 @@ export interface SummaryAnalyticsResponse {
       percentage: number;
       expenseRatio: number;
     };
+    runwayMetrics?: {
+      dailyBurnRate: number;
+      projectedMonthlyExpense: number;
+      runwayMonths: string;
+      healthScore: number;
+      healthRating: string;
+    };
     percentageChange: PercentageChange;
     preset: PresetType;
   };

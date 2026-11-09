@@ -12,13 +12,17 @@ import {
   CheckCircle2,
   Lightbulb,
   PlusCircle,
-  TrendingUp,
   Calendar,
   RotateCcw,
+  Download,
+  Flame,
+  Mic,
+  MicOff,
 } from "lucide-react";
 import { useChatWithAiAdvisorMutation } from "@/features/analytics/analyticsAPI";
 import { toast } from "sonner";
 import { DateRangeType } from "@/components/date-range-select/types";
+import { cn } from "@/lib/utils";
 
 interface StructuredMessage {
   role: "user" | "model";
@@ -31,7 +35,7 @@ interface StructuredMessage {
   actionTaken?: {
     type: string;
     description: string;
-    data?: any;
+    data?: Record<string, unknown>;
   };
 }
 
@@ -90,7 +94,7 @@ function FormattedText({ text }: { text: string }) {
         if (isBullet) {
           return (
             <div key={idx} className="flex items-start gap-2 pl-1">
-              <span className="size-1.5 rounded-full bg-[#c1a063] mt-2 shrink-0" />
+              <span className="size-1.5 rounded-full bg-[#e5c158] mt-2 shrink-0" />
               <span>{formatted}</span>
             </div>
           );
@@ -127,6 +131,91 @@ export default function AiAdvisorChat({ dateRange }: AiAdvisorChatProps) {
 
   const [chatWithAi, { isLoading }] = useChatWithAiAdvisorMutation();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const [isListeningChat, setIsListeningChat] = useState(false);
+  const chatRecognitionRef = useRef<any>(null);
+  const chatSilenceTimerRef = useRef<NodeJS.Timeout | null>(null);
+
+  useEffect(() => {
+    const SpeechClass =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (SpeechClass) {
+      const rec = new SpeechClass();
+      rec.continuous = true;
+      rec.interimResults = true;
+      rec.lang = "en-IN";
+      rec.onstart = () => setIsListeningChat(true);
+      rec.onresult = (e: any) => {
+        let text = "";
+        for (let i = 0; i < e.results.length; i++) {
+          text += e.results[i][0].transcript;
+        }
+        setInputMessage(text);
+
+        if (chatSilenceTimerRef.current) {
+          clearTimeout(chatSilenceTimerRef.current);
+          chatSilenceTimerRef.current = null;
+        }
+
+        const trimmed = text.trim();
+        if (trimmed.length > 2) {
+          chatSilenceTimerRef.current = setTimeout(() => {
+            try {
+              rec.stop();
+            } catch {
+              // ignore
+            }
+            handleSend(trimmed);
+          }, 1400);
+        }
+      };
+      rec.onerror = (err: any) => {
+        if (err?.error === "no-speech" || err?.error === "aborted") return;
+        setIsListeningChat(false);
+        if (chatSilenceTimerRef.current) {
+          clearTimeout(chatSilenceTimerRef.current);
+          chatSilenceTimerRef.current = null;
+        }
+      };
+      rec.onend = () => {
+        setIsListeningChat(false);
+        if (chatSilenceTimerRef.current) {
+          clearTimeout(chatSilenceTimerRef.current);
+          chatSilenceTimerRef.current = null;
+        }
+      };
+      chatRecognitionRef.current = rec;
+    }
+  }, []);
+
+  const toggleMic = () => {
+    if (!chatRecognitionRef.current) {
+      toast.error("Speech recognition is not supported in this browser");
+      return;
+    }
+    if (chatSilenceTimerRef.current) {
+      clearTimeout(chatSilenceTimerRef.current);
+      chatSilenceTimerRef.current = null;
+    }
+    if (isListeningChat) {
+      try {
+        chatRecognitionRef.current.stop();
+      } catch {
+        // ignore
+      }
+      setIsListeningChat(false);
+      const trimmed = inputMessage.trim();
+      if (trimmed.length > 2) {
+        handleSend(trimmed);
+      }
+    } else {
+      try {
+        setInputMessage("");
+        chatRecognitionRef.current.start();
+      } catch (err) {
+        console.warn("Recognition start error:", err);
+      }
+    }
+  };
 
   // Save messages to localStorage whenever they update
   useEffect(() => {
@@ -149,6 +238,10 @@ export default function AiAdvisorChat({ dateRange }: AiAdvisorChatProps) {
 
   const handleSend = async (messageToSend?: string, e?: React.FormEvent) => {
     if (e) e.preventDefault();
+    if (chatSilenceTimerRef.current) {
+      clearTimeout(chatSilenceTimerRef.current);
+      chatSilenceTimerRef.current = null;
+    }
     const query = (messageToSend ?? inputMessage).trim();
     if (!query || isLoading) return;
 
@@ -192,9 +285,21 @@ export default function AiAdvisorChat({ dateRange }: AiAdvisorChatProps) {
       if (response.actionTaken?.description) {
         toast.success(response.actionTaken.description);
       }
-    } catch (err: any) {
+
+      if (response.actionTaken?.type === "OPEN_MODAL") {
+        const modalTarget = (response.actionTaken.data as { modal?: string })?.modal;
+        if (modalTarget) {
+          window.dispatchEvent(
+            new CustomEvent("obsidian:open-modal", {
+              detail: { modal: modalTarget },
+            })
+          );
+        }
+      }
+    } catch (err: unknown) {
+      const error = err as { data?: { message?: string }; message?: string };
       toast.error(
-        err?.data?.message || "Failed to communicate with AI Assistant"
+        error?.data?.message || error?.message || "Failed to communicate with AI Assistant"
       );
       setMessages((prev) => [
         ...prev,
@@ -213,67 +318,101 @@ export default function AiAdvisorChat({ dateRange }: AiAdvisorChatProps) {
   const handleResetChat = () => {
     localStorage.removeItem(CHAT_STORAGE_KEY);
     setMessages([DEFAULT_WELCOME_MESSAGE]);
+    toast.success("Chat history cleared");
+  };
+
+  const handleExportTranscript = () => {
+    if (messages.length <= 1) {
+      toast.info("No conversation history to export yet.");
+      return;
+    }
+    const transcript = [
+      `# Obsidian Financial Advisor — Executive Transcript`,
+      `Date: ${new Date().toLocaleString()}`,
+      `Scope: ${dateRange?.label || "All Time"}`,
+      `==================================================\n`,
+      ...messages.map((m) => {
+        const sender = m.role === "user" ? "USER" : "FINANCIAL ADVISOR";
+        let body = `### [${sender}]\n${m.parts || m.summary || ""}\n`;
+        if (m.keyMetrics && m.keyMetrics.length > 0) {
+          body += `\nMetrics:\n` + m.keyMetrics.map((km) => `- ${km.label}: ${km.value}`).join("\n") + `\n`;
+        }
+        if (m.bulletPoints && m.bulletPoints.length > 0) {
+          body += `\nKey Points:\n` + m.bulletPoints.map((bp) => `- ${bp}`).join("\n") + `\n`;
+        }
+        if (m.recommendation) {
+          body += `\nExecutive Recommendation: ${m.recommendation}\n`;
+        }
+        return body;
+      }),
+    ].join("\n\n");
+
+    const blob = new Blob([transcript], { type: "text/markdown;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `obsidian_advisor_transcript_${new Date().toISOString().slice(0, 10)}.md`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    toast.success("Transcript downloaded as markdown");
   };
 
   const quickActionPrompts = [
     {
+      label: "Verify Records",
+      icon: Sparkles,
+      prompt: "Verify my account records and check for any discrepancies.",
+    },
+    {
+      label: "Spending Pace",
+      icon: Flame,
+      prompt: "How much do I spend each day and how long will my savings last?",
+    },
+    {
+      label: "Subscription Leaks",
+      icon: Sparkles,
+      prompt: "Identify recurring subscriptions or unusual spending spikes.",
+    },
+    {
+      label: "Year-End Projection",
+      icon: Calendar,
+      prompt: "Project my end-of-year net savings based on current cash flow.",
+    },
+    {
       label: "All-Time Report",
       icon: Calendar,
-      prompt: "Generate my all-time financial report.",
-    },
-    {
-      label: "Mail Me Report",
-      icon: Sparkles,
-      prompt: "Please email me my financial report.",
-    },
-    {
-      label: "March 2026 Report",
-      icon: Calendar,
-      prompt: "Generate financial report for March 2026.",
-    },
-    {
-      label: "Export CSV to Email",
-      icon: TrendingUp,
-      prompt: "Export my transactions and email them to me.",
+      prompt: "Generate my all-time financial summary report.",
     },
     {
       label: "+ Add ₹450 Lunch",
       icon: PlusCircle,
       prompt: "Add an expense of 450 for lunch today.",
     },
-    {
-      label: "Set Budget to ₹50,000",
-      icon: Sparkles,
-      prompt: "Set my monthly budget limit to 50000.",
-    },
   ];
 
   return (
-    <div className="w-full bg-[#111] dark:bg-black text-white rounded-xl border border-[#c1a063]/30 shadow-2xl mb-6 overflow-hidden transition-all duration-300">
+    <div className="w-full obsidian-card rounded-2xl mb-6 overflow-hidden">
       {/* Header bar */}
       <div
         onClick={() => setIsOpen(!isOpen)}
-        className="p-5 flex items-center justify-between cursor-pointer hover:bg-white/[0.02] transition-colors border-b border-white/5"
+        className="p-5 flex items-center justify-between cursor-pointer hover:bg-white/[0.02] transition-colors border-b border-white/[0.06]"
       >
         <div className="flex items-center gap-3">
-          <div className="bg-[#c1a063]/20 p-2.5 rounded-xl border border-[#c1a063]/40 shadow-[0_0_12px_rgba(193,160,99,0.2)]">
-            <Bot className="text-[#c1a063] size-5" />
+          <div className="bg-[#e5c158]/10 p-2.5 rounded-2xl border border-[#e5c158]/25">
+            <Bot className="text-[#e5c158] size-5" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-base font-medium tracking-tight text-[#c1a063]">
-                Obsidian AI Financial Assistant
+              <h3 className="text-base font-semibold tracking-tight text-white">
+                Financial Assistant
               </h3>
-              <span className="text-[10px] uppercase font-semibold tracking-widest px-2.5 py-0.5 rounded-full bg-[#c1a063]/10 text-[#c1a063] border border-[#c1a063]/30 flex items-center gap-1">
-                <span className="size-1.5 rounded-full bg-[#c1a063] animate-pulse" />
-                Live Assistant
-              </span>
               <span className="hidden sm:inline-flex items-center gap-1 text-[11px] px-2.5 py-0.5 rounded-full bg-black/60 border border-white/10 text-neutral-300">
-                <Calendar className="size-3 text-[#c1a063]" />
+                <Calendar className="size-3 text-[#e5c158]" />
                 {dateRange?.label || "All Time"}
               </span>
             </div>
-            <p className="text-xs text-neutral-400 mt-0.5 font-light">
+            <p className="text-xs text-[#a1a1aa] mt-0.5 font-normal">
               Chat to analyze your spending or directly add expenses, income, edit dates, and manage budgets
             </p>
           </div>
@@ -281,24 +420,40 @@ export default function AiAdvisorChat({ dateRange }: AiAdvisorChatProps) {
 
         <div className="flex items-center gap-2">
           {isOpen && messages.length > 1 && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={(e) => {
-                e.stopPropagation();
-                handleResetChat();
-              }}
-              className="text-xs text-neutral-400 hover:text-white hover:bg-white/5 h-8 px-2.5 cursor-pointer"
-            >
-              <RotateCcw className="size-3.5 mr-1" />
-              Clear Chat
-            </Button>
+            <>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleExportTranscript();
+                }}
+                className="text-xs text-[#a1a1aa] hover:text-[#e5c158] hover:bg-white/5 h-8 px-2.5 cursor-pointer"
+                title="Download chat transcript as markdown"
+              >
+                <Download className="size-3.5 mr-1" />
+                Export
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleResetChat();
+                }}
+                className="text-xs text-[#a1a1aa] hover:text-white hover:bg-white/5 h-8 px-2.5 cursor-pointer"
+              >
+                <RotateCcw className="size-3.5 mr-1" />
+                Clear Chat
+              </Button>
+            </>
           )}
           <Button
             variant="ghost"
             size="sm"
-            className="text-[#c1a063] hover:text-[#c1a063] hover:bg-[#c1a063]/10"
+            className="text-[#e5c158] hover:text-[#e5c158] hover:bg-white/[0.06]"
           >
             {isOpen ? (
               <ChevronUp className="h-4 w-4" />
@@ -314,8 +469,8 @@ export default function AiAdvisorChat({ dateRange }: AiAdvisorChatProps) {
         <div className="p-5 space-y-4">
           {/* Action chips */}
           <div className="flex flex-wrap gap-2 items-center text-xs">
-            <span className="text-neutral-500 font-light flex items-center gap-1 mr-1">
-              <Sparkles className="size-3 text-[#c1a063]" /> Quick Commands:
+            <span className="text-[#a1a1aa] font-normal flex items-center gap-1 mr-1">
+              <Sparkles className="size-3 text-[#e5c158]" /> Quick Commands:
             </span>
             {quickActionPrompts.map((item, idx) => {
               const Icon = item.icon;
@@ -325,9 +480,9 @@ export default function AiAdvisorChat({ dateRange }: AiAdvisorChatProps) {
                   type="button"
                   disabled={isLoading}
                   onClick={() => handleSend(item.prompt)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-neutral-900/90 border border-neutral-800 text-neutral-300 hover:text-[#c1a063] hover:border-[#c1a063]/50 hover:bg-[#c1a063]/5 transition-all text-xs font-light cursor-pointer disabled:opacity-50"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.04] border border-white/[0.08] text-[#fcfcfc] hover:text-[#e5c158] hover:border-[#c1a063]/50 hover:bg-[#c1a063]/10 transition-all duration-150 text-xs font-medium cursor-pointer disabled:opacity-50 select-none active:scale-95 shadow-xs"
                 >
-                  <Icon className="size-3 text-[#c1a063]" />
+                  <Icon className="size-3 text-[#e5c158]" />
                   <span>{item.label}</span>
                 </button>
               );
@@ -348,8 +503,8 @@ export default function AiAdvisorChat({ dateRange }: AiAdvisorChatProps) {
                   <div
                     className={`size-8 rounded-full flex items-center justify-center shrink-0 text-xs font-semibold ${
                       isUser
-                        ? "bg-[#c1a063] text-black shadow-md"
-                        : "bg-neutral-900 border border-[#c1a063]/40 text-[#c1a063]"
+                        ? "bg-gradient-to-r from-[#e5c158] to-[#c1a063] text-black shadow-md"
+                        : "bg-neutral-900 border border-[#e5c158]/40 text-[#e5c158]"
                     }`}
                   >
                     {isUser ? <User className="size-4" /> : <Bot className="size-4" />}
@@ -358,22 +513,22 @@ export default function AiAdvisorChat({ dateRange }: AiAdvisorChatProps) {
                   <div
                     className={`max-w-[85%] rounded-xl p-4 text-sm leading-relaxed space-y-3 ${
                       isUser
-                        ? "bg-[#c1a063]/15 border border-[#c1a063]/30 text-white font-normal"
-                        : "bg-[#141414] border border-neutral-800 text-neutral-200 shadow-xl"
+                        ? "bg-[#e5c158]/15 border border-[#c1a063]/30 text-white font-normal"
+                        : "bg-[#0e0e12] border border-white/[0.08] text-[#fcfcfc] shadow-xl"
                     }`}
                   >
                     {isUser ? (
-                      <p className="font-light whitespace-pre-wrap">{msg.parts}</p>
+                      <p className="font-normal whitespace-pre-wrap">{msg.parts}</p>
                     ) : (
                       <>
                         {/* Headline */}
                         <div className="flex items-center justify-between pb-2 border-b border-white/5">
-                          <span className="text-xs font-medium uppercase tracking-wider text-[#c1a063] flex items-center gap-1.5">
+                          <span className="text-xs font-medium text-[#e5c158] flex items-center gap-1.5">
                             <Sparkles className="size-3.5" />
                             {msg.headline || "Assistant"}
                           </span>
                           {msg.actionTaken && (
-                            <span className="text-[10px] px-2 py-0.5 rounded font-medium bg-[#c1a063]/15 text-[#c1a063] border border-[#c1a063]/30 flex items-center gap-1">
+                            <span className="text-[10px] px-2 py-0.5 rounded font-medium bg-[#e5c158]/15 text-[#e5c158] border border-[#c1a063]/30 flex items-center gap-1">
                               <CheckCircle2 className="size-3" />
                               Completed
                             </span>
@@ -382,8 +537,8 @@ export default function AiAdvisorChat({ dateRange }: AiAdvisorChatProps) {
 
                         {/* Action Confirmation Banner */}
                         {msg.actionTaken && (
-                          <div className="flex items-center gap-2.5 p-3 rounded-lg bg-[#c1a063]/10 border border-[#c1a063]/25 text-[#e8dcc4] text-xs">
-                            <CheckCircle2 className="size-4 text-[#c1a063] shrink-0" />
+                          <div className="flex items-center gap-2.5 p-3 rounded-lg bg-[#e5c158]/10 border border-[#c1a063]/25 text-white text-xs">
+                            <CheckCircle2 className="size-4 text-[#e5c158] shrink-0" />
                             <div className="font-normal">
                               {msg.actionTaken.description}
                             </div>
@@ -393,7 +548,7 @@ export default function AiAdvisorChat({ dateRange }: AiAdvisorChatProps) {
                         {/* Summary / Core Answer */}
                         <div className="pt-0.5">
                           {msg.summary ? (
-                            <p className="text-neutral-200 text-sm leading-relaxed font-light">
+                            <p className="text-[#fcfcfc] text-sm leading-relaxed font-normal">
                               {msg.summary}
                             </p>
                           ) : (
@@ -407,12 +562,12 @@ export default function AiAdvisorChat({ dateRange }: AiAdvisorChatProps) {
                             {msg.keyMetrics.map((metric, mIdx) => (
                               <div
                                 key={mIdx}
-                                className="bg-black/60 border border-neutral-800 rounded-lg p-2.5 text-center"
+                                className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-2.5 text-center"
                               >
-                                <div className="text-[10px] uppercase tracking-wider text-neutral-400 font-medium truncate">
+                                <div className="text-[11px] text-[#a1a1aa] font-medium truncate">
                                   {metric.label}
                                 </div>
-                                <div className="text-sm font-semibold text-[#c1a063] mt-0.5">
+                                <div className="text-sm font-semibold text-white tabular-nums mt-0.5">
                                   {metric.value}
                                 </div>
                               </div>
@@ -425,8 +580,8 @@ export default function AiAdvisorChat({ dateRange }: AiAdvisorChatProps) {
                           <ul className="space-y-1.5 text-xs text-neutral-300 pt-1">
                             {msg.bulletPoints.map((point, pIdx) => (
                               <li key={pIdx} className="flex items-start gap-2">
-                                <span className="size-1.5 rounded-full bg-[#c1a063] mt-1.5 shrink-0 shadow-[0_0_6px_rgba(193,160,99,0.5)]" />
-                                <span className="font-light leading-relaxed">
+                                <span className="size-1.5 rounded-full bg-[#e5c158] mt-1.5 shrink-0" />
+                                <span className="font-normal leading-relaxed text-[#fcfcfc]">
                                   {point}
                                 </span>
                               </li>
@@ -436,10 +591,10 @@ export default function AiAdvisorChat({ dateRange }: AiAdvisorChatProps) {
 
                         {/* Recommendation */}
                         {msg.recommendation && (
-                          <div className="flex items-start gap-2 p-2.5 rounded-lg bg-[#c1a063]/5 border border-[#c1a063]/20 text-xs text-[#e8dcc4] font-light mt-1">
-                            <Lightbulb className="size-3.5 text-[#c1a063] mt-0.5 shrink-0" />
+                          <div className="flex items-start gap-2 p-2.5 rounded-lg bg-[#e5c158]/5 border border-[#c1a063]/20 text-xs text-white font-normal mt-1">
+                            <Lightbulb className="size-3.5 text-[#e5c158] mt-0.5 shrink-0" />
                             <span>
-                              <strong className="font-medium text-[#c1a063]">
+                              <strong className="font-medium text-[#e5c158]">
                                 Tip:{" "}
                               </strong>
                               {msg.recommendation}
@@ -471,17 +626,36 @@ export default function AiAdvisorChat({ dateRange }: AiAdvisorChatProps) {
 
           {/* Input field */}
           <form onSubmit={(e) => handleSend(undefined, e)} className="flex gap-2 pt-2">
-            <Input
-              value={inputMessage}
-              onChange={(e) => setInputMessage(e.target.value)}
-              placeholder="E.g., 'Add expense of 450 for lunch' or 'Change coffee date to yesterday'"
-              disabled={isLoading}
-              className="bg-neutral-950 border-neutral-800 focus:border-[#c1a063] text-white placeholder:text-neutral-500 text-sm h-11"
-            />
+            <div className="relative flex-1">
+              <Input
+                value={inputMessage}
+                onChange={(e) => setInputMessage(e.target.value)}
+                placeholder={
+                  isListeningChat
+                    ? "Listening... Speak naturally"
+                    : "E.g., 'Add expense of 450 for lunch' or 'Change coffee date to yesterday'"
+                }
+                disabled={isLoading}
+                className="bg-neutral-950 border-neutral-800 focus:border-[#c1a063] text-white placeholder:text-neutral-500 text-sm h-11 pr-11"
+              />
+              <button
+                type="button"
+                onClick={toggleMic}
+                className={cn(
+                  "absolute right-2.5 top-1/2 -translate-y-1/2 h-7 w-7 rounded-full flex items-center justify-center transition-colors cursor-pointer",
+                  isListeningChat
+                    ? "bg-rose-500/20 text-rose-400 border border-rose-500/40 animate-pulse"
+                    : "text-[#a1a1aa] hover:text-[#e5c158] hover:bg-white/5"
+                )}
+                title={isListeningChat ? "Stop listening" : "Speak to Financial Advisor"}
+              >
+                {isListeningChat ? <MicOff className="size-4" /> : <Mic className="size-4" />}
+              </button>
+            </div>
             <Button
               type="submit"
               disabled={isLoading || !inputMessage.trim()}
-              className="bg-[#c1a063] hover:bg-[#a88a4e] text-black h-11 px-5 cursor-pointer font-medium"
+              className="bg-gradient-to-r from-[#e5c158] via-[#c1a063] to-[#b09055] hover:brightness-105 text-black h-11 px-5 cursor-pointer font-semibold shadow-[0_2px_12px_rgba(193,160,99,0.3)]"
             >
               {isLoading ? (
                 <Loader2 className="size-4 animate-spin" />

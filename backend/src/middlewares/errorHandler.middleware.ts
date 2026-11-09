@@ -66,8 +66,20 @@ export const errorHandler: ErrorRequestHandler = (
     });
   }
 
+  if (
+    error?.name === "MongoServerSelectionError" ||
+    error?.name === "MongoNetworkError" ||
+    error?.cause?.code === "ENOTFOUND" ||
+    error?.code === "ENOTFOUND"
+  ) {
+    return res.status(HTTPSTATUS.SERVICE_UNAVAILABLE).json({
+      message: "Database is temporarily unreachable. Please check your network/internet connection and try again.",
+      errorCode: "DATABASE_UNAVAILABLE",
+    });
+  }
+
   return res.status(HTTPSTATUS.INTERNAL_SERVER_ERROR).json({
     message: "Internal Server Error",
-    error: error?.message || "Unknow error occurred",
+    error: process.env.NODE_ENV === "production" ? "An internal server error occurred" : (error?.message || "Unknown error occurred"),
   });
 };

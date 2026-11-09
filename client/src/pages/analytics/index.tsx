@@ -21,9 +21,9 @@ const Analytics = () => {
                     />
                 }
             >
-                <div className="mb-6">
-                    <h2 className="text-2xl font-light tracking-tight text-foreground">Advanced Analytics</h2>
-                    <p className="text-muted-foreground mt-1">Deep dive into your financial spending and category trends.</p>
+                <div className="mb-6 space-y-1">
+                    <h2 className="text-2xl font-semibold tracking-tight text-white">Advanced Analytics</h2>
+                    <p className="text-[#8e8e93] text-xs sm:text-sm font-normal">Deep dive into your financial spending and category trends.</p>
                 </div>
 
                 {/* Main Shared Portfolio Logic */}

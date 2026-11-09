@@ -29,6 +29,16 @@ import {
 import { Env } from "../config/env.config";
 import { getBudgetService, updateBudgetService } from "./budget.service";
 import {
+  parseIndianCurrencyExpression,
+  detectIndianMerchantAndCategory,
+} from "../utils/nlp-parser";
+import { verifyLedgerIntegrityService } from "./ledger-audit.service";
+import {
+  generateTelegramPairingCodeService,
+  getTelegramStatusService,
+  unlinkTelegramService,
+} from "./telegram.service";
+import {
   createTransactionService,
   deleteTransactionService,
   updateTransactionService,
@@ -155,10 +165,15 @@ export const summaryAnalyticsService = async (
     },
   } = current || {};
 
+  // Standardize aggregated values into pure currency units (Rupees/INR)
+  const totalIncomeInUnit = convertToUnit(totalIncome);
+  const totalExpensesInUnit = convertToUnit(totalExpenses);
+  const availableBalanceInUnit = convertToUnit(availableBalance);
+
   const budgetProfile = await getBudgetService(userId);
-  const budgetLimit = budgetProfile.limit || 0;
-  // True remaining budget calculation: independent of Income
-  const remainingBudget = budgetLimit - totalExpenses;
+  const budgetLimit = Number(budgetProfile?.limit) || 0;
+  // True remaining budget calculation: independent of Income; 0 if no budget is configured
+  const remainingBudget = budgetLimit > 0 ? (budgetLimit - totalExpensesInUnit) : 0;
 
   let percentageChange: any = {
     income: 0,
@@ -240,39 +255,66 @@ export const summaryAnalyticsService = async (
         prevPeriodFrom: prevPeriodFrom,
         prevPeriodTo: prevPeriodTo,
         previousValues: {
-          incomeAmount: prevIncome,
-          expenseAmount: prevExpenses,
-          balanceAmount: prevBalance,
+          incomeAmount: convertToUnit(prevIncome),
+          expenseAmount: convertToUnit(prevExpenses),
+          balanceAmount: convertToUnit(prevBalance),
         },
       };
     }
   }
 
+  // Calculate Wealth Runway, Daily Burn Velocity & Financial Discipline Index
+  const userDoc = await UserModel.findById(userId).select("portfolioBalance currency");
+  const baseWealth = Number(userDoc?.portfolioBalance) || 0;
+  const currentNetWealth = Math.max(0, baseWealth + availableBalanceInUnit);
+
+  const effectivePeriodDays = (from && to) ? Math.max(1, differenceInDays(to, from) + 1) : 30;
+  const dailyBurn = totalExpensesInUnit / effectivePeriodDays;
+  const monthlyProjectedExpense = dailyBurn * 30;
+  const monthlyRunway = monthlyProjectedExpense > 0
+    ? Math.max(0, parseFloat((currentNetWealth / monthlyProjectedExpense).toFixed(1)))
+    : 999;
+
+  // Composite Health Score (0-100)
+  let healthScore = 50;
+  const savingsPct = savingData.savingsPercentage || 0;
+  if (savingsPct >= 25) healthScore += 25;
+  else if (savingsPct >= 10) healthScore += 15;
+  else if (savingsPct < 0) healthScore -= 20;
+
+  if (budgetLimit > 0) {
+    if (remainingBudget >= 0) healthScore += 15;
+    else healthScore -= 20;
+  } else {
+    healthScore += 10;
+  }
+
+  if (savingData.expenseRatio > 80) healthScore -= 15;
+  else if (savingData.expenseRatio < 50 && totalIncomeInUnit > 0) healthScore += 10;
+
+  healthScore = Math.max(15, Math.min(99, Math.round(healthScore)));
+  const healthRating =
+    healthScore >= 80 ? "Prime" : healthScore >= 65 ? "Balanced" : healthScore >= 45 ? "Caution" : "Action Needed";
+
   return {
-    budgetLimit: convertToUnit(budgetLimit),
-    remainingBudget: convertToUnit(remainingBudget),
-    availableBalance: convertToUnit(availableBalance),
-    totalIncome: convertToUnit(totalIncome),
-    totalExpenses: convertToUnit(totalExpenses),
+    budgetLimit: budgetLimit,
+    remainingBudget: remainingBudget,
+    availableBalance: availableBalanceInUnit,
+    totalIncome: totalIncomeInUnit,
+    totalExpenses: totalExpensesInUnit,
     savingRate: {
-      percentage: parseFloat(savingData.savingsPercentage.toFixed(2)),
-      expenseRatio: parseFloat(savingData.expenseRatio.toFixed(2)),
+      percentage: parseFloat((savingData.savingsPercentage || 0).toFixed(2)),
+      expenseRatio: parseFloat((savingData.expenseRatio || 0).toFixed(2)),
+    },
+    runwayMetrics: {
+      dailyBurnRate: Math.round(dailyBurn * 100) / 100,
+      projectedMonthlyExpense: Math.round(monthlyProjectedExpense * 100) / 100,
+      runwayMonths: monthlyRunway >= 999 ? "Perpetual" : `${monthlyRunway} mo`,
+      healthScore,
+      healthRating,
     },
     transactionCount,
-    percentageChange: {
-      ...percentageChange,
-      previousValues: {
-        incomeAmount: convertToUnit(
-          percentageChange.previousValues.incomeAmount
-        ),
-        expenseAmount: convertToUnit(
-          percentageChange.previousValues.expenseAmount
-        ),
-        balanceAmount: convertToUnit(
-          percentageChange.previousValues.balanceAmount
-        ),
-      },
-    },
+    percentageChange,
     preset: {
       ...range,
       value: rangeValue || DateRangeEnum.ALL_TIME,
@@ -603,7 +645,7 @@ export const generateAiInsightsService = async (
               (t) =>
                 `- ${new Date(t.date).toISOString().split("T")[0]}: ${
                   t.type
-                } of ₹${convertToUnit(t.amount).toLocaleString("en-IN")} for ${
+                } of ₹${Number(convertToUnit(t.amount)).toLocaleString("en-IN")} for ${
                   t.category
                 } ("${t.title || t.description || "N/A"}")`
             )
@@ -615,30 +657,60 @@ export const generateAiInsightsService = async (
     1. Output strictly as a valid JSON array of 3 to 4 distinct strings. No markdown formatting, backticks, asterisks, or nested objects.
     2. Format exactly like: ["Insight 1", "Insight 2", "Insight 3"]
     3. Explicitly contextualize the insights around "${rangeLabel}" and cite concrete figures in Indian Rupees (₹) where relevant.
-    4. Provide razor-sharp, actionable observations: high-impact categories, savings discipline, burn rate, or noteworthy inflows/outflows.
+    4. Use simple, everyday words that are easy to understand. Avoid financial jargon (do not use terms like "burn velocity", "discretionary outlays", "amortization", or "capital deployment"). Highlight practical spending habits, top categories, and savings tips with exact figures in ₹.
     5. No generic conversational filler, greetings, or robotic templates.
   `;
 
   try {
-    const response = await generateContentWithRetry({
-      contents: prompt,
-    });
+    const aiTimeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("AI_INSIGHTS_TIMEOUT")), 4500)
+    );
+
+    const response = await Promise.race([
+      generateContentWithRetry({
+        contents: prompt,
+        config: {
+          responseMimeType: "application/json",
+          temperature: 0.2,
+        },
+      }),
+      aiTimeout,
+    ]);
 
     const text = response.text || "[]";
     const jsonStr = text.replace(/```(?:json)?\n?/g, "").trim();
-    const insightsArray = JSON.parse(jsonStr);
+    let insightsArray: any = [];
+    try {
+      insightsArray = JSON.parse(jsonStr);
+    } catch {
+      const match = jsonStr.match(/\[[\s\S]*\]/);
+      if (match) {
+        try {
+          insightsArray = JSON.parse(match[0]);
+        } catch {
+          // fallback
+        }
+      }
+    }
 
-    return Array.isArray(insightsArray) ? insightsArray : [text];
+    return Array.isArray(insightsArray) && insightsArray.length > 0 ? insightsArray : [text];
   } catch (error) {
-    console.error("Gemini AI generation failed", error);
+    console.warn("[Analytics Service] AI insights timeout or error, preparing fallback insights:", error);
+    const topCat = expenseBreakdown.breakdown?.[0];
+    const topCatStr = topCat
+      ? `Top spending category for ${rangeLabel} is ${topCat._id || topCat.name} at ₹${Number(topCat.value).toLocaleString("en-IN")}.`
+      : "No expenses recorded for this timeframe.";
+
+    const savingsAnalysis =
+      (summary.savingRate?.percentage || 0) >= 20
+        ? `You achieved a strong savings rate of ${summary.savingRate?.percentage || 0}%, keeping spending well controlled.`
+        : `Your savings rate for ${rangeLabel} is ${summary.savingRate?.percentage || 0}%. Consider reviewing top categories to grow savings.`;
+
     return [
-      `Summary for ${rangeLabel}: Income ₹${summary.totalIncome.toLocaleString(
-        "en-IN"
-      )}, Expenses ₹${summary.totalExpenses.toLocaleString(
-        "en-IN"
-      )}, Net Balance ₹${summary.availableBalance.toLocaleString(
-        "en-IN"
-      )}, Savings Rate ${summary.savingRate?.percentage || 0}%.`,
+      `In ${rangeLabel}, total income was ₹${summary.totalIncome.toLocaleString("en-IN")} against total spending of ₹${summary.totalExpenses.toLocaleString("en-IN")}, leaving ₹${summary.availableBalance.toLocaleString("en-IN")} available.`,
+      topCatStr,
+      savingsAnalysis,
+      `Track recurring subscriptions and daily dining to maximize your available balance next period.`,
     ];
   }
 };
@@ -756,7 +828,7 @@ ${
       (t) =>
         `* [ID: ${t._id}] ${new Date(t.date).toISOString().split("T")[0]}: ${
           t.type
-        } of ₹${convertToUnit(t.amount).toLocaleString("en-IN")} in "${
+        } of ₹${Number(convertToUnit(t.amount)).toLocaleString("en-IN")} in "${
           t.category
         }" - "${t.title}" (${t.description || "N/A"})`
     )
@@ -780,12 +852,15 @@ ALLOWED ACTIONS:
    - sendEmail: boolean (Set to true whenever user mentions "email", "mail", "inbox", "send to my email", "mail me", or asks to send the report)
 6. "EXPORT_TRANSACTIONS": If user wants to export transaction CSV or email transaction data (e.g., "export my transactions", "mail transaction records", "send CSV to my email").
    Params: fromDate (optional), toDate (optional), category (optional), type (optional).
-7. "NONE": For purely analytical questions, financial questions, or portfolio assessments. When answering, cite exact numbers from the metrics and ledger above. Never give generic boilerplate advice.
+7. "AUDIT_LEDGER": If user asks to audit, verify, or inspect the cryptographic Merkle hash chain or tamper proof ledger.
+8. "TELEGRAM_ACTION": If user asks for Telegram pairing code, connection status, or to unlink Telegram.
+9. "OPEN_MODAL": If user asks to open an interactive view like Add Transaction, Receipt Scanner, Bank Statement Import, or Ledger Audit.
+10. "NONE": For purely analytical questions, financial questions, or portfolio assessments. When answering, cite exact numbers from the metrics and ledger above. Never give generic boilerplate advice.
 
 OUTPUT FORMAT REQUIREMENTS:
 Output strictly valid JSON matching this schema:
 {
-  "action": "ADD_TRANSACTION" | "DELETE_TRANSACTION" | "UPDATE_TRANSACTION" | "SET_BUDGET" | "GENERATE_REPORT" | "EXPORT_TRANSACTIONS" | "NONE",
+  "action": "ADD_TRANSACTION" | "DELETE_TRANSACTION" | "UPDATE_TRANSACTION" | "SET_BUDGET" | "GENERATE_REPORT" | "EXPORT_TRANSACTIONS" | "AUDIT_LEDGER" | "TELEGRAM_ACTION" | "OPEN_MODAL" | "NONE",
   "actionParams": {
     "title": "string",
     "amount": 0,
@@ -802,7 +877,7 @@ Output strictly valid JSON matching this schema:
     "sendEmail": false
   },
   "headline": "Short, elegant headline (e.g., 'Expense Added', 'Date Adjusted', 'Report Generated', 'Portfolio Analysis')",
-  "summary": "1-2 natural, razor-sharp sentences answering the user directly or confirming the action with exact numbers in ₹. Never use robotic phrases or generic filler.",
+  "summary": "1-2 natural, friendly sentences in simple everyday words answering the user directly or confirming the action with exact numbers in ₹. Avoid complex financial jargon (no 'discretionary burn', 'amortization', etc.). Never use robotic phrases or generic filler.",
   "keyMetrics": [
     { "label": "string", "value": "string" }
   ],
@@ -840,12 +915,19 @@ Output strictly valid JSON matching this schema:
       },
     ];
 
-    const response = await generateContentWithRetry({
-      contents: contents as any,
-      config: {
-        responseMimeType: "application/json",
-      },
-    });
+    const aiChatTimeout = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error("AI_ADVISOR_TIMEOUT")), 4500)
+    );
+
+    const response = await Promise.race([
+      generateContentWithRetry({
+        contents: contents as any,
+        config: {
+          responseMimeType: "application/json",
+        },
+      }),
+      aiChatTimeout,
+    ]);
 
     const rawText = response.text || "{}";
     const cleaned = rawText.replace(/```(?:json)?\n?/g, "").trim();
@@ -952,9 +1034,9 @@ Output strictly valid JSON matching this schema:
         await deleteTransactionService(userId, candidate._id.toString());
         actionTaken = {
           type: "DELETE_TRANSACTION",
-          description: `Deleted transaction "${candidate.title}" (₹${convertToUnit(
+          description: `Deleted transaction "${candidate.title}" (₹${Number(
             candidate.amount
-          )}).`,
+          ).toLocaleString("en-IN")}).`,
           data: candidate,
         };
       } else {
@@ -1026,8 +1108,8 @@ Output strictly valid JSON matching this schema:
       };
     } else if (
       action === "GENERATE_REPORT" ||
-      /\b(report|financial\s*summary)\b/i.test(userMessage) ||
-      (/\b(mail|email|send)\b/i.test(userMessage) && !/\b(csv|export)\b/i.test(userMessage))
+      /\b(generate|create|download|show|view|get|dispatch)\b.*\b(report|statement)\b/i.test(userMessage) ||
+      (/\b(mail|email|send)\b.*\b(report|statement|financial summary)\b/i.test(userMessage))
     ) {
       const now = new Date();
       const today = endOfDay(now);
@@ -1235,11 +1317,101 @@ Output strictly valid JSON matching this schema:
       };
 
       parsed.headline = "Transaction Export Delivered";
-      parsed.summary = `Your transaction ledger has been exported to CSV and sent directly to ${targetEmail}.`;
+      parsed.summary = `Your transactions have been exported to CSV and sent directly to ${targetEmail}.`;
       parsed.keyMetrics = [
         { label: "Recipient", value: targetEmail },
         { label: "Format", value: "CSV Spreadsheet" },
       ];
+    } else if (
+      action === "AUDIT_LEDGER" ||
+      /\b(audit|verify|tamper|merkle|cryptographic.*ledger|integrity.*ledger|reconcil)\b/i.test(userMessage)
+    ) {
+      const audit = await verifyLedgerIntegrityService(userId);
+      const isSecure = audit.status === "VERIFIED_SECURE";
+      actionTaken = {
+        type: "AUDIT_LEDGER",
+        description: `Record check: ${isSecure ? "All transactions verified and accurate" : "Discrepancy detected"}. Verified across ${audit.chainDepth} records in ${audit.executionTimeMs}ms.`,
+        data: audit,
+      };
+      parsed.headline = isSecure ? "Records Verified & Accurate" : "Discrepancy Found";
+      parsed.summary = isSecure
+        ? `All ${audit.chainDepth} transactions have been checked and verified accurate in ${audit.executionTimeMs}ms.`
+        : `A discrepancy was identified in the transaction sequence.`;
+      parsed.keyMetrics = [
+        { label: "Status", value: isSecure ? "Verified Safe" : "Discrepancy" },
+        { label: "Transactions Checked", value: `${audit.chainDepth}` },
+        { label: "Check Time", value: `${audit.executionTimeMs} ms` },
+      ];
+    } else if (
+      action === "TELEGRAM_ACTION" ||
+      /\b(telegram|copilot\s*bot)\b/i.test(userMessage)
+    ) {
+      if (/\b(pair|code|token|connect|link)\b/i.test(userMessage)) {
+        const pair = await generateTelegramPairingCodeService(userId);
+        actionTaken = {
+          type: "TELEGRAM_ACTION",
+          description: `Telegram pairing code generated: ${pair.code}. Valid for 15 minutes.`,
+          data: pair,
+        };
+        parsed.headline = "Telegram Pairing Code Generated";
+        parsed.summary = `Your pairing code is ${pair.code}. Send /start ${pair.code} to @${pair.botUsername} or click the link.`;
+        parsed.keyMetrics = [
+          { label: "Code", value: pair.code },
+          { label: "Bot", value: `@${pair.botUsername}` },
+        ];
+      } else if (/\b(unlink|disconnect|remove)\b/i.test(userMessage)) {
+        await unlinkTelegramService(userId);
+        actionTaken = {
+          type: "TELEGRAM_ACTION",
+          description: "Telegram Assistant has been unlinked from your account.",
+        };
+        parsed.headline = "Telegram Unlinked";
+        parsed.summary = "Your Telegram account association has been removed.";
+      } else {
+        const status = await getTelegramStatusService(userId);
+        actionTaken = {
+          type: "TELEGRAM_ACTION",
+          description: status.isConnected
+            ? `Telegram Assistant connected to @${status.telegramUsername}.`
+            : "Telegram Assistant is disconnected.",
+          data: status,
+        };
+        parsed.headline = "Telegram Assistant Status";
+        parsed.summary = status.isConnected
+          ? `Your account is paired with @${status.telegramUsername}.`
+          : "Your account is not paired with Telegram.";
+        parsed.keyMetrics = [
+          { label: "Status", value: status.isConnected ? "CONNECTED" : "DISCONNECTED" },
+          { label: "Account", value: status.telegramUsername || "None" },
+        ];
+      }
+    } else if (
+      action === "OPEN_MODAL" ||
+      /\b(open|show|launch)\b.*\b(drawer|modal|scanner|importer|statement|receipt)\b/i.test(userMessage)
+    ) {
+      let targetModal = "ADD_TRANSACTION";
+      let modalName = "Add Transaction Drawer";
+      if (/\b(receipt|bill|scan)\b/i.test(userMessage)) {
+        targetModal = "RECEIPT_SCANNER";
+        modalName = "Receipt Scanner";
+      } else if (/\b(import|statement|csv|pdf)\b/i.test(userMessage)) {
+        targetModal = "IMPORT_STATEMENT";
+        modalName = "Statement & CSV Import";
+      } else if (/\b(audit|ledger|merkle|verify)\b/i.test(userMessage)) {
+        targetModal = "LEDGER_AUDIT";
+        modalName = "Record Verification Screen";
+      } else if (/\b(telegram|copilot)\b/i.test(userMessage)) {
+        targetModal = "TELEGRAM_COPILOT";
+        modalName = "Telegram Assistant Panel";
+      }
+
+      actionTaken = {
+        type: "OPEN_MODAL",
+        description: `Opening ${modalName}...`,
+        data: { modal: targetModal },
+      };
+      parsed.headline = `${modalName} Opened`;
+      parsed.summary = `We have opened ${modalName} for you on the screen.`;
     }
 
     const replyFallback =
@@ -1251,7 +1423,7 @@ Output strictly valid JSON matching this schema:
 
     return {
       headline:
-        parsed.headline || (actionTaken ? "Action Completed" : "Obsidian Intelligence"),
+        parsed.headline || (actionTaken ? "Action Completed" : "Financial Overview"),
       summary: parsed.summary || replyFallback,
       keyMetrics: Array.isArray(parsed.keyMetrics) ? parsed.keyMetrics : [],
       bulletPoints: Array.isArray(parsed.bulletPoints) ? parsed.bulletPoints : [],
@@ -1260,8 +1432,140 @@ Output strictly valid JSON matching this schema:
       reply: replyFallback,
     };
   } catch (error: any) {
-    console.error("Gemini AI chat error:", error);
-    throw new Error(error.message || "Failed to communicate with AI advisor");
+    console.warn("AI chat timeout or error, activating intelligent heuristic shield:", error?.message);
+    const lower = userMessage.toLowerCase();
+
+    // 1. Check if user asked to Add a transaction
+    const fastAmount = parseIndianCurrencyExpression(lower);
+    const isQuestion = /\b(what|how much|how long|did i|where|can i|is my|show|tell me|explain)\b/i.test(lower);
+    if (fastAmount && fastAmount > 0 && !isQuestion) {
+      try {
+        const { title, category, paymentMethod, type } = detectIndianMerchantAndCategory(lower);
+        const created = await createTransactionService(
+          {
+            title,
+            amount: fastAmount,
+            type,
+            category,
+            paymentMethod,
+            date: new Date(),
+            description: `AI Assistant: "${userMessage}"`,
+            isRecurring: false,
+          },
+          userId
+        );
+        const formattedAmount = fastAmount.toLocaleString("en-IN");
+        return {
+          headline: "Transaction Added",
+          summary: `Successfully added ${type.toLowerCase()} of ₹${formattedAmount} for "${title}" under ${category}.`,
+          keyMetrics: [
+            { label: "Amount", value: `₹${formattedAmount}` },
+            { label: "Category", value: category.toUpperCase() },
+          ],
+          bulletPoints: [
+            `Recorded under ${category}`,
+            `Payment method: ${paymentMethod}`,
+          ],
+          recommendation: "Keep tracking your daily expenses to stay within your monthly budget.",
+          actionTaken: {
+            type: "ADD_TRANSACTION",
+            description: `Added ${type.toLowerCase()} of ₹${formattedAmount} for "${title}".`,
+            data: created,
+          },
+          reply: `Successfully added ${type.toLowerCase()} of ₹${formattedAmount} for "${title}" under ${category}.`,
+        };
+      } catch (addErr) {
+        console.warn("Shield add error:", addErr);
+      }
+    }
+
+    // 2. Check if user asked to Delete / Undo
+    if (/\b(delete|remove|cancel|undo|clear)\b/i.test(lower)) {
+      try {
+        const keywordMatch = lower.match(
+          /\b(?:delete|remove|cancel|undo|clear)\b.*?(?:the|my)?\s+([a-z0-9_-]+)/i
+        );
+        const keyword = keywordMatch ? keywordMatch[1] : "";
+        const query: any = { userId: new mongoose.Types.ObjectId(userId) };
+        if (keyword && !["last", "recent", "transaction", "expense", "one"].includes(keyword.toLowerCase())) {
+          query.title = { $regex: keyword, $options: "i" };
+        }
+        const candidate = await TransactionModel.findOne(query).sort({ date: -1, createdAt: -1 });
+        if (candidate) {
+          await deleteTransactionService(userId, candidate._id.toString());
+          const cleanAmt = Number(candidate.amount).toLocaleString("en-IN");
+          return {
+            headline: "Transaction Removed",
+            summary: `Deleted "${candidate.title}" (₹${cleanAmt}) from your transactions.`,
+            keyMetrics: [
+              { label: "Removed Title", value: candidate.title },
+              { label: "Amount", value: `₹${cleanAmt}` },
+            ],
+            bulletPoints: [`Entry removed: ${candidate.title}`, `Amount reversed: ₹${cleanAmt}`],
+            actionTaken: {
+              type: "DELETE_TRANSACTION",
+              description: `Deleted transaction "${candidate.title}" (₹${cleanAmt}).`,
+              data: candidate,
+            },
+            reply: `Deleted transaction "${candidate.title}" (₹${cleanAmt}).`,
+          };
+        }
+      } catch (delErr) {
+        console.warn("Shield delete error:", delErr);
+      }
+    }
+
+    // 3. Check if user asked to Set Budget
+    if (/\b(budget)\b/i.test(lower) && fastAmount && fastAmount > 0) {
+      try {
+        const updated = await updateBudgetService(userId, fastAmount);
+        const formatted = fastAmount.toLocaleString("en-IN");
+        return {
+          headline: "Budget Updated",
+          summary: `Your monthly budget limit has been set to ₹${formatted}.`,
+          keyMetrics: [{ label: "Monthly Budget", value: `₹${formatted}` }],
+          bulletPoints: [`New budget ceiling: ₹${formatted}`, "All progress indicators updated"],
+          actionTaken: {
+            type: "SET_BUDGET",
+            description: `Monthly budget updated to ₹${formatted}.`,
+            data: updated,
+          },
+          reply: `Your monthly budget limit has been set to ₹${formatted}.`,
+        };
+      } catch (budErr) {
+        console.warn("Shield budget error:", budErr);
+      }
+    }
+
+    // 4. Default: Analytical Synthesis with exact live numbers
+    const avail = Math.round(currentSummary.availableBalance).toLocaleString("en-IN");
+    const inc = Math.round(currentSummary.totalIncome).toLocaleString("en-IN");
+    const exp = Math.round(currentSummary.totalExpenses).toLocaleString("en-IN");
+    const rate = currentSummary.savingRate?.percentage || 0;
+    const topCat = currentBreakdown.breakdown[0]
+      ? `${currentBreakdown.breakdown[0]._id || currentBreakdown.breakdown[0].name} (₹${Math.round(currentBreakdown.breakdown[0].value).toLocaleString("en-IN")})`
+      : "None recorded";
+
+    return {
+      headline: "Financial Overview",
+      summary: `You have ₹${avail} available this month. Total earnings are ₹${inc} and total spending is ₹${exp}, with a ${rate}% savings rate.`,
+      keyMetrics: [
+        { label: "Available Money", value: `₹${avail}` },
+        { label: "Total Income", value: `₹${inc}` },
+        { label: "Total Expenses", value: `₹${exp}` },
+        { label: "Savings Rate", value: `${rate}%` },
+      ],
+      bulletPoints: [
+        `Top spending category: ${topCat}`,
+        `Current budget limit: ₹${budgetLimit.toLocaleString("en-IN")}`,
+        `Remaining budget: ₹${Math.max(0, budgetLimit - currentMonthSpent).toLocaleString("en-IN")}`,
+      ],
+      recommendation:
+        rate >= 20
+          ? "Great job maintaining a healthy savings rate above 20%!"
+          : "Consider reducing discretionary dining and shopping to boost your monthly savings.",
+      reply: `You have ₹${avail} available this month. Total earnings are ₹${inc} and total spending is ₹${exp}, with a ${rate}% savings rate.\n\n• Top spending category: ${topCat}\n• Remaining budget: ₹${Math.max(0, budgetLimit - currentMonthSpent).toLocaleString("en-IN")}\n\nTip: ${rate >= 20 ? "Great job maintaining a healthy savings rate!" : "Try to save at least 20% of your monthly income."}`,
+    };
   }
 };
 

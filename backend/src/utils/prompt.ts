@@ -1,34 +1,72 @@
 import { PaymentMethodEnum } from "../models/transaction.model";
 
+export const VALID_CATEGORIES = [
+  "groceries",
+  "dining",
+  "transportation",
+  "utilities",
+  "entertainment",
+  "shopping",
+  "healthcare",
+  "travel",
+  "housing",
+  "income",
+  "investments",
+  "other",
+] as const;
+
 export const receiptPrompt = `
-You are a financial assistant that helps users analyze and extract transaction details from receipt image (base64 encoded)
+You are the world-class Obsidian Vision Financial Extraction AI.
 Analyze this receipt image (base64 encoded) and extract transaction details matching this exact JSON format:
 {
-  "title": "string",          // Merchant/store name or brief description
-  "amount": number,           // Total amount (positive number)
-  "date": "ISO date string",  // Transaction date in YYYY-MM-DD format
-  "description": "string",    // Items purchased summary (max 50 words)
-  "category": "string",       // category of the transaction 
-  "type": "EXPENSE"           // Always "EXPENSE" for receipts
-  "paymentMethod": "string",  // One of: ${Object.values(PaymentMethodEnum).join(",")}
+  "title": "string",          // Clean merchant or store name (e.g. "Starbucks", "Blinkit", "DMart", "Shell Fuel Station")
+  "amount": number,           // Final grand total paid (positive number, after taxes and discounts)
+  "date": "YYYY-MM-DD",       // Transaction date in YYYY-MM-DD format. Default to today if date is unreadable
+  "description": "string",    // Itemized summary or purchase overview (e.g. "Iced Latte, Croissant", max 60 words)
+  "category": "string",       // Strictly one of: ${VALID_CATEGORIES.join(", ")}
+  "type": "EXPENSE",          // Always "EXPENSE" for purchases
+  "paymentMethod": "string",  // Strictly one of: ${Object.values(PaymentMethodEnum).join(", ")}
+  "subtotal": 0,              // Pre-tax subtotal before discount/tax, or total if itemized subtotal not shown
+  "tax": 0,                   // Total tax / GST / VAT if present, else 0
+  "discount": 0,              // Discount amount if present, else 0
+  "confidence": "HIGH",       // "HIGH" | "MEDIUM" | "LOW"
+  "items": [                  // Extracted line items if visible
+    { "name": "Item name", "quantity": 1, "price": 0 }
+  ]
 }
 
-Rules:
-1. Amount must be positive
-2. Date must be valid and in ISO format
-3. Category must match our enum values
-4. If uncertain about any field, omit it
-5. If not a receipt, return {}
+Extraction Guidelines:
+1. "amount": Identify the final net payable total (look for labels like "Total", "Grand Total", "Net Amount", "Amount Due", "Paid", "Bill Total"). If multiple amounts appear (subtotal, CGST, SGST, service charge), pick the final grand total paid.
+2. "title": Extract the official business/merchant name from the top header or logo. Normalize casual or legal suffixes (e.g., "Bundl Technologies" -> "Swiggy", "Jubilant FoodWorks" -> "Domino's Pizza").
+3. "category": Map smartly based on items:
+   - Supermarket, veggies, ration, milk -> "groceries"
+   - Restaurants, cafes, food delivery, bakeries, coffee -> "dining"
+   - Cabs, fuel, petrol, tolls, parking, flights, metro -> "transportation"
+   - Electricity, water, broadband, mobile recharge -> "utilities"
+   - Movies, streaming, events -> "entertainment"
+   - Pharmacy, hospital, medicine, diagnostic tests -> "healthcare"
+   - Clothes, shoes, electronics, personal accessories -> "shopping"
+4. "paymentMethod": If receipt shows "UPI", "GPay", "PhonePe", "Paytm", "QR" -> "MOBILE_PAYMENT". If "Visa", "MasterCard", "RuPay", "POS", "Chip/Pin" -> "CARD". If "Cash" -> "CASH". If "ECS", "Mandate" -> "AUTO_DEBIT". Default to "CARD" if unspecified.
+5. "items": Extract individual items with their prices whenever visible.
+6. If the image is completely blank, corrupted, or not a financial receipt, output {}.
 
 Example valid response:
 {
-  "title": "Walmart Groceries",
-  "amount": 58.43,
-  "date": "2025-05-08",
-  "description": "Groceries: milk, eggs, bread",
-  "category": "groceries",
-  "paymentMethod": "CARD",
-  "type": "EXPENSE"
+  "title": "Starbucks Coffee",
+  "amount": 420.00,
+  "date": "2026-03-12",
+  "description": "Caramel Macchiato, Blueberry Muffin",
+  "category": "dining",
+  "paymentMethod": "MOBILE_PAYMENT",
+  "type": "EXPENSE",
+  "subtotal": 400.00,
+  "tax": 20.00,
+  "discount": 0,
+  "confidence": "HIGH",
+  "items": [
+    { "name": "Caramel Macchiato", "quantity": 1, "price": 280 },
+    { "name": "Blueberry Muffin", "quantity": 1, "price": 140 }
+  ]
 }
 `;
 

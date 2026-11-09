@@ -43,6 +43,8 @@ export interface TransactionDocument extends Document {
   date: Date;
   status: keyof typeof TransactionStatusEnum;
   paymentMethod: keyof typeof PaymentMethodEnum;
+  ledgerHash?: string | null;
+  prevLedgerHash?: string | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -111,6 +113,14 @@ const transactionSchema = new Schema<TransactionDocument>(
       enum: Object.values(PaymentMethodEnum),
       default: PaymentMethodEnum.CASH,
     },
+    ledgerHash: {
+      type: String,
+      default: null,
+    },
+    prevLedgerHash: {
+      type: String,
+      default: null,
+    },
   },
   {
     timestamps: true,
@@ -118,6 +128,11 @@ const transactionSchema = new Schema<TransactionDocument>(
     toObject: { virtuals: true, getters: true },
   }
 );
+
+// High-performance compound indexes for multi-tenant queries & recurring processing
+transactionSchema.index({ userId: 1, date: -1 });
+transactionSchema.index({ userId: 1, category: 1, date: -1 });
+transactionSchema.index({ isRecurring: 1, nextRecurringDate: 1 });
 
 const TransactionModel = mongoose.model<TransactionDocument>(
   "Transaction",

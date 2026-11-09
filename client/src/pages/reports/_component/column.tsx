@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 import { ColumnDef } from "@tanstack/react-table";
 import { Button } from "@/components/ui/button";
 import { Clock, RefreshCw } from "lucide-react";
@@ -13,18 +14,23 @@ const ResendActionCell = ({ reportId }: { reportId: string }) => {
     resendReport(reportId)
       .unwrap()
       .then(() => toast.success("Report resent successfully to your registered email"))
-      .catch((err: any) => toast.error(err?.data?.message || "Failed to resend report"));
+      .catch((err: unknown) => {
+        const message =
+          (err as { data?: { message?: string } })?.data?.message ||
+          "Failed to resend report";
+        toast.error(message);
+      });
   };
 
   return (
     <Button
       size="sm"
       variant="outline"
-      className="font-normal border-[#c1a063]/30 text-[#c1a063] hover:bg-[#c1a063]/10 hover:text-[#c1a063]"
+      className="rounded-xl border border-white/[0.12] bg-white/[0.03] text-white hover:text-[#e5c158] hover:border-[#c1a063]/40 active:scale-[0.98] transition-all text-xs font-medium"
       disabled={isLoading}
       onClick={handleResend}
     >
-      <RefreshCw className={`h-3.5 w-3.5 mr-1 ${isLoading ? "animate-spin" : ""}`} />
+      <RefreshCw className={`h-3 w-3 mr-1.5 ${isLoading ? "animate-spin" : ""}`} />
       {isLoading ? "Sending..." : "Resend"}
     </Button>
   );
@@ -34,13 +40,21 @@ export const reportColumns: ColumnDef<ReportType>[] = [
   {
     accessorKey: "period",
     header: "Report Period",
-    size: 150,
+    meta: { className: "table-cell" },
     cell: ({ row }) => {
       const period = row.getValue("period") as string;
+      const sentDate = row.original.sentDate ? new Date(row.original.sentDate) : null;
       return (
-        <div className="flex items-center gap-2 lg:!w-10">
-          <Clock className="h-3.5 w-3.5 opacity-50 shrink-0" />
-          <span>{period}</span>
+        <div className="flex flex-col gap-0.5">
+          <div className="flex items-center gap-2">
+            <Clock className="h-3.5 w-3.5 text-[#e5c158] shrink-0" />
+            <span className="font-medium text-white text-xs sm:text-sm">{period}</span>
+          </div>
+          {sentDate && (
+            <span className="sm:hidden text-[11px] text-[#a1a1aa] pl-5.5">
+              {sentDate.toLocaleDateString()}
+            </span>
+          )}
         </div>
       );
     },
@@ -48,28 +62,28 @@ export const reportColumns: ColumnDef<ReportType>[] = [
   {
     accessorKey: "sentDate",
     header: "Sent Date",
-    size: 100,
+    meta: { className: "hidden sm:table-cell" },
     cell: ({ row }) => {
       const date = new Date(row.original.sentDate);
-      return date.toLocaleDateString();
+      return <span className="tabular-nums font-normal text-[#fcfcfc]">{date.toLocaleDateString()}</span>;
     },
   },
   {
     accessorKey: "status",
     header: "Status",
-    size: 100,
+    meta: { className: "table-cell" },
     cell: ({ row }) => {
       const status = row.getValue("status") as string;
       const statusStyles = {
-        [_REPORT_STATUS.SENT]: "bg-green-100 text-green-800 dark:bg-green-950/60 dark:text-green-400 border border-green-500/20",
-        [_REPORT_STATUS.FAILED]: "bg-red-100 text-red-800 dark:bg-red-950/60 dark:text-red-400 border border-red-500/20",
-        [_REPORT_STATUS.PENDING]: "bg-yellow-100 text-yellow-800 dark:bg-yellow-950/60 dark:text-yellow-400 border border-yellow-500/20",
-        [_REPORT_STATUS.PROCESSING]: "bg-blue-100 text-blue-800 dark:bg-blue-950/60 dark:text-blue-400 border border-blue-500/20",
-        [_REPORT_STATUS.NO_ACTIVITY]: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400 border border-gray-700",
+        [_REPORT_STATUS.SENT]: "bg-white/[0.06] text-[#fcfcfc] border border-white/[0.12]",
+        [_REPORT_STATUS.FAILED]: "bg-[#f43f5e]/15 text-[#f43f5e] border border-[#f43f5e]/30",
+        [_REPORT_STATUS.PENDING]: "bg-[#e5c158]/15 text-[#e5c158] border border-[#e5c158]/30",
+        [_REPORT_STATUS.PROCESSING]: "bg-white/[0.08] text-white border border-white/[0.15]",
+        [_REPORT_STATUS.NO_ACTIVITY]: "bg-white/[0.03] text-[#a1a1aa] border border-white/[0.06]",
       };
 
       const style =
-        statusStyles[status as ReportStatusType] || "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-400";
+        statusStyles[status as ReportStatusType] || "bg-white/[0.04] text-[#a1a1aa] border border-white/[0.08]";
 
       return (
         <span
@@ -85,7 +99,7 @@ export const reportColumns: ColumnDef<ReportType>[] = [
   {
     id: "actions",
     header: "Actions",
-    size: 100,
+    meta: { className: "table-cell text-right" },
     cell: ({ row }) => <ResendActionCell reportId={row.original._id} />,
   },
 ];

@@ -7,6 +7,10 @@ import {
   GetAllTransactionResponse,
   GetSingleTransactionResponse,
   UpdateTransactionPayload,
+  BankStatementParseResponse,
+  BulkCommitTransactionsResponse,
+  CommitBankTransactionItem,
+  LedgerAuditResponse,
 } from "./transationType";
 
 export const transactionApi = apiClient.injectEndpoints({
@@ -126,6 +130,37 @@ export const transactionApi = apiClient.injectEndpoints({
         params,
       }),
     }),
+
+    parseBankStatement: builder.mutation<BankStatementParseResponse, FormData>({
+      query: (formData) => ({
+        url: "/transaction/parse-statement",
+        method: "POST",
+        body: formData,
+      }),
+    }),
+
+    bulkCommitBankTransactions: builder.mutation<
+      BulkCommitTransactionsResponse,
+      { transactions: CommitBankTransactionItem[] }
+    >({
+      query: (body) => ({
+        url: "/transaction/bulk-commit",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: ["transactions", "analytics"],
+    }),
+
+    verifyLedgerAudit: builder.query<
+      LedgerAuditResponse,
+      { simulateTamper?: number } | void
+    >({
+      query: (params) => ({
+        url: "/transaction/ledger/audit",
+        method: "GET",
+        params: params || {},
+      }),
+    }),
   }),
 });
 
@@ -140,4 +175,8 @@ export const {
   useDeleteTransactionMutation,
   useBulkDeleteTransactionMutation,
   useExportTransactionsEmailMutation,
+  useParseBankStatementMutation,
+  useBulkCommitBankTransactionsMutation,
+  useVerifyLedgerAuditQuery,
+  useLazyVerifyLedgerAuditQuery,
 } = transactionApi;

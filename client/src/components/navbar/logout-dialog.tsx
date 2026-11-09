@@ -27,18 +27,36 @@ const LogoutDialog = ({ isOpen, setIsOpen }: LogoutDialogProps) => {
     };
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Are you sure you want to log out?</DialogTitle>
-            <DialogDescription>
-              This will end your current session and you will need to log in
-              again to access your account.
+        <DialogContent className="max-w-sm rounded-2xl obsidian-card bg-[#0e0e12] border border-white/[0.10] p-6 shadow-[0_20px_50px_rgba(0,0,0,0.85),inset_0_1px_0_rgba(255,255,255,0.08)]">
+          <DialogHeader className="text-center sm:text-center pb-2">
+            <DialogTitle className="text-base font-semibold text-white">
+              Log Out of Obsidian?
+            </DialogTitle>
+            <DialogDescription className="text-xs text-[#a1a1aa] leading-relaxed">
+              Your active session will be securely terminated. You can log back in at any time.
             </DialogDescription>
           </DialogHeader>
-          <DialogFooter>
-            <Button className="text-white !bg-red-500" disabled={isPending} type="button" onClick={handleLogout}>
-              {isPending && <Loader className="animate-spin" />}
-              Yes
+          <DialogFooter className="flex flex-col-reverse sm:flex-row gap-2 pt-2">
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={isPending}
+              type="button"
+              onClick={() => setIsOpen(false)}
+              className="flex-1 text-xs border-white/[0.10]"
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              size="sm"
+              disabled={isPending}
+              type="button"
+              onClick={handleLogout}
+              className="flex-1 text-xs"
+            >
+              {isPending && <Loader className="h-3.5 w-3.5 animate-spin mr-1" />}
+              Log Out
             </Button>
           </DialogFooter>
         </DialogContent>

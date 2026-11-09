@@ -12,7 +12,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Dialog, DialogContent, DialogTrigger } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTrigger, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -97,33 +97,37 @@ export function AccountForm() {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-        <div className="flex flex-col items-start space-y-4">
-          <FormLabel>Profile Picture</FormLabel>
-          <div className="flex items-center gap-4">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        <div className="flex flex-col items-start space-y-3">
+          <FormLabel className="text-xs font-medium text-[#a1a1aa]">Profile Avatar</FormLabel>
+          <div className="flex items-center gap-5">
             <Dialog>
               <DialogTrigger asChild>
                 <div className="relative group cursor-pointer">
-                  <Avatar className="h-20 w-20 border border-[#c1a063]/30">
+                  <Avatar className="h-20 w-20 rounded-2xl border border-[#e5c158]/40 shadow-md">
                     <AvatarImage
                       src={avatarUrl || user?.profilePicture || ""}
-                      className="!object-cover !object-center"
+                      className="!object-cover !object-center rounded-2xl"
                     />
-                    <AvatarFallback className="text-2xl">
+                    <AvatarFallback className="text-xl font-light bg-[#161616] text-[#e5c158] rounded-2xl">
                       {form.watch("name")?.charAt(0)?.toUpperCase() || "U"}
                     </AvatarFallback>
                   </Avatar>
-                  <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-full">
-                    <span className="text-[10px] text-white font-medium">VIEW</span>
+                  <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity rounded-2xl backdrop-blur-xs">
+                    <span className="text-[10px] text-white font-medium tracking-wider">VIEW</span>
                   </div>
                 </div>
               </DialogTrigger>
               <DialogContent className="max-w-md p-0 bg-transparent border-none">
+                <DialogHeader className="sr-only">
+                  <DialogTitle>Profile Photo</DialogTitle>
+                  <DialogDescription>Full size preview of your profile photo</DialogDescription>
+                </DialogHeader>
                 <div className="relative aspect-square w-full">
                   <img
                     src={avatarUrl || user?.profilePicture || ""}
                     alt="Profile Preview"
-                    className="w-full h-full object-contain rounded-lg shadow-2xl"
+                    className="w-full h-full object-contain rounded-3xl shadow-2xl"
                   />
                 </div>
               </DialogContent>
@@ -131,9 +135,9 @@ export function AccountForm() {
             <div className="flex flex-col gap-2 relative">
               <label
                 htmlFor="profile-upload"
-                className="inline-flex items-center justify-center whitespace-nowrap rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-[#c1a063]/30 bg-[#111] hover:bg-[#c1a063]/10 text-white h-10 px-4 py-2 cursor-pointer max-w-[200px]"
+                className="inline-flex items-center justify-center whitespace-nowrap rounded-xl text-xs font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e5c158] border border-white/[0.12] bg-white/[0.03] hover:bg-white/[0.08] hover:border-[#c1a063]/50 text-white h-9 px-4 cursor-pointer max-w-[200px] active:scale-[0.98]"
               >
-                Choose Custom Image
+                Choose Photo
               </label>
               <Input
                 id="profile-upload"
@@ -142,8 +146,8 @@ export function AccountForm() {
                 onChange={handleAvatarChange}
                 className="hidden"
               />
-              <p className="text-xs text-muted-foreground mt-2">
-                Recommended: Square JPG, PNG, at least 300x300px.
+              <p className="text-[11px] text-[#a1a1aa] font-normal">
+                Recommended: Square JPG or PNG, at least 300x300px.
               </p>
             </div>
           </div>
@@ -153,17 +157,25 @@ export function AccountForm() {
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel>Name</FormLabel>
+              <FormLabel className="text-xs font-medium text-[#a1a1aa]">Full Name</FormLabel>
               <FormControl>
-                <Input placeholder="Your preferred name" {...field} className="bg-[#111] border-[#c1a063]/30 text-white focus-visible:ring-[#c1a063]" />
+                <Input
+                  placeholder="Your preferred name"
+                  {...field}
+                  className="rounded-xl bg-white/[0.03] border-white/[0.10] text-white focus-visible:ring-[#e5c158]"
+                />
               </FormControl>
               <FormMessage />
             </FormItem>
           )}
         />
-        <Button disabled={isLoading} type="submit" className="bg-[#c1a063] hover:bg-[#a88a4e] text-black border-none rounded-md px-8">
+        <Button
+          disabled={isLoading}
+          type="submit"
+          className="rounded-xl bg-gradient-to-r from-[#e5c158] via-[#c1a063] to-[#b09055] text-black font-semibold shadow-[0_4px_16px_rgba(193,160,99,0.28)] hover:brightness-105 active:scale-[0.98] transition-all px-8"
+        >
           {isLoading && <Loader className="h-4 w-4 animate-spin mr-2" />}
-          Update Account
+          Save Changes
         </Button>
       </form>
     </Form>

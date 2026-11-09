@@ -22,9 +22,20 @@ import reportRoutes from "./routes/report.route";
 import { getDateRange } from "./utils/date";
 import analyticsRoutes from "./routes/analytics.route";
 import budgetRoutes from "./routes/budget.route";
+import { initTelegramBot } from "./services/telegram.service";
+import helmet from "helmet";
 
 const app = express();
 const BASE_PATH = Env.BASE_PATH;
+
+app.disable("x-powered-by");
+
+// Enterprise security headers with cross-origin asset allowance
+app.use(
+  helmet({
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+  })
+);
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -65,6 +76,8 @@ app.listen(Env.PORT, async () => {
   if (process.env.DISABLE_CRONS !== "true") {
     await initializeCrons();
   }
+
+  await initTelegramBot();
 
   console.log(`Server is running on port ${Env.PORT} in ${Env.NODE_ENV} mode`);
 });

@@ -11,7 +11,7 @@ import {
   VisibilityState,
   ColumnFiltersState,
 } from "@tanstack/react-table";
-import { Loader, PlusCircleIcon, Trash, X } from "lucide-react";
+import { Loader, PlusCircleIcon, Trash, X, Download } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -47,6 +47,8 @@ interface DataTableProps<TData> {
   showSearch?: boolean;
   filters?: FilterOption[];
   className?: string;
+  initialSearchTerm?: string;
+  initialFilters?: Record<string, string>;
   onSearch?: (term: string) => void;
   onFilterChange?: (filters: Record<string, string>) => void;
   onBulkDelete?: (selectedIds: string[]) => void;
@@ -79,13 +81,27 @@ export function DataTable<TData>({
   isBulkDeleting = false,
   isShowPagination = true,
   pagination,
+  initialSearchTerm = "",
+  initialFilters = {},
   onPageChange,
   onPageSizeChange,
 }: DataTableProps<TData>) {
-  const [searchTerm, setSearchTerm] = React.useState("");
+  const [searchTerm, setSearchTerm] = React.useState(initialSearchTerm);
   const [filterValues, setFilterValues] = React.useState<
     Record<string, string>
-  >({});
+  >(initialFilters);
+
+  React.useEffect(() => {
+    if (initialSearchTerm !== undefined && initialSearchTerm !== searchTerm) {
+      setSearchTerm(initialSearchTerm);
+    }
+  }, [initialSearchTerm]);
+
+  React.useEffect(() => {
+    if (initialFilters && Object.keys(initialFilters).length > 0) {
+      setFilterValues((prev) => ({ ...prev, ...initialFilters }));
+    }
+  }, [initialFilters]);
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>(
     []
@@ -115,6 +131,61 @@ export function DataTable<TData>({
   const selectedRows = table.getFilteredSelectedRowModel().rows;
   const hasSelections = selectedRows.length > 0;
 
+  const selectedSum = React.useMemo(() => {
+    if (!hasSelections) return null;
+    let total = 0;
+    let hasNumeric = false;
+    for (const row of selectedRows) {
+      const item = row.original as any;
+      if (typeof item?.amount === "number") {
+        hasNumeric = true;
+        if (item.type === "EXPENSE") {
+          total -= item.amount;
+        } else {
+          total += item.amount;
+        }
+      }
+    }
+    return hasNumeric ? total : null;
+  }, [selectedRows, hasSelections]);
+
+  const exportToCsv = (rowsToExport: typeof selectedRows) => {
+    if (!rowsToExport.length) return;
+    const items = rowsToExport.map((r) => r.original as Record<string, any>);
+    const keys = Array.from(
+      new Set(
+        items.flatMap((item) =>
+          Object.keys(item).filter(
+            (k) => !["_id", "__v", "userId", "updatedAt"].includes(k)
+          )
+        )
+      )
+    );
+
+    const csvRows = [
+      keys.join(","),
+      ...items.map((item) =>
+        keys
+          .map((k) => {
+            const val = item[k];
+            if (val === null || val === undefined) return '""';
+            if (typeof val === "object") return `"${JSON.stringify(val).replace(/"/g, '""')}"`;
+            return `"${String(val).replace(/"/g, '""')}"`;
+          })
+          .join(",")
+      ),
+    ];
+
+    const blob = new Blob([csvRows.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", `obsidian_selected_${new Date().toISOString().slice(0, 10)}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const handleSearch = (value: string) => {
     setSearchTerm(value);
     onSearch?.(value);
@@ -135,8 +206,12 @@ export function DataTable<TData>({
   };
 
   const handleDelete = () => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const selectedIds = selectedRows.map((row) => (row.original as any).id);
+    const selectedIds = selectedRows
+      .map((row) => {
+        const item = row.original as { id?: string; _id?: string };
+        return item._id || item.id || "";
+      })
+      .filter(Boolean);
     onBulkDelete?.(selectedIds);
     setRowSelection({});
   };
@@ -152,7 +227,7 @@ export function DataTable<TData>({
               value={searchTerm}
               disabled={isLoading}
               onChange={(e) => handleSearch(e.target.value)}
-              className="max-w-sm"
+              className="w-full sm:max-w-sm"
             />
           )}
           {filters.map(({ key, label, options }) => (
@@ -194,21 +269,59 @@ export function DataTable<TData>({
         </div>
 
         {(selection && hasSelections) || isBulkDeleting ? (
-          <Button
-            disabled={isLoading || isBulkDeleting}
-            variant="destructive"
-            size="sm"
-            onClick={handleDelete}
-          >
-            <Trash className="h-4 w-4 mr-1" />
-            Delete ({selectedRows.length})
-            {isBulkDeleting && <Loader className="ml-1 h-4 w-4 animate-spin" />}
-          </Button>
+          <div className="flex items-center gap-2 flex-wrap">
+            <div className="hidden sm:inline-flex items-center gap-2 px-2.5 py-1 rounded-xl bg-white/[0.04] border border-white/[0.08] text-xs text-[#f5f5f7]">
+              <span className="text-[#8e8e93]">Selected:</span>
+              <span className="font-medium text-white tabular-nums">{selectedRows.length}</span>
+              {selectedSum !== null && (
+                <>
+                  <span className="text-neutral-600">•</span>
+                  <span className="text-[#8e8e93]">Net:</span>
+                  <span
+                    className={cn(
+                      "tabular-nums font-medium",
+                      selectedSum >= 0 ? "text-[#30d158]" : "text-[#ff453a]"
+                    )}
+                  >
+                    {selectedSum >= 0 ? "+" : ""}
+                    {selectedSum.toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </span>
+                </>
+              )}
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => exportToCsv(selectedRows)}
+              disabled={isLoading || isBulkDeleting}
+              className="h-8 border-white/[0.1] bg-white/[0.04] hover:bg-white/[0.08] text-white cursor-pointer rounded-xl text-xs active:scale-[0.97] transition-all"
+              title="Download selected rows as CSV"
+            >
+              <Download className="h-3.5 w-3.5 mr-1.5 text-[#e5c158]" />
+              Export ({selectedRows.length})
+            </Button>
+
+            <Button
+              disabled={isLoading || isBulkDeleting}
+              variant="destructive"
+              size="sm"
+              onClick={handleDelete}
+              className="h-8 rounded-xl text-xs active:scale-[0.97] transition-all"
+            >
+              <Trash className="h-3.5 w-3.5 mr-1" />
+              Delete ({selectedRows.length})
+              {isBulkDeleting && <Loader className="ml-1 h-3.5 w-3.5 animate-spin" />}
+            </Button>
+          </div>
         ) : null}
       </div>
 
       {/* Table */}
-      <div className={cn("rounded-md border overflow-x-auto", className)}>
+      <div className={cn("obsidian-card rounded-2xl overflow-hidden", className)}>
         {isLoading ? (
           <TableSkeleton columns={6} rows={20} />
         ) : (
@@ -217,13 +330,16 @@ export function DataTable<TData>({
               table.getRowModel().rows.length === 0 ? "h-[200px]" : ""
             )}
           >
-            <TableHeader className="sticky top-0 bg-[#0a0a0a] z-10 border-b border-[#2a2520] hover:bg-[#0a0a0a]">
+            <TableHeader className="sticky top-0 bg-[#0e0e13]/90 backdrop-blur-xl z-10 border-b border-white/[0.08]">
               {table.getHeaderGroups().map((group) => (
-                <TableRow key={group.id}>
+                <TableRow key={group.id} className="border-b border-white/[0.06] hover:bg-transparent">
                   {group.headers.map((header) => (
                     <TableHead
                       key={header.id}
-                      className="!font-medium !text-[13px]"
+                      className={cn(
+                        "!font-medium !text-xs !text-[#8e8e93]",
+                        (header.column.columnDef.meta as { className?: string })?.className
+                      )}
                     >
                       {flexRender(
                         header.column.columnDef.header,
@@ -242,7 +358,13 @@ export function DataTable<TData>({
                     data-state={row.getIsSelected() && "selected"}
                   >
                     {row.getVisibleCells().map((cell) => (
-                      <TableCell key={cell.id} className="!text-[13.3px]">
+                      <TableCell
+                        key={cell.id}
+                        className={cn(
+                          "!text-[13.3px]",
+                          (cell.column.columnDef.meta as { className?: string })?.className
+                        )}
+                      >
                         {flexRender(
                           cell.column.columnDef.cell,
                           cell.getContext()
@@ -268,7 +390,7 @@ export function DataTable<TData>({
 
       {/* Pagination */}
       {isShowPagination && (
-        <div className="mt-6 pb-2 border-t border-[#2a2520] pt-4">
+        <div className="mt-6 pb-2 border-t border-white/[0.08] pt-4">
           <DataTablePagination
             pageNumber={pagination?.pageNumber || 1}
             pageSize={pagination?.pageSize || 10}

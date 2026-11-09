@@ -11,9 +11,41 @@ export interface AiAdvisorChatResponse {
   actionTaken?: {
     type: string;
     description: string;
-    data?: any;
+    data?: Record<string, unknown>;
   };
   reply?: string;
+}
+
+export interface VoiceTerminalCommandResponse {
+  message: string;
+  data: {
+    action:
+      | "NAVIGATE"
+      | "TRANSACTION_CREATED"
+      | "TRANSACTION_DELETED"
+      | "TRANSACTION_UPDATED"
+      | "FINANCIAL_QUERY"
+      | "EXPORT_ACTION"
+      | "GENERAL_HELP"
+      | "OPEN_MODAL"
+      | "AUDIT_LEDGER"
+      | "BUDGET_UPDATED"
+      | "TELEGRAM_ACTION";
+    path?: string;
+    modalTarget?:
+      | "ADD_TRANSACTION"
+      | "IMPORT_STATEMENT"
+      | "RECEIPT_SCANNER"
+      | "LEDGER_AUDIT"
+      | "TELEGRAM_COPILOT";
+    speechReply: string;
+    displayHeadline?: string;
+    displayText?: string;
+    metrics?: Array<{ label: string; value: string }>;
+    transactionData?: Record<string, unknown>;
+    auditData?: Record<string, unknown>;
+    telegramData?: Record<string, unknown>;
+  };
 }
 
 export const analyticsApi = apiClient.injectEndpoints({
@@ -42,6 +74,16 @@ export const analyticsApi = apiClient.injectEndpoints({
       }),
       providesTags: ["analytics"],
     }),
+    getAiInsights: builder.mutation<
+      { data: string[] | string },
+      FilterParams
+    >({
+      query: (params) => ({
+        url: "/analytics/ai-insights",
+        method: "GET",
+        params,
+      }),
+    }),
     chatWithAiAdvisor: builder.mutation<
       AiAdvisorChatResponse,
       {
@@ -61,7 +103,34 @@ export const analyticsApi = apiClient.injectEndpoints({
         body,
       }),
       invalidatesTags: (result) =>
-        result?.actionTaken ? ["transactions", "analytics", "reports"] : [],
+        result?.actionTaken ? ["transactions", "analytics", "reports", "budget"] : [],
+    }),
+    processVoiceCommand: builder.mutation<
+      VoiceTerminalCommandResponse,
+      { transcript: string }
+    >({
+      query: (body) => ({
+        url: "/analytics/voice-command",
+        method: "POST",
+        body,
+      }),
+      invalidatesTags: (result) => {
+        const action = result?.data?.action;
+        if (
+          action === "TRANSACTION_CREATED" ||
+          action === "TRANSACTION_DELETED" ||
+          action === "TRANSACTION_UPDATED"
+        ) {
+          return ["transactions", "analytics", "reports", "budget"];
+        }
+        if (action === "BUDGET_UPDATED") {
+          return ["budget", "analytics"];
+        }
+        if (action === "TELEGRAM_ACTION") {
+          return ["telegram", "user"];
+        }
+        return [];
+      },
     }),
   }),
 });
@@ -70,5 +139,7 @@ export const {
   useSummaryAnalyticsQuery,
   useChartAnalyticsQuery,
   useExpensePieChartBreakdownQuery,
+  useGetAiInsightsMutation,
   useChatWithAiAdvisorMutation,
+  useProcessVoiceCommandMutation,
 } = analyticsApi;

@@ -1,5 +1,9 @@
 import { apiClient } from "@/app/api-client";
-import { GetAllReportResponse, UpdateReportSettingParams } from "./reportType";
+import {
+  GetAllReportResponse,
+  UpdateReportSettingParams,
+  InstantReportResponse,
+} from "./reportType";
 
 export const reportApi = apiClient.injectEndpoints({
   endpoints: (builder) => ({
@@ -34,7 +38,7 @@ export const reportApi = apiClient.injectEndpoints({
     }),
 
     createInstantReport: builder.mutation<
-      any,
+      InstantReportResponse,
       { from?: string; to?: string; sendEmail?: boolean }
     >({
       query: (body) => ({

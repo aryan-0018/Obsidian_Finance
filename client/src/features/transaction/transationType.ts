@@ -73,6 +73,11 @@ export interface AIScanReceiptData {
   paymentMethod: string;
   type: "INCOME" | "EXPENSE";
   receiptUrl: string;
+  tax?: number;
+  discount?: number;
+  subtotal?: number;
+  confidence?: "HIGH" | "MEDIUM" | "LOW";
+  items?: Array<{ name: string; quantity?: number; price?: number }>;
 }
 
 export interface AIScanReceiptResponse {
@@ -104,3 +109,74 @@ export interface BulkTransactionType {
 export interface BulkImportTransactionPayload {
   transactions: BulkTransactionType[];
 }
+
+export interface ParsedBankTransaction {
+  id: string;
+  fingerprint: string;
+  title: string;
+  rawNarration: string;
+  amount: number;
+  type: "EXPENSE" | "INCOME";
+  category: string;
+  paymentMethod: string;
+  date: string;
+  isDuplicate: boolean;
+  duplicateReason?: string;
+  selected?: boolean;
+}
+
+export interface BankStatementParseResponse {
+  message: string;
+  data: {
+    fileName: string;
+    fileType: "PDF" | "CSV";
+    totalTransactions: number;
+    totalIncome: number;
+    totalExpense: number;
+    duplicateCount: number;
+    newCount: number;
+    dateRange: {
+      from: string | null;
+      to: string | null;
+    };
+    transactions: ParsedBankTransaction[];
+  };
+}
+
+export interface CommitBankTransactionItem {
+  title: string;
+  amount: number;
+  type: "INCOME" | "EXPENSE";
+  category: string;
+  paymentMethod: string;
+  date: string;
+  description?: string;
+}
+
+export interface BulkCommitTransactionsResponse {
+  message: string;
+  data: {
+    success: boolean;
+    importedCount: number;
+  };
+}
+
+export interface LedgerAuditResponse {
+  message: string;
+  data: {
+    status: "VERIFIED_SECURE" | "COMPROMISED";
+    chainDepth: number;
+    genesisHash: string;
+    ledgerRootHash: string;
+    auditTimestamp: string;
+    executionTimeMs: number;
+    tamperedBlocks: Array<{
+      index: number;
+      transactionId: string;
+      expectedHash: string;
+      actualHash: string;
+    }>;
+  };
+}
+
+

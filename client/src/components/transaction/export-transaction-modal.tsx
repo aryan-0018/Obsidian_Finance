@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import { useGetAllTransactionsQuery, useExportTransactionsEmailMutation } from "@/features/transaction/transactionAPI";
 import { Button } from "@/components/ui/button";
@@ -27,6 +27,17 @@ export default function ExportTransactionModal() {
     const [isOpen, setIsOpen] = useState(false);
     const [dateRange, setDateRange] = useState<DateRangeType>(null);
     const [category, setCategory] = useState<string>("all");
+
+    useEffect(() => {
+        const handleOpen = (e: Event) => {
+            const customEvent = e as CustomEvent<{ modal?: string }>;
+            if (customEvent.detail?.modal === "EXPORT_TRANSACTIONS") {
+                setIsOpen(true);
+            }
+        };
+        window.addEventListener("obsidian:open-modal", handleOpen);
+        return () => window.removeEventListener("obsidian:open-modal", handleOpen);
+    }, []);
 
     const { data: transactionRes, isFetching: isTrxFetching } = useGetAllTransactionsQuery(
         {
@@ -120,33 +131,41 @@ export default function ExportTransactionModal() {
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
             <DialogTrigger asChild>
-                <Button variant="outline" className="gap-2 border-[#c1a063]/30 text-[#c1a063] hover:bg-[#c1a063] hover:text-black">
-                    <Download className="size-4" />
-                    Export
+                <Button variant="outline" className="gap-2 rounded-xl border-white/[0.12] bg-white/[0.03] text-[#c1a063] hover:bg-[#c1a063]/10 hover:border-[#c1a063]/40 active:scale-[0.98] transition-all">
+                    <Download className="size-4 text-[#c1a063]" />
+                    <span>Export</span>
                 </Button>
             </DialogTrigger>
-            <DialogContent className="sm:max-w-[425px] bg-[#111] dark:bg-black border-[#c1a063]/30 text-white">
+            <DialogContent className="sm:max-w-[425px] obsidian-card rounded-3xl bg-[#0e0e13]/95 backdrop-blur-2xl border border-white/[0.09] text-white shadow-[0_32px_64px_rgba(0,0,0,0.85),inset_0_1px_0_rgba(255,255,255,0.12)] p-6 sm:p-7">
                 <DialogHeader>
-                    <DialogTitle className="text-xl font-light text-[#c1a063]">Export Transactions</DialogTitle>
-                    <DialogDescription className="text-neutral-400">
-                        Select a period and category to generate your financial report.
-                    </DialogDescription>
+                    <div className="flex items-center gap-3 mb-1">
+                        <div className="p-2.5 rounded-2xl bg-[#c1a063]/10 text-[#c1a063] border border-[#c1a063]/20">
+                            <Download className="h-5 w-5" />
+                        </div>
+                        <div>
+                            <DialogTitle className="text-lg font-semibold tracking-tight text-white">Export Transactions</DialogTitle>
+                            <DialogDescription className="text-[#8e8e93] text-xs font-normal">
+                                Filter by date and category to download or email your transactions.
+                            </DialogDescription>
+                        </div>
+                    </div>
                 </DialogHeader>
-                <div className="grid gap-6 py-4">
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium text-neutral-300 flex border-b border-white/10 pb-2 mb-2 items-center gap-2">
-                            <Filter className="size-4 text-[#c1a063]" /> Date Range
+
+                <div className="space-y-4 py-3">
+                    <div className="space-y-2 p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
+                        <label className="text-xs font-medium text-neutral-300 flex items-center gap-2">
+                            <Filter className="size-3.5 text-[#c1a063]" /> Date Range
                         </label>
                         <DateRangeSelect dateRange={dateRange} setDateRange={setDateRange} />
                     </div>
 
-                    <div className="space-y-2">
-                        <label className="text-sm font-medium text-neutral-300">Category Filter</label>
+                    <div className="space-y-2 p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
+                        <label className="text-xs font-medium text-neutral-300">Category Filter</label>
                         <Select value={category} onValueChange={setCategory}>
-                            <SelectTrigger className="bg-white/5 border-white/20">
+                            <SelectTrigger className="rounded-xl bg-[#161616]/80 border-white/[0.08] text-white focus:ring-[#c1a063]">
                                 <SelectValue placeholder="All Categories" />
                             </SelectTrigger>
-                            <SelectContent className="bg-[#111] border-[#c1a063]/30 text-white">
+                            <SelectContent className="rounded-2xl bg-[#0e0e12] border border-white/[0.08] text-white">
                                 <SelectItem value="all">All Categories</SelectItem>
                                 {uniqueCategories.map((cat: string) => (
                                     <SelectItem key={cat} value={cat} className="capitalize">
@@ -158,22 +177,29 @@ export default function ExportTransactionModal() {
                     </div>
                 </div>
 
-                <div className="flex justify-end gap-3 pt-4 border-t border-white/10">
+                <div className="flex justify-end gap-2.5 pt-3 border-t border-white/[0.06]">
+                    <Button
+                        variant="ghost"
+                        onClick={() => setIsOpen(false)}
+                        className="rounded-xl text-muted-foreground hover:text-white"
+                    >
+                        Cancel
+                    </Button>
                     <Button
                         variant="outline"
                         onClick={handleEmail}
-                        className="border-[#c1a063] text-[#c1a063] hover:bg-[#c1a063]/10"
+                        className="rounded-xl border-white/[0.12] bg-white/[0.04] text-[#c1a063] hover:bg-[#c1a063]/10 active:scale-[0.98] transition-all"
                         disabled={isTrxFetching || isExportingEmail}
                     >
-                        <Mail className="size-4 mr-2" />
-                        {isExportingEmail ? "Sending..." : "Email"}
+                        <Mail className="size-4 mr-1.5" />
+                        {isExportingEmail ? "Sending..." : "Email Report"}
                     </Button>
                     <Button
                         onClick={handleDownload}
-                        className="bg-[#c1a063] text-black hover:bg-[#a88a4e]"
+                        className="rounded-xl bg-gradient-to-r from-[#c1a063] to-[#d4b97a] hover:from-[#b08f52] hover:to-[#c1a063] text-black font-medium active:scale-[0.98] transition-all shadow-md"
                         disabled={isTrxFetching}
                     >
-                        <Download className="size-4 mr-2" />
+                        <Download className="size-4 mr-1.5" />
                         {isTrxFetching ? "Preparing..." : "Download CSV"}
                     </Button>
                 </div>

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unused-vars */
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Check, Info, Terminal, X, AlertTriangle } from "lucide-react";
+import { Check, Info, X, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
 
@@ -27,23 +27,23 @@ interface AppAlertProps {
 
 const variantClasses = {
   default:
-    "bg-gray-100 text-gray-900 border border-gray-300 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-600",
+    "bg-white/[0.04] text-[#fcfcfc] border border-white/[0.10]",
   destructive:
-    "bg-red-100 text-red-800 border border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-600",
+    "bg-[#f43f5e]/10 text-[#f43f5e] border border-[#f43f5e]/25",
   success:
-    "bg-green-100 text-green-800 border border-green-300 dark:bg-green-900/30 dark:text-green-400 dark:border-green-600",
+    "bg-white/[0.04] text-white border border-white/[0.10]",
   warning:
-    "bg-yellow-100 text-yellow-800 border border-yellow-300 dark:bg-yellow-900/30 dark:text-yellow-400 dark:border-yellow-600",
+    "bg-[#e5c158]/10 text-[#e5c158] border border-[#e5c158]/25",
   info:
-    "bg-blue-100 text-blue-800 border border-blue-300 dark:bg-blue-900/30 dark:text-blue-400 dark:border-blue-600",
+    "bg-white/[0.04] text-[#fcfcfc] border border-white/[0.10]",
 };
 
 const iconMap = {
-  default: <Terminal className="h-4 w-4" />,
-  destructive: <AlertTriangle className="h-4 w-4" />,
-  success: <Check className="h-4 w-4" />,
-  warning: <AlertTriangle className="h-4 w-4" />,
-  info: <Info className="h-4 w-4" />,
+  default: <Info className="h-4 w-4 text-[#e5c158]" />,
+  destructive: <AlertTriangle className="h-4 w-4 text-[#f43f5e]" />,
+  success: <Check className="h-4 w-4 text-[#e5c158]" />,
+  warning: <AlertTriangle className="h-4 w-4 text-[#e5c158]" />,
+  info: <Info className="h-4 w-4 text-[#e5c158]" />,
 };
 
 export const AppAlert = ({

@@ -22,10 +22,12 @@ import { useExpensePieChartBreakdownQuery } from "@/features/analytics/analytics
 import { useTypedSelector } from "@/app/hook";
 
 const COLORS = [
-  "var(--color-chart-1)",
-  "var(--color-chart-2)",
-  "var(--color-chart-3)",
-  "var(--color-chart-4)",
+  "#e5c158",
+  "#38bdf8",
+  "#f43f5e",
+  "#a78bfa",
+  "#34d399",
+  "#fb923c",
 ];
 
 // Create chart config for shadcn UI chart
@@ -42,6 +44,8 @@ const ExpensePieChart = (props: { dateRange?: DateRangeType }) => {
 
   const { data, isFetching } = useExpensePieChartBreakdownQuery({
     preset: dateRange?.value,
+    from: dateRange?.from ? new Date(dateRange.from).toISOString() : undefined,
+    to: dateRange?.to ? new Date(dateRange.to).toISOString() : undefined,
   });
   const categories = data?.data?.breakdown || [];
   const totalSpent = data?.data?.totalSpent || 0;
@@ -56,18 +60,18 @@ const ExpensePieChart = (props: { dateRange?: DateRangeType }) => {
         {categories.map((entry, index) => (
           <div key={`legend-${index}`} className="flex items-center gap-2">
             <div
-              className="h-3 w-3 rounded-full"
+              className="h-2.5 w-2.5 rounded-full shrink-0"
               style={{ backgroundColor: COLORS[index % COLORS.length] }}
             ></div>
             <div className="flex justify-between w-full">
-              <span className="text-xs font-medium truncate capitalize">
+              <span className="text-xs font-medium text-white truncate capitalize">
                 {entry.name}
               </span>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-muted-foreground whitespace-nowrap">
+                <span className="text-xs text-[#a1a1aa] whitespace-nowrap font-medium">
                   {formatCurrency(entry.value, { currency })}
                 </span>
-                <span className="text-xs text-muted-foreground/60">
+                <span className="text-xs text-white/50 font-normal">
                   ({formatPercentage(entry.percentage, { decimalPlaces: 0 })})
                 </span>
               </div>
@@ -79,13 +83,13 @@ const ExpensePieChart = (props: { dateRange?: DateRangeType }) => {
   };
 
   return (
-    <Card className="!shadow-none border-1 border-gray-100 dark:border-border">
-      <CardHeader className="pb-2">
-        <CardTitle className="text-lg">Expenses Breakdown</CardTitle>
-        <CardDescription>Total expenses {dateRange?.label}</CardDescription>
+    <Card className="obsidian-card rounded-2xl overflow-hidden">
+      <CardHeader className="pb-3 border-b border-white/[0.06] mb-2 px-5 pt-5">
+        <CardTitle className="text-base sm:text-lg font-semibold text-white tracking-tight">Expense Distribution</CardTitle>
+        <CardDescription className="text-xs text-[#a1a1aa] font-normal">Distribution across {dateRange?.label}</CardDescription>
       </CardHeader>
       <CardContent className="h-[313px]">
-        <div className=" w-full">
+        <div className="w-full">
           {categories?.length === 0 ? (
             <EmptyState
               title="No expenses found"
@@ -109,8 +113,8 @@ const ExpensePieChart = (props: { dateRange?: DateRangeType }) => {
                   innerRadius={60}
                   outerRadius={80}
                   paddingAngle={2}
-                  strokeWidth={2}
-                  stroke="#fff"
+                  strokeWidth={2.5}
+                  stroke="#070709"
                 >
                   {categories.map((_, index) => (
                     <Cell
@@ -132,14 +136,14 @@ const ExpensePieChart = (props: { dateRange?: DateRangeType }) => {
                             <tspan
                               x={viewBox.cx}
                               y={viewBox.cy}
-                              className="fill-foreground text-2xl font-bold"
+                              className="fill-white text-2xl font-bold tracking-tight"
                             >
                               {formatCurrency(totalSpent, { currency })}
                             </tspan>
                             <tspan
                               x={viewBox.cx}
                               y={(viewBox.cy || 0) + 20}
-                              className="fill-muted-foreground text-xs"
+                              className="fill-[#a1a1aa] text-xs font-medium"
                             >
                               Total Spent
                             </tspan>
@@ -160,29 +164,29 @@ const ExpensePieChart = (props: { dateRange?: DateRangeType }) => {
 };
 
 const PieChartSkeleton = () => (
-  <Card className="!shadow-none border-1 border-gray-100 dark:border-border">
-    <CardHeader className="pb-2">
-      <Skeleton className="h-6 w-48" />
-      <Skeleton className="h-4 w-32 mt-1" />
+  <Card className="obsidian-card rounded-2xl border border-white/[0.08]">
+    <CardHeader className="pb-2 border-b border-white/[0.06] px-5 pt-5">
+      <Skeleton className="h-6 w-48 bg-white/[0.06]" />
+      <Skeleton className="h-4 w-32 mt-1 bg-white/[0.04]" />
     </CardHeader>
-    <CardContent className="h-[313px]">
+    <CardContent className="h-[313px] px-5 pt-4">
       <div className="w-full flex items-center justify-center">
         <div className="relative w-[200px] h-[200px]">
-          <Skeleton className="rounded-full w-full h-full" />
+          <Skeleton className="rounded-full w-full h-full bg-white/[0.03]" />
           <div className="absolute inset-0 flex flex-col items-center justify-center">
-            <Skeleton className="h-8 w-24 mb-2" />
-            <Skeleton className="h-4 w-16" />
+            <Skeleton className="h-8 w-24 mb-2 bg-white/[0.06]" />
+            <Skeleton className="h-4 w-16 bg-white/[0.04]" />
           </div>
         </div>
       </div>
-      <div className="mt-0 space-y-2">
+      <div className="mt-4 space-y-2">
         {[1, 2, 3, 4].map((i) => (
           <div key={i} className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Skeleton className="h-3 w-3 rounded-full" />
-              <Skeleton className="h-4 w-20" />
+              <Skeleton className="h-2.5 w-2.5 rounded-full bg-white/[0.06]" />
+              <Skeleton className="h-4 w-20 bg-white/[0.04]" />
             </div>
-            <Skeleton className="h-4 w-12" />
+            <Skeleton className="h-4 w-12 bg-white/[0.04]" />
           </div>
         ))}
       </div>

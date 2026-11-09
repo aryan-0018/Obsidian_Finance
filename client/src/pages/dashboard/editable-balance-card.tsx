@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Banknote, Edit2, Check } from "lucide-react";
+import { Edit2, Check, Landmark } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatCurrency } from "@/lib/format-currency";
@@ -10,6 +10,7 @@ import { DateRangeEnum } from "@/components/date-range-select";
 import CountUp from "react-countup";
 import { useUpdateUserMutation } from "@/features/user/userAPI";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 
 export default function EditableBalanceCard() {
     const { user, portfolioBalance } = useTypedSelector((state) => state.auth);
@@ -41,68 +42,97 @@ export default function EditableBalanceCard() {
             const formData = new FormData();
             formData.append("portfolioBalance", newBase.toString());
             await updateUser(formData).unwrap();
-            toast.success("Base portfolio balance updated");
+            toast.success("Balance updated successfully");
         } catch {
             toast.error("Failed to save portfolio balance to server");
         }
     };
 
     return (
-        <div className="w-full bg-[#111] dark:bg-black text-white rounded-xl p-6 border border-[#c1a063]/30 shadow-lg relative overflow-hidden flex items-center justify-between h-full">
-            {/* Abstract Gold Accent */}
-            <div className="absolute top-0 right-0 w-32 h-32 bg-[#c1a063]/10 blur-3xl rounded-full -mr-10 -mt-10 pointer-events-none" />
-
-            <div className="flex items-center gap-4 relative z-10 w-full">
-                <div className="bg-[#c1a063]/20 p-3 rounded-full flex items-center justify-center">
-                    <Banknote className="text-[#c1a063] size-6" />
+        <div className="w-full obsidian-card rounded-2xl p-6 relative overflow-hidden flex flex-col justify-between h-full">
+            {/* Top Subtitle Row */}
+            <div className="flex items-center justify-between pb-3 border-b border-white/[0.06]">
+                <h2 className="text-xs sm:text-[13px] font-medium text-[#8e8e93] tracking-normal">
+                    Total Portfolio Balance
+                </h2>
+                <div
+                    className="h-8 w-8 rounded-xl flex items-center justify-center border border-[#e5c158]/30 bg-gradient-to-br from-[#e5c158]/15 to-[#e5c158]/5 text-[#e5c158] shadow-[0_0_15px_rgba(229,193,88,0.14),inset_0_1px_0_rgba(255,255,255,0.15)] shrink-0 transition-transform duration-200 hover:scale-105 active:scale-95"
+                    title="Portfolio Vault"
+                >
+                    <Landmark className="h-4 w-4" />
                 </div>
-                <div className="flex-1">
-                    <div className="flex justify-between items-center w-full">
-                        <h2 className="text-sm font-medium text-neutral-400 uppercase tracking-wider mb-1">
-                            Total Portfolio Balance
-                        </h2>
+            </div>
+
+            {/* Main Balance Display */}
+            <div className="py-3">
+                {isEditing ? (
+                    <div className="flex items-center gap-2">
+                        <Input
+                            type="number"
+                            value={inputValue}
+                            onChange={(e) => setInputValue(e.target.value)}
+                            placeholder="Enter starting balance"
+                            className="w-56 h-10 bg-white/[0.06] border-white/[0.15] text-white focus:border-[#e5c158] focus:ring-[#e5c158] text-lg font-medium rounded-xl tabular-nums"
+                            autoFocus
+                        />
+                        <Button
+                            size="sm"
+                            onClick={handleSave}
+                            className="rounded-xl font-semibold px-4 h-10 cursor-pointer shadow-md"
+                        >
+                            <Check className="size-4 mr-1" /> Save
+                        </Button>
+                        <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setIsEditing(false)}
+                            className="rounded-xl h-10 text-[#8e8e93] hover:text-white"
+                        >
+                            Cancel
+                        </Button>
                     </div>
-                    {isEditing ? (
-                        <div className="flex items-center gap-2 mt-1">
-                            <Input
-                                type="number"
-                                value={inputValue}
-                                onChange={(e) => setInputValue(e.target.value)}
-                                placeholder="Enter base portfolio value"
-                                className="w-48 bg-white/10 border-white/20 text-white focus:border-[#c1a063] focus:ring-[#c1a063]"
-                                autoFocus
+                ) : (
+                    <div className="flex items-baseline gap-3 overflow-hidden">
+                        <span className="text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight tabular-nums text-white truncate">
+                            <CountUp
+                                start={0}
+                                end={trueBalance}
+                                duration={0.6}
+                                preserveValue
+                                decimals={2}
+                                decimalPlaces={2}
+                                formattingFn={(val) => formatCurrency(val, { currency, showSign: val < 0 })}
                             />
-                            <Button size="icon" onClick={handleSave} className="bg-[#c1a063] hover:bg-[#a88a4e] text-black">
-                                <Check className="size-4" />
-                            </Button>
-                        </div>
-                    ) : (
-                        <div className="flex items-center gap-3">
-                            <span className="text-3xl font-light tracking-tight">
-                                <CountUp
-                                    start={0}
-                                    end={trueBalance}
-                                    preserveValue
-                                    decimals={2}
-                                    decimalPlaces={2}
-                                    formattingFn={(val) => formatCurrency(val, { currency, showSign: val < 0 })}
-                                />
-                            </span>
-                            <button
-                                onClick={() => {
-                                    setInputValue(baseBalance.toString());
-                                    setIsEditing(true);
-                                }}
-                                className="text-neutral-500 hover:text-[#c1a063] transition-colors mt-2"
-                                title="Edit Base Balance"
-                            >
-                                <Edit2 className="size-4" />
-                            </button>
-                        </div>
-                    )}
-                    <p className="text-xs text-neutral-500 mt-1 uppercase font-semibold">
-                        Base: {formatCurrency(baseBalance, { currency })} + Net Accrual: {formatCurrency(dynamicOffset, { currency, showSign: dynamicOffset < 0 })}
-                    </p>
+                        </span>
+                        <button
+                            onClick={() => {
+                                setInputValue(baseBalance.toString());
+                                setIsEditing(true);
+                            }}
+                            className="text-[#8e8e93] hover:text-[#e5c158] transition-colors p-1 cursor-pointer active:scale-90"
+                            title="Edit Base Portfolio Balance"
+                        >
+                            <Edit2 className="size-3.5" />
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            {/* Bottom Breakdown Pills */}
+            <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-white/[0.06]">
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white/[0.04] border border-white/[0.08] text-xs">
+                    <span className="text-[#8e8e93]">Base:</span>
+                    <span className="text-[#f5f5f7] font-medium tabular-nums">{formatCurrency(baseBalance, { currency })}</span>
+                </div>
+                <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-white/[0.04] border border-white/[0.08] text-xs">
+                    <span className="text-[#8e8e93]">Cash Flow Accrual:</span>
+                    <span className={cn(
+                        "font-medium tabular-nums",
+                        dynamicOffset >= 0 ? "text-[#30d158]" : "text-[#ff453a]"
+                    )}>
+                        {dynamicOffset >= 0 ? "+" : ""}
+                        {formatCurrency(dynamicOffset, { currency, showSign: dynamicOffset < 0 })}
+                    </span>
                 </div>
             </div>
         </div>

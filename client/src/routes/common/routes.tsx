@@ -10,6 +10,7 @@ import Help from "@/pages/help";
 import Settings from "@/pages/settings";
 import Account from "@/pages/settings/account";
 import Billing from "@/pages/settings/billing";
+import TelegramCopilotSettings from "@/pages/settings/copilot";
 
 export const authenticationRoutePaths = [
   { path: AUTH_ROUTES.SIGN_IN, element: <SignIn /> },
@@ -30,6 +31,7 @@ export const protectedRoutePaths = [
       { index: true, element: <Account /> }, // Default route
       { path: PROTECTED_ROUTES.SETTINGS, element: <Account /> },
       { path: PROTECTED_ROUTES.SETTINGS_BILLING, element: <Billing /> },
+      { path: PROTECTED_ROUTES.SETTINGS_COPILOT, element: <TelegramCopilotSettings /> },
     ]
   },
 ];

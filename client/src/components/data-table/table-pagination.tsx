@@ -45,7 +45,7 @@ export function DataTablePagination({
         Showing {(pageNumber - 1) * pageSize + 1}-
         {Math.min(pageNumber * pageSize, totalCount)} of {totalCount}
       </div>
-      <div className="flex flex-col lg:flex-row lg:items-center space-y-2 lg:space-x-8 lg:space-y-0">
+      <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-6 flex-wrap">
         {/* Rows Per Page Selector */}
         <div className="flex items-center space-x-2">
           <p className="text-sm font-medium">Rows per page</p>
@@ -71,16 +71,15 @@ export function DataTablePagination({
         </div>
 
         {/* Page Info */}
-        <div className="flex items-center">
-          <div className="flex lg:w-[100px] items-center justify-center text-sm font-medium">
+        <div className="flex items-center flex-wrap gap-2">
+          <div className="flex items-center justify-center text-sm font-medium text-muted-foreground mr-1">
             Page {pageNumber} of {totalPages}
           </div>
 
           {/* Pagination Controls */}
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-1 sm:space-x-2">
             <Button
               variant="outline"
-              className=""
               size="sm"
               onClick={() => handlePageChange(pageNumber - 1)}
               disabled={pageNumber === 1}
@@ -89,7 +88,7 @@ export function DataTablePagination({
               <ChevronLeft /> Previous
             </Button>
 
-            <div className="flex items-center space-x-1">
+            <div className="hidden sm:flex items-center space-x-1">
             {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
               let pageNum;
               if (totalPages <= 5) {
@@ -115,10 +114,8 @@ export function DataTablePagination({
             })}
           </div>
 
-
             <Button
               variant="outline"
-              className=""
               size="sm"
               onClick={() => handlePageChange(pageNumber + 1)}
               disabled={pageNumber >= totalPages}

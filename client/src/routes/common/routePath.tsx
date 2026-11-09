@@ -16,4 +16,5 @@ export const PROTECTED_ROUTES = {
   ABOUT: "/about",
   HELP: "/help",
   SETTINGS_BILLING: "/settings/billing",
+  SETTINGS_COPILOT: "/settings/copilot",
 };

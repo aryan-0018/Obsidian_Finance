@@ -11,6 +11,10 @@ export interface UserDocument extends Document {
   comparePassword: (password: string) => Promise<boolean>;
   omitPassword: () => Omit<UserDocument, "password">;
   portfolioBalance: number;
+  telegramChatId?: string | null;
+  telegramUsername?: string | null;
+  telegramPairingCode?: string | null;
+  telegramPairingCodeExpires?: Date | null;
 }
 
 const userSchema = new Schema<UserDocument>(
@@ -39,6 +43,24 @@ const userSchema = new Schema<UserDocument>(
     portfolioBalance: {
       type: Number,
       default: 0,
+    },
+    telegramChatId: {
+      type: String,
+      default: null,
+      index: true,
+    },
+    telegramUsername: {
+      type: String,
+      default: null,
+    },
+    telegramPairingCode: {
+      type: String,
+      default: null,
+      index: true,
+    },
+    telegramPairingCodeExpires: {
+      type: Date,
+      default: null,
     },
   },
   {

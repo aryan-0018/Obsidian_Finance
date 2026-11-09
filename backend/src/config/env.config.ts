@@ -19,11 +19,11 @@ const envConfig = () => ({
   CLOUDINARY_API_KEY: getEnv("CLOUDINARY_API_KEY"),
   CLOUDINARY_API_SECRET: getEnv("CLOUDINARY_API_SECRET"),
 
-  // Resend Email Service (Fallback)
+  // Resend Email Service (Primary)
   RESEND_API_KEY: getEnv("RESEND_API_KEY", ""),
   RESEND_MAILER_SENDER: getEnv("RESEND_MAILER_SENDER", "onboarding@resend.dev"),
 
-  // Nodemailer SMTP Service (Primary)
+  // Nodemailer SMTP Service (Fallback)
   SMTP_HOST: getEnv("SMTP_HOST", "smtp.gmail.com"),
   SMTP_PORT: getEnv("SMTP_PORT", "587"),
   SMTP_USER: getEnv("SMTP_USER", ""),
@@ -33,6 +33,9 @@ const envConfig = () => ({
   FRONTEND_ORIGIN: getEnv("FRONTEND_ORIGIN", "localhost"),
 
   GOOGLE_CLIENT_ID: getEnv("GOOGLE_CLIENT_ID", ""),
+
+  // Telegram Bot Token
+  TELEGRAM_BOT_TOKEN: getEnv("TELEGRAM_BOT_TOKEN", ""),
 });
 
 export const Env = envConfig();

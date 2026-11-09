@@ -50,11 +50,79 @@
   --radius-sm: calc(var(--radius) - 4px);
 }
 
+html,
+body,
+#root {
+  max-width: 100%;
+  width: 100%;
+  overflow-x: hidden;
+  position: relative;
+}
+
 body {
-  pointer-events: fill !important;
-  font-family: "SF Pro Display", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "SF Pro Display", "SF Pro", system-ui, "Helvetica Neue", Helvetica, Arial, sans-serif !important;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  background-color: #050507;
+  background-image: 
+    radial-gradient(ellipse 90% 55% at 50% -10%, rgba(229, 193, 88, 0.08) 0%, transparent 65%),
+    radial-gradient(ellipse 60% 40% at 85% 15%, rgba(193, 160, 99, 0.03) 0%, transparent 50%);
+  background-attachment: fixed;
+  color: #f5f5f7;
+  letter-spacing: -0.012em;
+}
+
+/* Tabular figures for monetary amounts, metrics, and dates */
+.tabular-nums,
+[data-slot="table-cell"],
+[data-slot="card-title"] {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Premium selection */
+::selection {
+  background: rgba(229, 193, 88, 0.3);
+  color: #ffffff;
+}
+
+/* Refined Glassmorphic & Surface Utilities */
+.obsidian-glass {
+  background: rgba(18, 18, 22, 0.75);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.10);
+}
+
+.obsidian-card {
+  background: linear-gradient(180deg, rgba(22, 22, 27, 0.75) 0%, rgba(14, 14, 18, 0.82) 100%);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.08), 0 12px 32px -8px rgba(0, 0, 0, 0.8);
+  border-radius: 1.25rem;
+}
+
+.obsidian-card-interactive {
+  transition: transform 160ms cubic-bezier(0.16, 1, 0.3, 1), border-color 160ms ease, box-shadow 160ms ease;
+  will-change: transform;
+}
+
+.obsidian-card-interactive:hover {
+  border-color: rgba(229, 193, 88, 0.35);
+  box-shadow: inset 0 1px 0 0 rgba(229, 193, 88, 0.22), 0 18px 40px -10px rgba(0, 0, 0, 0.9);
+  transform: translateY(-2px);
+}
+
+/* Crisp, snappy transitions across interactive elements */
+button,
+a,
+input,
+select,
+textarea,
+[role="button"] {
+  transition: color 120ms ease, background-color 120ms ease, border-color 120ms ease, opacity 120ms ease;
 }
 
 /* Forces popovers, calendars and dropdown portals rendered inside modals/drawers to accept clicks */
@@ -77,54 +145,54 @@ button[name="day"],
 
 :root,
 .dark {
-  --bg-color: #0a0a0a;
-  --secondary-dark-color: #0f0f0f;
+  --bg-color: #070709;
+  --secondary-dark-color: #0e0e12;
   --max-width: 78rem;
   --radius: 0.625rem;
 
-  /* ObsidianFinance Black & Gold Theme */
-  --background: #0a0a0a;
-  --foreground: #e8e0d4;
+  /* ObsidianFinance Black & Gold Luxury Theme */
+  --background: #070709;
+  --foreground: #fcfcfc;
 
-  --card: #111111;
-  --card-foreground: #e8e0d4;
+  --card: #121215;
+  --card-foreground: #fcfcfc;
 
-  --popover: #111111;
-  --popover-foreground: #e8e0d4;
+  --popover: #121215;
+  --popover-foreground: #fcfcfc;
 
   --primary: #c1a063;
-  --primary-foreground: #0a0a0a;
+  --primary-foreground: #000000;
 
-  --secondary: #1a1a1a;
-  --secondary-foreground: #e8e0d4;
+  --secondary: #18181b;
+  --secondary-foreground: #fcfcfc;
 
-  --muted: #1a1a1a;
-  --muted-foreground: #9a9080;
+  --muted: #18181b;
+  --muted-foreground: #a1a1aa;
 
-  --accent: #1a1610;
-  --accent-foreground: #e8e0d4;
+  --accent: #1c1a17;
+  --accent-foreground: #fcfcfc;
 
-  --destructive: #b33a3a;
+  --destructive: #f43f5e;
 
-  --border: #2a2520;
-  --input: #2a2520;
+  --border: rgba(255, 255, 255, 0.08);
+  --input: rgba(255, 255, 255, 0.10);
   --ring: #c1a063;
 
-  /* Charts - Gold-tone spectrum */
-  --chart-1: #c1a063;
-  --chart-2: #e8e0d4;
-  --chart-3: #8a7040;
-  --chart-4: #d4a843;
-  --chart-5: #3d3425;
+  /* Charts - Rich jewel spectrum */
+  --chart-1: #e5c158;
+  --chart-2: #38bdf8;
+  --chart-3: #f43f5e;
+  --chart-4: #a78bfa;
+  --chart-5: #34d399;
 
   /* Sidebar */
-  --sidebar: #0a0a0a;
-  --sidebar-foreground: #e8e0d4;
+  --sidebar: #08080a;
+  --sidebar-foreground: #fcfcfc;
   --sidebar-primary: #c1a063;
-  --sidebar-primary-foreground: #0a0a0a;
-  --sidebar-accent: #1a1610;
-  --sidebar-accent-foreground: #e8e0d4;
-  --sidebar-border: #2a2520;
+  --sidebar-primary-foreground: #000000;
+  --sidebar-accent: #18181b;
+  --sidebar-accent-foreground: #fcfcfc;
+  --sidebar-border: rgba(255, 255, 255, 0.08);
   --sidebar-ring: #c1a063;
 }
 
@@ -141,17 +209,24 @@ button[name="day"],
 /* Scrollbar styling */
 ::-webkit-scrollbar {
   width: 6px;
+  height: 0px;
+}
+
+/* Eliminate horizontal slider scrollbars across all browsers so content fits gracefully */
+*::-webkit-scrollbar:horizontal {
+  height: 0px !important;
+  display: none !important;
 }
 
 ::-webkit-scrollbar-track {
-  background: #0a0a0a;
+  background: #070709;
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #2a2520;
-  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #c1a063;
+  background: #e5c158;
 }

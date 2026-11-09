@@ -133,7 +133,7 @@ const ColumnMappingStep = ({
               >
                 <TableCell className="pl-6">
                   <div className="flex items-center gap-2">
-                    <FileSpreadsheet className="h-5 w-5 text-green-500" />
+                    <FileSpreadsheet className="h-5 w-5 text-[#c1a063]" />
                     <span>{column.name}</span>
                   </div>
                 </TableCell>

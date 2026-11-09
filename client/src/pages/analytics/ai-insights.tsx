@@ -1,9 +1,9 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { Loader, Sparkles, Calendar } from "lucide-react";
+import { Loader2, Sparkles, Calendar, Copy, Check, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
-import { useTypedSelector } from "@/app/hook";
 import { DateRangeType } from "@/components/date-range-select/types";
+import { useGetAiInsightsMutation } from "@/features/analytics/analyticsAPI";
 
 interface AiInsightsProps {
     dateRange?: DateRangeType;
@@ -12,10 +12,32 @@ interface AiInsightsProps {
 export default function AiInsights({ dateRange }: AiInsightsProps) {
     const [insight, setInsight] = useState<string[] | string | null>(null);
     const [analyzedPeriod, setAnalyzedPeriod] = useState<string | null>(null);
-    const [isLoading, setIsLoading] = useState(false);
-    const { accessToken } = useTypedSelector((state) => state.auth);
+    const [copied, setCopied] = useState(false);
+    const [loadingStage, setLoadingStage] = useState(0);
+    const [getAiInsights, { isLoading }] = useGetAiInsightsMutation();
 
     const activePeriodLabel = dateRange?.label || "Last 30 Days";
+
+    const loadingStages = [
+        `Checking your transactions for ${activePeriodLabel}...`,
+        "Reviewing your top spending categories...",
+        "Checking your monthly budget and savings...",
+        "Writing your spending insights...",
+    ];
+
+    // Cycle loading stage during generation
+    useEffect(() => {
+        let interval: NodeJS.Timeout | null = null;
+        if (isLoading) {
+            setLoadingStage(0);
+            interval = setInterval(() => {
+                setLoadingStage((prev) => (prev + 1) % loadingStages.length);
+            }, 1100);
+        }
+        return () => {
+            if (interval) clearInterval(interval);
+        };
+    }, [isLoading]);
 
     // Reset when date range changes so user knows to refresh for new period
     useEffect(() => {
@@ -26,118 +48,151 @@ export default function AiInsights({ dateRange }: AiInsightsProps) {
     }, [activePeriodLabel, analyzedPeriod]);
 
     const generateInsight = async () => {
-        setIsLoading(true);
         try {
-            const params = new URLSearchParams();
-            if (dateRange?.value) {
-                params.append("preset", dateRange.value);
-            }
-            if (dateRange?.from) {
-                params.append("from", new Date(dateRange.from).toISOString());
-            }
-            if (dateRange?.to) {
-                params.append("to", new Date(dateRange.to).toISOString());
-            }
+            const res = await getAiInsights({
+                preset: dateRange?.value,
+                from: dateRange?.from ? new Date(dateRange.from).toISOString() : undefined,
+                to: dateRange?.to ? new Date(dateRange.to).toISOString() : undefined,
+            }).unwrap();
 
-            const queryString = params.toString() ? `?${params.toString()}` : "";
-            const response = await fetch(
-                `${import.meta.env.VITE_API_URL || "/api"}/analytics/ai-insights${queryString}`,
-                {
-                    headers: {
-                        Authorization: `Bearer ${accessToken}`,
-                    },
-                }
-            );
-            const data = await response.json();
-
-            if (!response.ok) {
-                throw new Error(data.message || "Failed to generate AI insight");
-            }
-
-            setInsight(data.data);
+            setInsight(res.data);
             setAnalyzedPeriod(activePeriodLabel);
-            toast.success(`Intelligence gathered for ${activePeriodLabel}.`);
+            toast.success(`Spending insights ready for ${activePeriodLabel}.`);
         } catch (error: unknown) {
+            const err = error as { data?: { message?: string }; message?: string };
             toast.error(
-                error instanceof Error ? error.message : "Analysts are currently unavailable"
+                err?.data?.message || err?.message || "Spending insights temporarily unavailable."
             );
-        } finally {
-            setIsLoading(false);
         }
     };
 
-    return (
-        <div className="w-full bg-[#111] dark:bg-black text-white rounded-xl p-6 border border-[#c1a063]/30 shadow-lg mb-6 relative overflow-hidden">
-            <div className="absolute top-0 right-0 w-32 h-32 bg-[#c1a063]/10 blur-3xl rounded-full -mr-10 -mt-10 pointer-events-none" />
+    const handleCopy = () => {
+        if (!insight) return;
+        const textToCopy = Array.isArray(insight)
+            ? insight.map((p, i) => `${i + 1}. ${p}`).join("\n")
+            : String(insight);
 
+        navigator.clipboard.writeText(textToCopy);
+        setCopied(true);
+        toast.success("Insights copied to clipboard.");
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    const renderFormattedText = (text: string) => {
+        // Highlight Rupee figures and percentages with high-contrast luxury styling
+        const tokens = text.split(/(₹[\d,]+(?:\.\d+)?|\b\d+(?:\.\d+)?%)/g);
+        return tokens.map((tok, i) => {
+            if (/^₹[\d,]+(?:\.\d+)?$/.test(tok) || /^\d+(?:\.\d+)?%$/.test(tok)) {
+                return (
+                    <span key={i} className="font-semibold text-[#e5c158] font-mono">
+                        {tok}
+                    </span>
+                );
+            }
+            return tok;
+        });
+    };
+
+    return (
+        <div className="w-full obsidian-card rounded-2xl p-6 md:p-8 mb-6 relative overflow-hidden shadow-[0_12px_40px_rgba(0,0,0,0.5)]">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                 <div className="flex items-center gap-3">
-                    <div className="bg-[#c1a063]/20 p-2 rounded-full">
-                        <Sparkles className="text-[#c1a063] size-5" />
+                    <div className="p-2.5 rounded-xl bg-[#e5c158]/10 text-[#e5c158] border border-[#e5c158]/25 shadow-xs">
+                        <Sparkles className="size-4" />
                     </div>
-                    <h3 className="text-lg font-light tracking-tight text-[#c1a063]">
-                        Obsidian Intelligence
-                    </h3>
+                    <div>
+                        <h3 className="text-lg font-semibold tracking-tight text-white flex items-center gap-2">
+                            Spending Insights
+                            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/[0.04] border border-white/[0.08] text-[#a1a1aa]">
+                                AI Powered
+                            </span>
+                        </h3>
+                    </div>
                 </div>
 
-                <div className="flex items-center gap-2 self-start sm:self-auto bg-black/60 border border-[#c1a063]/20 rounded-full px-3 py-1 text-xs text-[#c1a063]">
+                <div className="flex items-center gap-2 self-start sm:self-auto bg-white/[0.04] border border-white/[0.08] rounded-full px-3 py-1 text-xs text-[#e5c158]">
                     <Calendar className="size-3.5" />
                     <span>Analyzing: <strong className="font-medium text-white">{activePeriodLabel}</strong></span>
                 </div>
             </div>
 
-            <p className="text-sm text-neutral-400 mb-6 font-light">
-                Analyze your spending patterns, cash flow, and financial trends for{" "}
-                <span className="text-neutral-200 font-medium">{activePeriodLabel}</span> with AI.
+            <p className="text-xs text-[#a1a1aa] mb-6 font-normal">
+                A clear breakdown of your spending habits, top categories, and savings for{" "}
+                <span className="text-white font-medium">{activePeriodLabel}</span>.
             </p>
 
-            {!insight ? (
+            {isLoading ? (
+                /* Dynamic Luxury Shimmer Skeleton */
+                <div className="rounded-2xl bg-white/[0.02] border border-[#e5c158]/20 p-6 space-y-4 shadow-inner">
+                    <div className="flex items-center gap-2 text-xs text-[#e5c158] font-medium animate-pulse">
+                        <Loader2 className="size-4 animate-spin" />
+                        <span>{loadingStages[loadingStage]}</span>
+                    </div>
+
+                    <div className="space-y-3 pt-1">
+                        <div className="h-4 bg-white/[0.06] rounded-md animate-pulse w-11/12" />
+                        <div className="h-4 bg-white/[0.04] rounded-md animate-pulse w-4/5" />
+                        <div className="h-4 bg-white/[0.05] rounded-md animate-pulse w-5/6" />
+                        <div className="h-4 bg-white/[0.03] rounded-md animate-pulse w-3/4" />
+                    </div>
+                </div>
+            ) : !insight ? (
                 <Button
                     onClick={generateInsight}
-                    disabled={isLoading}
-                    className="bg-[#c1a063] hover:bg-[#a88a4e] text-black w-full sm:w-auto font-light"
+                    className="rounded-xl bg-gradient-to-r from-[#e5c158] via-[#c1a063] to-[#b09055] text-black font-semibold shadow-[0_4px_16px_rgba(193,160,99,0.28)] hover:brightness-105 active:scale-[0.98] transition-all w-full sm:w-auto cursor-pointer"
                 >
-                    {isLoading ? (
-                        <Loader className="h-4 w-4 animate-spin mr-2" />
-                    ) : (
-                        <Sparkles className="h-4 w-4 mr-2" />
-                    )}
-                    {isLoading ? `Analyzing ${activePeriodLabel}...` : `Generate ${activePeriodLabel} Insights`}
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Analyze {activePeriodLabel} Spending
                 </Button>
             ) : (
                 <div className="space-y-4">
-                    <div className="bg-black/50 border border-white/10 rounded-lg p-5 leading-relaxed text-sm text-neutral-200">
-                        {isLoading ? (
-                            <div className="flex items-center text-[#c1a063]">
-                                <Loader className="h-4 w-4 animate-spin mr-2" />
-                                <span className="animate-pulse">
-                                    Analyzing financial trends for {activePeriodLabel}...
-                                </span>
-                            </div>
-                        ) : Array.isArray(insight) ? (
-                            <ul className="space-y-4 list-none text-[14.5px]">
+                    <div className="rounded-2xl bg-white/[0.02] border border-white/[0.08] p-6 leading-relaxed text-xs text-neutral-200">
+                        {Array.isArray(insight) ? (
+                            <ul className="space-y-3.5 list-none text-xs">
                                 {insight.map((point: string, index: number) => (
-                                    <li key={index} className="flex gap-3 md:gap-4 items-start">
-                                        <div className="min-w-1.5 h-1.5 rounded-full bg-[#c1a063] mt-2 shadow-[0_0_8px_rgba(193,160,99,0.5)]" />
-                                        <p className="font-light text-neutral-300 leading-relaxed tracking-wide">
-                                            {point}
+                                    <li key={index} className="flex gap-3 items-start">
+                                        <div className="min-w-2 h-2 rounded-full bg-[#e5c158] mt-1.5 shadow-[0_0_8px_rgba(229,193,88,0.4)]" />
+                                        <p className="font-normal text-[#fcfcfc] leading-relaxed">
+                                            {renderFormattedText(point)}
                                         </p>
                                     </li>
                                 ))}
                             </ul>
                         ) : (
-                            <p className="font-light whitespace-pre-wrap">{insight}</p>
+                            <p className="font-normal text-[#fcfcfc] whitespace-pre-wrap leading-relaxed">
+                                {renderFormattedText(String(insight))}
+                            </p>
                         )}
                     </div>
-                    {!isLoading && (
+
+                    <div className="flex flex-wrap items-center gap-3">
                         <Button
                             onClick={generateInsight}
                             variant="outline"
-                            className="bg-transparent border-[#c1a063]/30 text-[#c1a063] hover:bg-[#c1a063]/10 text-xs w-full sm:w-auto"
+                            className="rounded-xl border-white/[0.10] bg-white/[0.03] text-white hover:bg-white/[0.08] hover:border-white/[0.20] text-xs active:scale-[0.98] transition-all cursor-pointer"
                         >
-                            Refresh {activePeriodLabel} Intelligence
+                            <TrendingUp className="h-3.5 w-3.5 mr-1.5 text-[#e5c158]" />
+                            Update {activePeriodLabel} Insights
                         </Button>
-                    )}
+
+                        <Button
+                            onClick={handleCopy}
+                            variant="ghost"
+                            className="rounded-xl text-[#a1a1aa] hover:text-white hover:bg-white/[0.05] text-xs transition-all cursor-pointer"
+                        >
+                            {copied ? (
+                                <>
+                                    <Check className="h-3.5 w-3.5 mr-1.5 text-emerald-400" />
+                                    <span>Copied</span>
+                                </>
+                            ) : (
+                                <>
+                                    <Copy className="h-3.5 w-3.5 mr-1.5" />
+                                    <span>Copy Insights</span>
+                                </>
+                            )}
+                        </Button>
+                    </div>
                 </div>
             )}
         </div>

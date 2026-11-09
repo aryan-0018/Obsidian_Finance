@@ -1,12 +1,20 @@
 import { FC } from "react";
 import CountUp from "react-countup";
-import { TrendingDownIcon, TrendingUpIcon, LucideIcon } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  TrendingDownIcon,
+  TrendingUpIcon,
+  LucideIcon,
+  Wallet,
+  ArrowDownLeft,
+  ArrowUpRight,
+  PiggyBank,
+} from "lucide-react";
+import { Card, CardHeader, CardContent } from "@/components/ui/card";
 import { formatCurrency } from "@/lib/format-currency";
 import { formatPercentage } from "@/lib/format-percentage";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
-import { DateRangeEnum, DateRangeType } from "@/components/date-range-select";
+import { DateRangeType } from "@/components/date-range-select";
 import { useState } from "react";
 import { Edit2, Check } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -34,16 +42,65 @@ interface SummaryCardProps {
   cardType: CardType;
 }
 
+const cardBadges: Record<CardType, { icon: LucideIcon; containerClass: string }> = {
+  balance: {
+    icon: Wallet,
+    containerClass:
+      "border-[#e5c158]/30 bg-gradient-to-br from-[#e5c158]/15 to-[#e5c158]/5 text-[#e5c158] shadow-[0_0_15px_rgba(229,193,88,0.14),inset_0_1px_0_rgba(255,255,255,0.15)]",
+  },
+  income: {
+    icon: ArrowDownLeft,
+    containerClass:
+      "border-emerald-500/30 bg-gradient-to-br from-emerald-500/15 to-emerald-500/5 text-emerald-400 shadow-[0_0_15px_rgba(52,211,153,0.14),inset_0_1px_0_rgba(255,255,255,0.15)]",
+  },
+  expenses: {
+    icon: ArrowUpRight,
+    containerClass:
+      "border-rose-500/30 bg-gradient-to-br from-rose-500/15 to-rose-500/5 text-rose-400 shadow-[0_0_15px_rgba(244,63,94,0.14),inset_0_1px_0_rgba(255,255,255,0.15)]",
+  },
+  savings: {
+    icon: PiggyBank,
+    containerClass:
+      "border-sky-400/30 bg-gradient-to-br from-sky-400/15 to-sky-400/5 text-sky-400 shadow-[0_0_15px_rgba(56,189,248,0.14),inset_0_1px_0_rgba(255,255,255,0.15)]",
+  },
+};
+
 const getCardStatus = (
   value: number,
   cardType: CardType,
-  expenseRatio?: number
+  expenseRatio?: number,
+  budgetLimit?: number
 ): CardStatus => {
+  if (cardType === "balance") {
+    if (!budgetLimit || budgetLimit <= 0) {
+      return {
+        label: "No Limit Set",
+        color: "text-[#a1a1aa]",
+        Icon: Wallet,
+        description: "Set a monthly budget",
+      };
+    }
+    if (value < 0) {
+      return {
+        label: "Budget Exceeded",
+        color: "text-[#f43f5e]",
+        Icon: TrendingDownIcon,
+        description: "Over monthly budget",
+      };
+    }
+    return {
+      label: "Within Budget",
+      color: "text-emerald-400",
+      Icon: TrendingUpIcon,
+      description: "Within monthly budget",
+    };
+  }
+
   if (cardType === "savings") {
     if (value === 0) {
       return {
         label: "No Savings Record",
-        color: "text-gray-400",
+        color: "text-[#a1a1aa]",
         Icon: TrendingDownIcon,
       };
     }
@@ -52,7 +109,7 @@ const getCardStatus = (
     if (value < 10) {
       return {
         label: "Low Savings",
-        color: "text-red-400",
+        color: "text-[#f43f5e]",
         Icon: TrendingDownIcon,
         description: `Only ${value.toFixed(1)}% saved`,
       };
@@ -61,7 +118,7 @@ const getCardStatus = (
     if (value < 20) {
       return {
         label: "Moderate",
-        color: "text-yellow-400",
+        color: "text-amber-400",
         Icon: TrendingDownIcon,
         description: `${expenseRatio?.toFixed(0)}% spent`,
       };
@@ -71,7 +128,7 @@ const getCardStatus = (
     if (expenseRatio && expenseRatio > 75) {
       return {
         label: "High Spend",
-        color: "text-red-400",
+        color: "text-[#f43f5e]",
         Icon: TrendingDownIcon,
         description: `${expenseRatio.toFixed(0)}% spent`,
       };
@@ -80,7 +137,7 @@ const getCardStatus = (
     if (expenseRatio && expenseRatio > 60) {
       return {
         label: "Warning: High Spend",
-        color: "text-orange-400",
+        color: "text-amber-500",
         Icon: TrendingDownIcon,
         description: `${expenseRatio.toFixed(0)}% spent`,
       };
@@ -88,34 +145,19 @@ const getCardStatus = (
 
     return {
       label: "Good Savings",
-      color: "text-green-400",
+      color: "text-[#e5c158]",
       Icon: TrendingUpIcon,
     };
   }
 
   if (value === 0) {
-    const typeLabel =
-      cardType === "income"
-        ? "Income"
-        : cardType === "expenses"
-          ? "Expenses"
-          : "Balance";
+    const typeLabel = cardType === "income" ? "Income" : "Expenses";
 
     return {
       label: `No ${typeLabel}`,
-      color: "text-gray-400",
+      color: "text-[#a1a1aa]",
       Icon: TrendingDownIcon,
       description: ``,
-    };
-  }
-
-  // For balance card when negative
-  if (cardType === "balance" && value < 0) {
-    return {
-      label: "Overdrawn",
-      color: "text-red-400",
-      Icon: TrendingDownIcon,
-      description: "Balance is negative",
     };
   }
 
@@ -147,7 +189,7 @@ const SummaryCard: FC<SummaryCardProps> = ({
   currency = "INR",
   cardType = "balance",
 }) => {
-  const status = getCardStatus(value, cardType, expenseRatio);
+  const status = getCardStatus(value, cardType, expenseRatio, budgetLimit);
   const [isEditingBudget, setIsEditingBudget] = useState(false);
   const [editBudgetValue, setEditBudgetValue] = useState("");
   const [updateBudget] = useUpdateBudgetMutation();
@@ -166,6 +208,7 @@ const SummaryCard: FC<SummaryCardProps> = ({
       <Card className="!border-none !border-0 !gap-0 !bg-white/5">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 !pb-5">
           <Skeleton className="h-4 w-24 bg-white/30" />
+          <Skeleton className="h-7 w-7 rounded-lg bg-white/30" />
         </CardHeader>
         <CardContent className="space-y-8">
           <Skeleton className="h-10.5 w-full bg-white/30" />
@@ -188,153 +231,168 @@ const SummaryCard: FC<SummaryCardProps> = ({
       });
   };
 
+  // For balance card progress
+  const safeBudgetLimit = budgetLimit || 0;
+  const safeRemaining = value || 0;
+  const budgetSpent = Math.max(0, safeBudgetLimit - safeRemaining);
+  const budgetPercentUsed = safeBudgetLimit > 0 ? Math.min(100, Math.round((budgetSpent / safeBudgetLimit) * 100)) : 0;
+  const badgeConfig = cardBadges[cardType] || cardBadges.balance;
+  const BadgeIcon = badgeConfig.icon;
+
   return (
-    <Card className="!border-none !border-0 !gap-0 !bg-white/5">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 !pb-5">
-        <CardTitle className="text-[15px] text-gray-300 font-medium">
-          {title}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-5">
+    <div className="obsidian-card obsidian-card-interactive rounded-2xl p-5 flex flex-col justify-between">
+      {/* Top Header Row */}
+      <div className="flex items-center justify-between pb-2">
+        <span className="text-xs sm:text-[13px] font-medium text-[#8e8e93] tracking-normal">{title}</span>
         <div
           className={cn(
-            "text-4xl font-bold",
-            cardType === "balance" && value < 0 ? "text-red-400" : "text-white"
+            "h-8 w-8 rounded-xl flex items-center justify-center border shrink-0 transition-transform duration-150 hover:scale-105 active:scale-95",
+            badgeConfig.containerClass
+          )}
+          title={title}
+        >
+          <BadgeIcon className="h-4 w-4" />
+        </div>
+      </div>
+
+      {/* Main Metric Value */}
+      <div className="py-2">
+        <div
+          className={cn(
+            "text-3xl sm:text-4xl font-semibold tracking-tight tabular-nums truncate",
+            cardType === "balance" && value < 0 ? "text-[#ff453a]" : "text-white"
           )}
         >
           <CountUp
             start={0}
             end={value}
+            duration={0.6}
             preserveValue
             decimals={2}
             decimalPlaces={2}
             formattingFn={formatCountupValue}
           />
         </div>
+      </div>
 
-        {cardType === "balance" && (
-          <div className="flex items-center gap-2 mt-4 text-sm text-neutral-400">
-            <span>Budget Limit:</span>
-            {isEditingBudget ? (
-              <div className="flex items-center gap-2">
-                <Input
-                  type="number"
-                  value={editBudgetValue}
-                  onChange={(e) => setEditBudgetValue(e.target.value)}
-                  placeholder="Enter limit"
-                  className="w-24 h-7 text-xs bg-white/10 border-white/20 text-white focus:border-[#c1a063] focus:ring-[#c1a063] px-2 py-1"
-                  autoFocus
-                />
-                <Button
-                  size="icon"
-                  className="h-7 w-7 bg-[#c1a063] hover:bg-[#a88a4e] text-black"
-                  onClick={() => {
-                    const newLimit = parseFloat(editBudgetValue);
-                    if (!isNaN(newLimit)) {
-                      // Convert Rupee input to paise before sending to backend
-                      updateBudget({ limit: Math.round(newLimit * 100) })
-                        .unwrap()
-                        .then(() => {
-                          toast.success("Budget limit updated");
-                          setIsEditingBudget(false);
-                        })
-                        .catch(() => toast.error("Failed to update budget"));
-                    }
-                  }}
-                >
-                  <Check className="size-3" />
-                </Button>
-              </div>
-            ) : (
-              <div className="flex items-center gap-2">
-                <span className="font-medium text-white">
-                  {formatCurrency(budgetLimit || 0, { currency })}
-                </span>
-                <button
-                  onClick={() => {
-                    setEditBudgetValue((budgetLimit || 0).toString());
-                    setIsEditingBudget(true);
-                  }}
-                  className="text-neutral-500 hover:text-[#c1a063] transition-colors"
-                  title="Edit Budget Limit"
-                >
-                  <Edit2 className="size-3" />
-                </button>
-              </div>
-            )}
-          </div>
-        )}
-
-        <div className="text-sm text-muted-foreground mt-2">
-          {cardType === "savings" ? (
-            <div className="flex items-center gap-1.5">
-              <status.Icon className={cn("size-3.5", status.color)} />
-              <span className={status.color}>
-                {status.label} {value !== 0 && `(${formatPercentage(value)})`}
-              </span>
-              {status.description && (
-                <span className="text-gray-400 ml-1">
-                  • {status.description}
-                </span>
-              )}
-            </div>
-          ) : dateRange?.value === DateRangeEnum.ALL_TIME ? (
-            <span className="text-gray-400">Showing {dateRange?.label}</span>
-          ) : value === 0 || status.label ? (
-            <div className="flex items-center gap-1.5">
-              <status.Icon className={cn("size-3.5", status.color)} />
-              <span className={status.color}>{status.label}</span>
-              {status.description && (
-                <span className="text-gray-400">• {status.description}</span>
-              )}
-              {!status.description && (
-                <span className="text-gray-400">• {dateRange?.label}</span>
-              )}
-            </div>
-          ) : showTrend ? (
-            <div className="flex items-center gap-1.5">
-              {percentageChange !== 0 && (
+      {/* Context / Footer Row */}
+      <div className="pt-2 mt-auto border-t border-white/[0.06]">
+        {cardType === "balance" ? (
+          <div className="space-y-1.5">
+            {/* Miniature Hairline Progress Bar */}
+            {safeBudgetLimit > 0 && (
+              <div className="w-full h-1 bg-white/[0.06] rounded-full overflow-hidden">
                 <div
                   className={cn(
-                    "flex items-center gap-0.5",
-                    trendDirection === "positive"
-                      ? "text-green-500"
-                      : "text-red-500"
+                    "h-full rounded-full transition-all duration-500",
+                    budgetPercentUsed > 90
+                      ? "bg-[#f43f5e]"
+                      : budgetPercentUsed > 70
+                      ? "bg-amber-400"
+                      : "bg-[#e5c158]"
                   )}
-                >
-                  {trendDirection === "positive" ? (
-                    <TrendingUpIcon className="size-3" />
-                  ) : (
-                    <TrendingDownIcon className="size-3" />
-                  )}
-                  {/*                   Math.abs(percentageChange || 0) */}
-                  <span>
-                    {formatPercentage(percentageChange || 0, {
-                      showSign: percentageChange !== 0,
-                      isExpense: cardType === "expenses",
-                      decimalPlaces: 1,
-                    })}
+                  style={{ width: `${budgetPercentUsed}%` }}
+                />
+              </div>
+            )}
+            <div className="flex items-center justify-between text-xs text-[#a1a1aa]">
+              <span className="text-xs">Monthly Limit:</span>
+              {isEditingBudget ? (
+                <div className="flex items-center gap-1.5">
+                  <Input
+                    type="number"
+                    value={editBudgetValue}
+                    onChange={(e) => setEditBudgetValue(e.target.value)}
+                    placeholder="Limit"
+                    className="w-20 h-6 text-xs bg-white/10 border-white/20 text-white px-1.5 py-0.5 rounded"
+                    autoFocus
+                  />
+                  <Button
+                    size="icon"
+                    className="h-6 w-6 bg-[#e5c158] hover:bg-[#c1a063] text-black rounded"
+                    onClick={() => {
+                      const newLimit = parseFloat(editBudgetValue);
+                      if (!isNaN(newLimit)) {
+                        updateBudget({ limit: Math.round(newLimit) })
+                          .unwrap()
+                          .then(() => {
+                            toast.success("Budget limit updated");
+                            setIsEditingBudget(false);
+                          })
+                          .catch(() => toast.error("Failed to update budget"));
+                      }
+                    }}
+                  >
+                    <Check className="size-3" />
+                  </Button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-white font-medium text-xs">
+                    {formatCurrency(safeBudgetLimit, { currency })}
                   </span>
+                  <button
+                    onClick={() => {
+                      setEditBudgetValue(safeBudgetLimit.toString());
+                      setIsEditingBudget(true);
+                    }}
+                    className="text-[#a1a1aa] hover:text-[#e5c158] transition-colors p-0.5 cursor-pointer"
+                    title="Edit Budget Limit"
+                  >
+                    <Edit2 className="size-2.5" />
+                  </button>
                 </div>
               )}
-
-              {percentageChange === 0 && (
-                <div className="flex items-center gap-0.5 text-gray-400">
-                  <TrendingDownIcon className="size-3" />
-                  <span>
-                    {formatPercentage(0, {
-                      showSign: false,
-                      decimalPlaces: 1,
-                    })}
-                  </span>
-                </div>
-              )}
-              <span className="text-gray-400">• {dateRange?.label}</span>
             </div>
-          ) : null}
-        </div>
-      </CardContent>
-    </Card>
+          </div>
+        ) : cardType === "savings" ? (
+          <div className="flex items-center justify-between text-xs">
+            <span className={cn("font-medium text-xs", status.color)}>
+              {status.label}
+            </span>
+            {expenseRatio !== undefined && (
+              <span className="text-xs text-[#a1a1aa]">
+                {expenseRatio.toFixed(0)}% spent
+              </span>
+            )}
+          </div>
+        ) : (
+          <div className="flex items-center justify-between text-xs">
+            {showTrend && percentageChange !== 0 ? (
+              <div
+                className={cn(
+                  "inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-full border",
+                  trendDirection === "positive"
+                    ? "text-emerald-400 bg-emerald-500/10 border-emerald-500/20"
+                    : "text-[#f43f5e] bg-rose-500/10 border-rose-500/20"
+                )}
+              >
+                {trendDirection === "positive" ? (
+                  <TrendingUpIcon className="size-3" />
+                ) : (
+                  <TrendingDownIcon className="size-3" />
+                )}
+                <span>
+                  {formatPercentage(percentageChange || 0, {
+                    showSign: true,
+                    isExpense: cardType === "expenses",
+                    decimalPlaces: 1,
+                  })}
+                </span>
+                <span className="opacity-70 font-normal">vs prior</span>
+              </div>
+            ) : (
+              <span className="text-xs text-[#a1a1aa]">
+                {status.label || dateRange?.label || "Balanced"}
+              </span>
+            )}
+            <span className="text-xs text-[#a1a1aa]/70 truncate max-w-[90px]">
+              {dateRange?.label}
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
   );
 };
 

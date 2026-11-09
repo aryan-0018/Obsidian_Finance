@@ -1,5 +1,4 @@
 import PageLayout from "@/components/page-layout";
-import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { ShieldCheck, Cpu, Zap, Lock, Landmark, Sparkles } from "lucide-react";
 
@@ -7,103 +6,105 @@ const About = () => {
   return (
     <PageLayout
       title="About Obsidian Finance"
-      subtitle="Precision Engineering for Personal Capital & Wealth Intelligence."
-      addMarginTop
+      subtitle="Simple, secure, and accurate personal finance tracking."
     >
-      <div className="flex flex-col gap-6 max-w-4xl mx-auto pb-12">
-        <Card className="border shadow-none bg-[#111] border-[#2a2520]">
-          <CardContent className="pt-8 px-8 space-y-8">
-            {/* Mission Section */}
-            <div className="space-y-4">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-lg bg-[#c1a063]/10 text-[#c1a063]">
-                  <Landmark className="h-5 w-5" />
-                </div>
-                <h2 className="text-2xl font-light text-[#c1a063] font-serif tracking-wide">
-                  The Vision
+      <div className="flex flex-col gap-8 max-w-4xl mx-auto pb-16">
+        <div className="obsidian-card rounded-2xl p-6 md:p-10 space-y-8">
+          {/* Mission Section */}
+          <div className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-[#e5c158]/10 text-[#e5c158] border border-[#e5c158]/25">
+                <Landmark className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-white tracking-tight">
+                  Our Philosophy
                 </h2>
               </div>
-              <p className="text-[#e8e0d4]/80 leading-relaxed font-light text-[15px]">
-                Obsidian Finance was engineered to eliminate financial clutter and provide a clear,
-                uncompromising lens on your wealth. In an era dominated by superficial apps and ad-heavy
-                aggregators, Obsidian returns to first principles: uncompromising accuracy, intelligent
-                automation, and total control over your financial narrative.
-              </p>
+            </div>
+            <p className="text-[#a1a1aa] leading-relaxed font-normal text-[15px] pt-1">
+              Obsidian Finance was designed to eliminate financial clutter and provide a clear, simple view of your personal money. We focus on core principles: mathematical accuracy down to the paise, secure record keeping, and complete privacy for your financial life.
+            </p>
+          </div>
+
+          <Separator className="bg-white/[0.06]" />
+
+          {/* Core Capabilities */}
+          <div className="space-y-5">
+            <div className="flex items-center gap-3">
+              <div className="p-2 rounded-xl bg-[#e5c158]/10 text-[#e5c158] border border-[#e5c158]/25">
+                <Sparkles className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-xl font-semibold text-white tracking-tight">
+                  Core Features
+                </h2>
+              </div>
             </div>
 
-            <Separator className="bg-[#2a2520]" />
-
-            {/* Core Capabilities */}
-            <div className="space-y-6">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-lg bg-[#c1a063]/10 text-[#c1a063]">
-                  <Sparkles className="h-5 w-5" />
-                </div>
-                <h2 className="text-2xl font-light text-[#c1a063] font-serif tracking-wide">
-                  Core Architectural Pillars
-                </h2>
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="p-4 rounded-lg bg-[#161616] border border-[#2a2520] space-y-2">
-                  <div className="flex items-center gap-2 text-[#c1a063]">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="obsidian-card rounded-2xl p-5 bg-white/[0.02] border border-white/[0.06] space-y-2.5 hover:bg-white/[0.04] transition-colors">
+                <div className="flex items-center gap-2.5 text-[#e5c158]">
+                  <div className="p-1.5 rounded-xl bg-[#e5c158]/10">
                     <Cpu className="h-4 w-4" />
-                    <h3 className="text-sm font-medium text-white">Gemini AI Intelligence</h3>
                   </div>
-                  <p className="text-xs text-[#e8e0d4]/70 leading-relaxed">
-                    Embedded AI models analyze your cash flow, detect category surges, draft instant
-                    on-demand intelligence reports, and parse receipt images into structured entries in seconds.
-                  </p>
+                  <h3 className="text-sm font-semibold text-white tracking-tight">Instant Receipt Scanning</h3>
                 </div>
+                <p className="text-xs text-[#a1a1aa] leading-relaxed font-normal">
+                  Smart recognition reads receipt totals, dates, and categories in seconds so your spending stays up to date without manual typing.
+                </p>
+              </div>
 
-                <div className="p-4 rounded-lg bg-[#161616] border border-[#2a2520] space-y-2">
-                  <div className="flex items-center gap-2 text-[#c1a063]">
+              <div className="obsidian-card rounded-2xl p-5 bg-white/[0.02] border border-white/[0.06] space-y-2.5 hover:bg-white/[0.04] transition-colors">
+                <div className="flex items-center gap-2.5 text-[#e5c158]">
+                  <div className="p-1.5 rounded-xl bg-[#e5c158]/10">
                     <Zap className="h-4 w-4" />
-                    <h3 className="text-sm font-medium text-white">On-Demand & Automated Reports</h3>
                   </div>
-                  <p className="text-xs text-[#e8e0d4]/70 leading-relaxed">
-                    Generate instant PDF/email breakdowns across custom horizons or schedule automated
-                    dispatches directly to your inbox with full transaction ledgers and savings ratios.
-                  </p>
+                  <h3 className="text-sm font-semibold text-white tracking-tight">On-Demand & Scheduled Reports</h3>
                 </div>
+                <p className="text-xs text-[#a1a1aa] leading-relaxed font-normal">
+                  Generate instant email breakdowns across custom time horizons or schedule automated monthly digests with itemized summaries.
+                </p>
+              </div>
 
-                <div className="p-4 rounded-lg bg-[#161616] border border-[#2a2520] space-y-2">
-                  <div className="flex items-center gap-2 text-[#c1a063]">
+              <div className="obsidian-card rounded-2xl p-5 bg-white/[0.02] border border-white/[0.06] space-y-2.5 hover:bg-white/[0.04] transition-colors">
+                <div className="flex items-center gap-2.5 text-[#e5c158]">
+                  <div className="p-1.5 rounded-xl bg-[#e5c158]/10">
                     <Lock className="h-4 w-4" />
-                    <h3 className="text-sm font-medium text-white">Enterprise Security & Isolation</h3>
                   </div>
-                  <p className="text-xs text-[#e8e0d4]/70 leading-relaxed">
-                    Protected with end-to-end tokenized JWT session management, strictly scoped user data
-                    boundaries, encrypted cloud storage, and secure transmission protocols.
-                  </p>
+                  <h3 className="text-sm font-semibold text-white tracking-tight">Data Privacy & Isolation</h3>
                 </div>
+                <p className="text-xs text-[#a1a1aa] leading-relaxed font-normal">
+                  Strict user data separation, secure session cookies, and multi-tenant isolation ensure complete confidentiality.
+                </p>
+              </div>
 
-                <div className="p-4 rounded-lg bg-[#161616] border border-[#2a2520] space-y-2">
-                  <div className="flex items-center gap-2 text-[#c1a063]">
+              <div className="obsidian-card rounded-2xl p-5 bg-white/[0.02] border border-white/[0.06] space-y-2.5 hover:bg-white/[0.04] transition-colors">
+                <div className="flex items-center gap-2.5 text-[#e5c158]">
+                  <div className="p-1.5 rounded-xl bg-[#e5c158]/10">
                     <ShieldCheck className="h-4 w-4" />
-                    <h3 className="text-sm font-medium text-white">Cent-Exact Precision</h3>
                   </div>
-                  <p className="text-xs text-[#e8e0d4]/70 leading-relaxed">
-                    Financial ledgers operate down to the smallest integer units (paise/cents) to prevent
-                    floating-point rounding anomalies across your analytics and budgets.
-                  </p>
+                  <h3 className="text-sm font-semibold text-white tracking-tight">Exact Currency Precision</h3>
                 </div>
+                <p className="text-xs text-[#a1a1aa] leading-relaxed font-normal">
+                  Financial calculations operate on integer units to eliminate rounding inconsistencies across all balances, analytics, and reports.
+                </p>
               </div>
             </div>
+          </div>
 
-            <Separator className="bg-[#2a2520]" />
+          <Separator className="bg-white/[0.06]" />
 
-            {/* Philosophy quote */}
-            <div className="space-y-3">
-              <h2 className="text-xl font-light text-white tracking-wide">
-                "Precision is the foundation of enduring wealth."
-              </h2>
-              <p className="text-[#e8e0d4]/60 text-sm italic font-serif">
-                Obsidian Finance — Designed for those who build and preserve for the long horizon.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
+          {/* Philosophy quote */}
+          <div className="space-y-2 text-center py-2">
+            <h2 className="text-xl font-light text-white tracking-tight">
+              &ldquo;Precision is the foundation of enduring wealth.&rdquo;
+            </h2>
+            <p className="text-[#e5c158] text-xs tracking-wider uppercase font-semibold">
+              Obsidian Finance &mdash; Designed for those who build and preserve for the long horizon.
+            </p>
+          </div>
+        </div>
       </div>
     </PageLayout>
   );

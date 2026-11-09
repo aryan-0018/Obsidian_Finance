@@ -7,23 +7,36 @@ export default function AiInsightShortcut() {
     return (
         <div
             onClick={() => navigate("/analytics")}
-            className="w-full h-full min-h-[160px] bg-gradient-to-br from-[#111] to-black text-white rounded-xl p-6 border border-[#c1a063]/20 shadow-lg relative overflow-hidden flex flex-col justify-between cursor-pointer group hover:border-[#c1a063]/50 transition-all duration-500"
+            className="w-full h-full min-h-[160px] obsidian-card obsidian-card-interactive rounded-2xl p-6 flex flex-col justify-between cursor-pointer group active:scale-[0.98]"
         >
-            <div className="absolute top-0 right-0 w-32 h-32 bg-[#c1a063]/10 blur-3xl rounded-full -mr-10 -mt-10 pointer-events-none group-hover:bg-[#c1a063]/20 transition-all duration-500" />
-
-            <div className="flex-1">
-                <div className="bg-[#c1a063]/20 p-2 rounded-full w-fit mb-3 group-hover:bg-[#c1a063]/30 transition-colors">
-                    <Sparkles className="text-[#c1a063] size-5" />
+            <div>
+                <div className="flex items-center justify-between pb-3 border-b border-white/[0.06]">
+                    <div className="flex items-center gap-2">
+                        <div className="h-6 w-6 rounded-lg bg-[#e5c158]/10 border border-[#e5c158]/25 flex items-center justify-center text-[#e5c158]">
+                            <Sparkles className="size-3.5" />
+                        </div>
+                        <h2 className="text-xs font-medium text-[#8e8e93] tracking-normal">
+                            AI Financial Advisor
+                        </h2>
+                    </div>
+                    <span className="text-[11px] text-[#e5c158] font-medium group-hover:text-white transition-colors flex items-center gap-1">
+                        Open <ArrowRight className="size-3 transition-transform group-hover:translate-x-0.5" />
+                    </span>
                 </div>
-                <h3 className="text-lg font-light tracking-tight text-[#c1a063] mb-2 truncate">Obsidian Intelligence</h3>
-                <p className="text-sm text-neutral-400 font-light leading-relaxed">
-                    Get intelligent spending breakdowns, cash flow analysis, and financial insights powered by Gemini AI.
-                </p>
+
+                <div className="pt-3">
+                    <h3 className="text-base font-semibold tracking-tight text-white mb-1">
+                        Smart Financial Assistant
+                    </h3>
+                    <p className="text-xs text-[#8e8e93] leading-relaxed font-normal">
+                        Ask questions about your spending trends, monthly budget, and projected savings.
+                    </p>
+                </div>
             </div>
 
-            <div className="mt-4 flex items-center text-sm font-light text-[#c1a063] group-hover:text-white transition-colors">
-                View Financial Insights
-                <ArrowRight className="ml-2 h-4 w-4 transform group-hover:translate-x-1 transition-transform" />
+            <div className="pt-3 mt-3 border-t border-white/[0.06] flex items-center justify-between text-xs text-[#8e8e93]">
+                <span>Ask questions in plain English</span>
+                <span className="text-[#e5c158] font-medium text-[11px]">Ready</span>
             </div>
         </div>
     );

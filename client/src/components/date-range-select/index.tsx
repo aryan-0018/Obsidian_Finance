@@ -194,29 +194,29 @@ export const DateRangeSelect = ({
         <Button
           variant="outline"
           className={cn(
-            `w-[220px] flex items-center justify-between text-left font-normal !bg-[var(--secondary-dark-color)]
-            border-gray-700 !text-white !cursor-pointer`,
-            !dateRange && "text-muted-foreground"
+            `w-[220px] flex items-center justify-between text-left font-normal !bg-white/[0.04] backdrop-blur-xl
+            border-white/[0.10] hover:border-white/[0.18] !text-[#f5f5f7] !cursor-pointer rounded-xl h-9 text-xs sm:text-sm active:scale-[0.97] transition-all`,
+            !dateRange && "text-neutral-500"
           )}
         >
           <span className="truncate">{displayText}</span>
-          <ChevronDownIcon className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          <ChevronDownIcon className="ml-2 h-3.5 w-3.5 shrink-0 opacity-60 text-[#8e8e93]" />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="w-auto p-0" align="start">
+      <PopoverContent className="w-auto p-0 obsidian-card bg-[#0e0e13]/95 backdrop-blur-2xl border-white/[0.09] shadow-[0_24px_48px_rgba(0,0,0,0.85)] rounded-2xl" align="start">
         {isCustomMode ? (
           <div className="p-3">
-            <div className="flex items-center justify-between pb-2 border-b border-gray-800 mb-2">
+            <div className="flex items-center justify-between pb-2 border-b border-white/[0.08] mb-2">
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-7 text-xs flex items-center gap-1 cursor-pointer"
+                className="h-7 text-xs flex items-center gap-1 cursor-pointer text-[#8e8e93] hover:text-white"
                 onClick={() => setIsCustomMode(false)}
               >
                 <ArrowLeft className="h-3 w-3" />
                 Presets
               </Button>
-              <span className="text-xs font-medium text-muted-foreground">Custom Range</span>
+              <span className="text-xs font-medium text-[#8e8e93]">Custom Range</span>
             </div>
             <Calendar
               mode="range"
@@ -226,18 +226,18 @@ export const DateRangeSelect = ({
               }}
               initialFocus
             />
-            <div className="flex justify-end gap-2 pt-2 border-t border-gray-800 mt-2">
+            <div className="flex justify-end gap-2 pt-2 border-t border-white/[0.08] mt-2">
               <Button
                 variant="outline"
                 size="sm"
-                className="cursor-pointer"
+                className="cursor-pointer rounded-xl text-xs"
                 onClick={() => setIsCustomMode(false)}
               >
                 Cancel
               </Button>
               <Button
                 size="sm"
-                className="cursor-pointer"
+                className="cursor-pointer rounded-xl text-xs"
                 disabled={!customRange?.from}
                 onClick={handleApplyCustom}
               >
@@ -246,14 +246,14 @@ export const DateRangeSelect = ({
             </div>
           </div>
         ) : (
-          <div className="grid py-1 min-w-[180px]">
+          <div className="grid py-1.5 px-1 min-w-[200px]">
             {presets.map((preset) => (
               <Button
                 key={preset.value}
                 variant="ghost"
                 className={cn(
-                  "justify-start text-left cursor-pointer",
-                  dateRange?.value === preset.value && "bg-accent text-primary"
+                  "justify-start text-left cursor-pointer rounded-xl text-xs font-medium text-[#8e8e93] hover:text-white hover:bg-white/[0.06] active:scale-[0.98]",
+                  dateRange?.value === preset.value && "bg-[#e5c158]/15 text-[#e5c158] font-semibold"
                 )}
                 onClick={() => {
                   setDateRange(preset.getRange());
@@ -263,16 +263,16 @@ export const DateRangeSelect = ({
                 {preset.label}
               </Button>
             ))}
-            <div className="border-t border-gray-800 my-1" />
+            <div className="border-t border-white/[0.08] my-1" />
             <Button
               variant="ghost"
               className={cn(
-                "justify-start text-left cursor-pointer flex items-center gap-2 text-primary font-medium",
-                dateRange?.value === DateRangeEnum.CUSTOM && "bg-accent"
+                "justify-start text-left cursor-pointer flex items-center gap-2 text-[#e5c158] hover:text-[#f5cf6d] hover:bg-[#e5c158]/10 rounded-xl text-xs font-medium active:scale-[0.98]",
+                dateRange?.value === DateRangeEnum.CUSTOM && "bg-[#e5c158]/15"
               )}
               onClick={() => setIsCustomMode(true)}
             >
-              <CalendarIcon className="h-4 w-4" />
+              <CalendarIcon className="h-3.5 w-3.5" />
               Custom Date Range...
             </Button>
           </div>
