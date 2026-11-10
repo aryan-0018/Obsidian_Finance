@@ -13,6 +13,7 @@ interface ItemPropsType {
 const Settings = () => {
   const sidebarNavItems = [
     { title: "Account", href: PROTECTED_ROUTES.SETTINGS },
+    { title: "Security & Audit", href: PROTECTED_ROUTES.SETTINGS_SECURITY },
     { title: "Billing", href: PROTECTED_ROUTES.SETTINGS_BILLING },
     { title: "Telegram", href: PROTECTED_ROUTES.SETTINGS_COPILOT },
   ];
@@ -21,7 +22,7 @@ const Settings = () => {
       title="Settings"
       subtitle="Manage your personal account, billing preferences, and connected services."
     >
-      <div className="obsidian-card rounded-2xl p-6 md:p-8">
+      <div className="obsidian-card rounded-2xl p-6 md:p-8 bg-[#0e0e13]/80 backdrop-blur-2xl border border-white/[0.08]">
         <div
           className="flex flex-col space-y-8 lg:flex-row lg:space-x-12
        lg:space-y-0"
@@ -49,10 +50,10 @@ function SidebarNav({ items }: ItemPropsType) {
             key={item.href}
             to={item.href}
             className={cn(
-              "flex items-center px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all duration-150",
+              "flex items-center px-3.5 py-2.5 rounded-xl text-xs font-medium transition-all duration-150 active:scale-[0.98]",
               isActive
-                ? "bg-gradient-to-r from-[#e5c158]/20 to-[#c1a063]/15 text-[#e5c158] font-semibold border border-[#c1a063]/35 shadow-[0_2px_8px_rgba(229,193,88,0.15)]"
-                : "text-[#a1a1aa] hover:text-white hover:bg-white/[0.05]"
+                ? "bg-white/[0.08] text-white font-semibold border border-white/[0.12] shadow-sm"
+                : "text-[#8e8e93] hover:text-white hover:bg-white/[0.04]"
             )}
           >
             {item.title}

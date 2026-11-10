@@ -86,6 +86,44 @@ body {
   color: #ffffff;
 }
 
+/* Force dark color scheme for native form controls so browser defaults never render white */
+input,
+textarea,
+select {
+  color-scheme: dark !important;
+}
+
+/* Prevent browser autofill/autocomplete from turning input background white */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus, 
+input:-webkit-autofill:active,
+input:-internal-autofill-selected,
+input:-internal-autofill-previewed,
+input:autofill {
+  -webkit-box-shadow: 0 0 0 1000px #0b0b0e inset !important;
+  box-shadow: 0 0 0 1000px #0b0b0e inset !important;
+  -webkit-text-fill-color: #e5b83b !important;
+  caret-color: #e5b83b !important;
+  background-color: #0b0b0e !important;
+  color: #e5b83b !important;
+  transition: background-color 50000s ease-in-out 0s, color 50000s ease-in-out 0s;
+}
+
+/* Auth inputs dark gold text styling */
+.auth-input,
+.auth-input:focus,
+.auth-input:focus-visible,
+.auth-input:active {
+  color: #e5b83b !important;
+  caret-color: #e5b83b !important;
+  background-color: rgba(255, 255, 255, 0.04) !important;
+}
+
+.auth-input::placeholder {
+  color: #8e8e93 !important;
+}
+
 /* Refined Glassmorphic & Surface Utilities */
 .obsidian-glass {
   background: rgba(18, 18, 22, 0.75);

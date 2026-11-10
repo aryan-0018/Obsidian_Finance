@@ -469,7 +469,10 @@ export const detectIndianMerchantAndCategory = (
   // Investments
   if (/\b(zerodha|groww|upstox|mutual fund|sip|stocks|shares|etf|equity|bonds?|gold|crypto|fd|fixed deposit)\b/i.test(lower)) {
     let title = "Investment";
-    if (/\bsip|mutual fund\b/i.test(lower)) title = "Mutual Fund SIP";
+    if (/\bzerodha\b/i.test(lower)) title = "Zerodha";
+    else if (/\bgroww\b/i.test(lower)) title = "Groww";
+    else if (/\bupstox\b/i.test(lower)) title = "Upstox";
+    else if (/\bsip|mutual fund\b/i.test(lower)) title = "Mutual Fund SIP";
     else if (/\bstocks|shares\b/i.test(lower)) title = "Stock Market Investment";
     return {
       title,

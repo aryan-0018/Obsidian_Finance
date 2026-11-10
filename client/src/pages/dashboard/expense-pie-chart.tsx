@@ -23,11 +23,11 @@ import { useTypedSelector } from "@/app/hook";
 
 const COLORS = [
   "#e5c158",
-  "#38bdf8",
-  "#f43f5e",
-  "#a78bfa",
-  "#34d399",
-  "#fb923c",
+  "#0A84FF",
+  "#FF453A",
+  "#BF5AF2",
+  "#30D158",
+  "#FF9F0A",
 ];
 
 // Create chart config for shadcn UI chart
@@ -68,10 +68,10 @@ const ExpensePieChart = (props: { dateRange?: DateRangeType }) => {
                 {entry.name}
               </span>
               <div className="flex items-center gap-2">
-                <span className="text-xs text-[#a1a1aa] whitespace-nowrap font-medium">
+                <span className="text-xs text-[#8e8e93] whitespace-nowrap font-medium tabular-nums">
                   {formatCurrency(entry.value, { currency })}
                 </span>
-                <span className="text-xs text-white/50 font-normal">
+                <span className="text-xs text-white/50 font-normal tabular-nums">
                   ({formatPercentage(entry.percentage, { decimalPlaces: 0 })})
                 </span>
               </div>
@@ -83,10 +83,10 @@ const ExpensePieChart = (props: { dateRange?: DateRangeType }) => {
   };
 
   return (
-    <Card className="obsidian-card rounded-2xl overflow-hidden">
+    <Card className="obsidian-card rounded-2xl overflow-hidden bg-[#0e0e13]/80 backdrop-blur-2xl border border-white/[0.08]">
       <CardHeader className="pb-3 border-b border-white/[0.06] mb-2 px-5 pt-5">
         <CardTitle className="text-base sm:text-lg font-semibold text-white tracking-tight">Expense Distribution</CardTitle>
-        <CardDescription className="text-xs text-[#a1a1aa] font-normal">Distribution across {dateRange?.label}</CardDescription>
+        <CardDescription className="text-xs text-[#8e8e93] font-normal">Distribution across {dateRange?.label}</CardDescription>
       </CardHeader>
       <CardContent className="h-[313px]">
         <div className="w-full">
@@ -136,14 +136,14 @@ const ExpensePieChart = (props: { dateRange?: DateRangeType }) => {
                             <tspan
                               x={viewBox.cx}
                               y={viewBox.cy}
-                              className="fill-white text-2xl font-bold tracking-tight"
+                              className="fill-white text-2xl font-semibold tracking-tight tabular-nums"
                             >
                               {formatCurrency(totalSpent, { currency })}
                             </tspan>
                             <tspan
                               x={viewBox.cx}
                               y={(viewBox.cy || 0) + 20}
-                              className="fill-[#a1a1aa] text-xs font-medium"
+                              className="fill-[#8e8e93] text-xs font-medium"
                             >
                               Total Spent
                             </tspan>

@@ -1,9 +1,7 @@
 import { useState, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
   Lock,
@@ -20,6 +18,8 @@ import {
   TrendingUp,
   Loader2,
   ArrowUpDown,
+  FileCheck,
+  ChevronLeft,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
@@ -33,13 +33,16 @@ import {
 
 interface BankStatementTabProps {
   onSuccess: () => void;
+  onStepChange?: (step: "upload" | "processing" | "password_prompt" | "review" | "success") => void;
+  onCancel?: () => void;
 }
 
-export default function BankStatementTab({ onSuccess }: BankStatementTabProps) {
+export default function BankStatementTab({ onSuccess, onStepChange, onCancel }: BankStatementTabProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [step, setStep] = useState<
+  const [step, setStepInternal] = useState<
     "upload" | "processing" | "password_prompt" | "review" | "success"
   >("upload");
   const [currentProgress, setCurrentProgress] = useState(10);
@@ -54,6 +57,11 @@ export default function BankStatementTab({ onSuccess }: BankStatementTabProps) {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const setStep = (newStep: "upload" | "processing" | "password_prompt" | "review" | "success") => {
+    setStepInternal(newStep);
+    onStepChange?.(newStep);
+  };
+
   const [parseStatement, { isLoading: isParsing }] =
     useParseBankStatementMutation();
   const [commitTransactions, { isLoading: isCommitting }] =
@@ -61,8 +69,19 @@ export default function BankStatementTab({ onSuccess }: BankStatementTabProps) {
 
   const handleFileDrop = (e: React.DragEvent) => {
     e.preventDefault();
+    setIsDragging(false);
     const file = e.dataTransfer.files?.[0];
     if (file) validateAndSetFile(file);
+  };
+
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -106,11 +125,11 @@ export default function BankStatementTab({ onSuccess }: BankStatementTabProps) {
           return prev + 10;
         }
         if (prev < 70) {
-          setProcessingStage("Cleaning merchant names & setting categories...");
+          setProcessingStage("Cleaning merchant names & matching categories...");
           return prev + 8;
         }
         if (prev < 90) {
-          setProcessingStage("Checking for duplicates...");
+          setProcessingStage("Verifying against existing records...");
           return prev + 4;
         }
         return prev;
@@ -128,19 +147,19 @@ export default function BankStatementTab({ onSuccess }: BankStatementTabProps) {
       const res = await parseStatement(formData).unwrap();
       clearInterval(progressTimer);
       setCurrentProgress(100);
-      setProcessingStage("Statement ready for review!");
+      setProcessingStage("Statement parsed successfully!");
 
       setParseResult(res.data);
       setTransactions(
         res.data.transactions.map((t) => ({
           ...t,
-          selected: !t.isDuplicate, // auto-select clean new transactions
+          selected: !t.isDuplicate,
         }))
       );
 
       setTimeout(() => {
         setStep("review");
-      }, 500);
+      }, 400);
     } catch (err: unknown) {
       clearInterval(progressTimer);
       const error = err as { data?: { message?: string }; message?: string };
@@ -190,10 +209,8 @@ export default function BankStatementTab({ onSuccess }: BankStatementTabProps) {
         t.id === id
           ? {
               ...t,
-              type:
-                t.type === ("INCOME" as any)
-                  ? ("EXPENSE" as any)
-                  : ("INCOME" as any),
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              type: t.type === ("INCOME" as any) ? ("EXPENSE" as any) : ("INCOME" as any),
             }
           : t
       )
@@ -204,13 +221,11 @@ export default function BankStatementTab({ onSuccess }: BankStatementTabProps) {
     setTransactions((prev) =>
       prev.map((t) => ({
         ...t,
-        type:
-          t.type === ("INCOME" as any)
-            ? ("EXPENSE" as any)
-            : ("INCOME" as any),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        type: t.type === ("INCOME" as any) ? ("EXPENSE" as any) : ("INCOME" as any),
       }))
     );
-    toast.success("Flipped Credits ↔ Debits for all transactions");
+    toast.success("Inverted Credits ↔ Debits for all entries");
   };
 
   const handleCommit = async () => {
@@ -234,9 +249,7 @@ export default function BankStatementTab({ onSuccess }: BankStatementTabProps) {
       const res = await commitTransactions({ transactions: payload }).unwrap();
       setImportedCount(res.data.importedCount);
       setStep("success");
-      toast.success(
-        `Successfully imported ${res.data.importedCount} transactions!`
-      );
+      toast.success(`Successfully imported ${res.data.importedCount} transactions`);
     } catch (err: unknown) {
       const error = err as { data?: { message?: string }; message?: string };
       toast.error(
@@ -245,7 +258,6 @@ export default function BankStatementTab({ onSuccess }: BankStatementTabProps) {
     }
   };
 
-  // Filtered rows for the review table
   const filteredTransactions = transactions.filter((t) => {
     const matchesSearch =
       t.title.toLowerCase().includes(searchFilter.toLowerCase()) ||
@@ -262,15 +274,23 @@ export default function BankStatementTab({ onSuccess }: BankStatementTabProps) {
   const selectedCount = transactions.filter((t) => t.selected).length;
 
   return (
-    <div className="space-y-4 text-[#fcfcfc]">
+    <div className="space-y-4">
       {/* 1. UPLOAD VIEW */}
       {step === "upload" && (
         <div className="space-y-4">
+          {/* Dropzone Card */}
           <div
-            onDragOver={(e) => e.preventDefault()}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
             onDrop={handleFileDrop}
             onClick={() => fileInputRef.current?.click()}
-            className="group relative flex flex-col items-center justify-center p-8 border-2 border-dashed border-white/[0.12] hover:border-[#e5c158]/70 rounded-2xl bg-white/[0.02] hover:bg-white/[0.04] cursor-pointer transition-all text-center"
+            className={`p-6 sm:p-7 rounded-2xl border-2 border-dashed transition-all cursor-pointer text-center select-none flex flex-col items-center justify-center ${
+              isDragging
+                ? "border-[#e5c158] bg-[#e5c158]/10"
+                : selectedFile
+                  ? "border-[#e5c158]/50 bg-[#e5c158]/[0.04]"
+                  : "border-white/[0.12] bg-[#141419]/60 hover:bg-[#181820] hover:border-white/[0.25]"
+            }`}
           >
             <input
               ref={fileInputRef}
@@ -280,130 +300,140 @@ export default function BankStatementTab({ onSuccess }: BankStatementTabProps) {
               className="hidden"
             />
 
-            <div className="h-12 w-12 rounded-full bg-[#e5c158]/10 group-hover:bg-[#e5c158]/20 text-[#e5c158] flex items-center justify-center mb-3 transition-colors">
-              <Building2 className="h-6 w-6" />
+            <div className="h-12 w-12 rounded-2xl bg-[#e5c158]/10 text-[#e5c158] border border-[#e5c158]/20 flex items-center justify-center mb-3">
+              <Building2 className="size-6 text-[#e5c158]" />
             </div>
 
             {selectedFile ? (
-              <div className="space-y-1">
-                <Badge className="bg-[#e5c158]/20 text-[#e5c158] border-[#e5c158]/30 px-3 py-1 font-mono text-xs">
-                  {selectedFile.name} ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
-                </Badge>
-                <p className="text-xs text-[#a1a1aa] mt-1">
-                  Click to replace or drag a different statement
-                </p>
+              <div className="space-y-1.5">
+                <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-xl bg-[#e5c158]/15 border border-[#e5c158]/30 text-[#f5cf6d] text-xs font-mono font-medium">
+                  <FileCheck className="size-4 text-[#e5c158]" />
+                  <span className="truncate max-w-[240px]">{selectedFile.name}</span>
+                  <span className="text-white/50 text-[11px]">
+                    ({(selectedFile.size / 1024 / 1024).toFixed(2)} MB)
+                  </span>
+                </div>
+                <p className="text-xs text-[#8e8e93]">Click or drag to replace statement</p>
               </div>
             ) : (
               <div className="space-y-1">
-                <p className="text-sm font-semibold text-white">
-                  Drop your Bank Statement PDF or CSV here
-                </p>
-                <p className="text-xs text-[#a1a1aa]">
-                  Supports HDFC, SBI, ICICI, Axis, Chase, Kotak & all standard bank statements
+                <p className="text-sm font-semibold text-white">Select a bank statement</p>
+                <p className="text-xs text-[#8e8e93]">
+                  PDF or CSV from any bank (HDFC, SBI, ICICI, Axis, Chase, etc.)
                 </p>
               </div>
             )}
           </div>
 
-          {/* Password Option for Encrypted PDFs */}
-          <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-3.5 space-y-2">
+          {/* Password Card */}
+          <div className="space-y-2 p-3.5 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
             <div className="flex items-center justify-between">
-              <Label className="text-xs font-medium text-white flex items-center gap-1.5">
-                <Lock className="h-3.5 w-3.5 text-[#e5c158]" />
+              <label className="text-xs font-medium text-neutral-300 flex items-center gap-2">
+                <Lock className="size-3.5 text-[#e5c158]" />
                 Statement Password (Optional)
-              </Label>
-              <span className="text-[10px] text-[#a1a1aa]">
-                If your bank PDF is password-protected (e.g. DOB DDMMYYYY / PAN)
+              </label>
+              <span className="text-[11px] text-[#8e8e93]">
+                If PDF is password-protected
               </span>
             </div>
             <div className="relative">
               <Input
                 type={showPassword ? "text" : "password"}
-                placeholder="Enter statement password (e.g. 05081995 or ABCD1234E)"
+                placeholder="e.g. DOB (DDMMYYYY) or PAN"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="bg-white/[0.03] border-white/[0.10] text-xs h-9 pr-9 text-white placeholder:text-[#71717a] focus-visible:ring-[#e5c158]"
+                className="h-10 rounded-xl bg-[#161616]/80 border-white/[0.08] text-white focus:ring-[#e5c158] pr-10 text-xs placeholder:text-[#63636e]"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-white"
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#8e8e93] hover:text-white cursor-pointer"
               >
-                {showPassword ? <EyeOff className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
+                {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
               </button>
             </div>
           </div>
 
-          {/* Action Trigger */}
-          <Button
-            onClick={() => executeParsing()}
-            disabled={!selectedFile || isParsing}
-            className="w-full h-10 bg-gradient-to-r from-[#e5c158] via-[#c1a063] to-[#b09055] text-black font-semibold text-xs gap-2 cursor-pointer transition-all shadow-[0_4px_16px_rgba(193,160,99,0.28)] hover:brightness-105"
-          >
-            <Sparkles className="h-4 w-4" />
-            Scan & Review Statement
-          </Button>
+          {/* Action Trigger Buttons */}
+          <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-white/[0.06]">
+            {onCancel && (
+              <Button
+                variant="ghost"
+                onClick={onCancel}
+                className="rounded-xl text-[#8e8e93] hover:text-white"
+              >
+                Cancel
+              </Button>
+            )}
+            <Button
+              onClick={() => executeParsing()}
+              disabled={!selectedFile || isParsing}
+              className="cursor-pointer font-semibold shadow-[0_2px_12px_rgba(193,160,99,0.3)] active:scale-[0.98] transition-all"
+            >
+              <Sparkles className="size-4 mr-1.5" />
+              {isParsing ? "Scanning..." : "Scan & Review"}
+            </Button>
+          </div>
         </div>
       )}
 
       {/* 2. PROCESSING & PROGRESS SCREEN */}
       {step === "processing" && (
         <div className="py-8 px-4 space-y-6 text-center">
-          <div className="h-14 w-14 rounded-full bg-[#e5c158]/10 text-[#e5c158] border border-[#e5c158]/25 flex items-center justify-center mx-auto">
-            <ShieldCheck className="h-7 w-7" />
+          <div className="h-14 w-14 rounded-2xl bg-[#e5c158]/10 text-[#e5c158] border border-[#e5c158]/20 flex items-center justify-center mx-auto shadow-[0_0_24px_rgba(229,193,88,0.15)]">
+            <ShieldCheck className="h-7 w-7 text-[#e5c158]" />
           </div>
 
           <div className="space-y-1.5">
-            <h3 className="text-base font-semibold text-white">
+            <h3 className="text-base font-semibold text-white tracking-tight">
               Processing Bank Statement
             </h3>
-            <p className="text-xs text-[#a1a1aa] flex items-center justify-center gap-1.5">
+            <p className="text-xs text-[#8e8e93] flex items-center justify-center gap-1.5">
               <Loader2 className="h-3.5 w-3.5 animate-spin text-[#e5c158]" />
               {processingStage}
             </p>
           </div>
 
           <div className="max-w-md mx-auto space-y-2">
-            <Progress value={currentProgress} className="h-1.5 bg-white/[0.06]" />
-            <div className="flex justify-between text-[11px] text-[#a1a1aa]">
-              <span>Processing statement</span>
-              <span className="text-white font-medium tabular-nums">{currentProgress}%</span>
+            <Progress value={currentProgress} className="h-1.5 bg-white/[0.06] [&>div]:bg-[#e5c158]" />
+            <div className="flex justify-between text-[11px] text-[#8e8e93]">
+              <span>Parsing ledger lines</span>
+              <span className="text-white font-medium font-mono">{currentProgress}%</span>
             </div>
           </div>
 
-          {/* Stepper Status Badges */}
           <div className="grid grid-cols-4 gap-2 max-w-lg mx-auto pt-2 text-[10px]">
             <div
-              className={`p-2 rounded-xl border ${
+              className={`p-2.5 rounded-xl border transition-all ${
                 currentProgress >= 25
-                  ? "border-white/[0.12] bg-white/[0.03] text-white"
+                  ? "border-[#e5c158]/30 bg-[#e5c158]/10 text-[#e5c158] font-semibold"
                   : "border-white/[0.04] text-neutral-600"
               }`}
             >
               1. Upload
             </div>
             <div
-              className={`p-2 rounded-xl border ${
+              className={`p-2.5 rounded-xl border transition-all ${
                 currentProgress >= 50
-                  ? "border-white/[0.12] bg-white/[0.03] text-white"
+                  ? "border-[#e5c158]/30 bg-[#e5c158]/10 text-[#e5c158] font-semibold"
                   : "border-white/[0.04] text-neutral-600"
               }`}
             >
               2. Read File
             </div>
             <div
-              className={`p-2 rounded-xl border ${
+              className={`p-2.5 rounded-xl border transition-all ${
                 currentProgress >= 75
-                  ? "border-white/[0.12] bg-white/[0.03] text-white"
+                  ? "border-[#e5c158]/30 bg-[#e5c158]/10 text-[#e5c158] font-semibold"
                   : "border-white/[0.04] text-neutral-600"
               }`}
             >
               3. Parse Rows
             </div>
             <div
-              className={`p-2 rounded-xl border ${
+              className={`p-2.5 rounded-xl border transition-all ${
                 currentProgress >= 95
-                  ? "border-white/[0.12] bg-white/[0.03] text-[#e5c158]"
+                  ? "border-[#e5c158]/30 bg-[#e5c158]/10 text-[#e5c158] font-semibold"
                   : "border-white/[0.04] text-neutral-600"
               }`}
             >
@@ -415,8 +445,8 @@ export default function BankStatementTab({ onSuccess }: BankStatementTabProps) {
 
       {/* 3. PASSWORD REQUIRED PROMPT */}
       {step === "password_prompt" && (
-        <div className="p-6 rounded-xl border border-amber-500/30 bg-amber-500/5 space-y-4 text-center">
-          <div className="h-12 w-12 rounded-full bg-amber-500/15 text-amber-400 flex items-center justify-center mx-auto">
+        <div className="p-6 rounded-2xl border border-white/[0.08] bg-[#141419]/80 space-y-4 text-center">
+          <div className="h-12 w-12 rounded-2xl bg-[#e5c158]/10 text-[#e5c158] border border-[#e5c158]/20 flex items-center justify-center mx-auto">
             <Lock className="h-6 w-6" />
           </div>
 
@@ -424,36 +454,34 @@ export default function BankStatementTab({ onSuccess }: BankStatementTabProps) {
             <h3 className="text-sm font-semibold text-white">
               Encrypted Statement Detected
             </h3>
-            <p className="text-xs text-[#a1a1aa]">
-              This bank PDF is protected by an encryption cipher. Enter your statement password to decrypt it in-memory.
+            <p className="text-xs text-[#8e8e93] max-w-sm mx-auto">
+              This bank PDF is protected by an encryption cipher. Enter your statement password to decrypt it.
             </p>
           </div>
 
           <div className="max-w-xs mx-auto space-y-3">
             <Input
               type="password"
-              placeholder="PDF Password (e.g. DOB DDMMYYYY / PAN)"
+              placeholder="PDF Password (e.g. DOB or PAN)"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="bg-white/[0.03] border-white/[0.10] text-xs h-9 text-center text-white"
+              className="h-10 rounded-xl bg-[#161616]/90 border-white/[0.10] text-xs text-center text-white focus-visible:ring-1 focus-visible:ring-[#e5c158]"
               autoFocus
             />
 
-            <div className="flex gap-2">
+            <div className="flex gap-2.5">
               <Button
-                variant="outline"
-                size="sm"
+                variant="ghost"
                 onClick={() => setStep("upload")}
-                className="flex-1 text-xs border-white/[0.10]"
+                className="flex-1 text-xs rounded-xl text-[#8e8e93] hover:text-white"
               >
                 Cancel
               </Button>
               <Button
-                size="sm"
                 onClick={() => executeParsing(password)}
-                className="flex-1 text-xs bg-gradient-to-r from-[#e5c158] via-[#c1a063] to-[#b09055] text-black font-semibold shadow-md"
+                className="flex-1 cursor-pointer font-semibold shadow-[0_2px_12px_rgba(193,160,99,0.3)] active:scale-[0.98] transition-all text-xs"
               >
-                <Unlock className="h-3.5 w-3.5 mr-1" />
+                <Unlock className="size-3.5 mr-1" />
                 Unlock & Scan
               </Button>
             </div>
@@ -465,70 +493,70 @@ export default function BankStatementTab({ onSuccess }: BankStatementTabProps) {
       {step === "review" && parseResult && (
         <div className="space-y-4">
           {/* Metric Stats Banner */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-2.5 text-center">
-              <p className="text-[10px] text-[#a1a1aa]">Total Found</p>
-              <p className="text-base font-semibold text-white">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+            <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-3.5 text-center">
+              <p className="text-[10px] text-[#8e8e93] uppercase tracking-wider font-medium">Total Found</p>
+              <p className="text-xl font-bold text-white mt-0.5 tabular-nums">
                 {parseResult.totalTransactions}
               </p>
             </div>
-            <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-2.5 text-center">
-              <p className="text-[10px] text-[#a1a1aa] flex items-center justify-center gap-1">
-                <TrendingUp className="h-3 w-3 text-[#e5c158]" /> Total Credits
+            <div className="rounded-2xl border border-[#e5c158]/20 bg-[#e5c158]/[0.03] p-3.5 text-center">
+              <p className="text-[10px] text-[#e5c158] uppercase tracking-wider font-medium flex items-center justify-center gap-1">
+                <TrendingUp className="size-3" /> Total Credits
               </p>
-              <p className="text-base font-semibold text-[#e5c158] tabular-nums">
+              <p className="text-xl font-bold text-[#f5cf6d] tabular-nums mt-0.5">
                 +₹{parseResult.totalIncome.toLocaleString("en-IN")}
               </p>
             </div>
-            <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-2.5 text-center">
-              <p className="text-[10px] text-[#a1a1aa] flex items-center justify-center gap-1">
-                <TrendingDown className="h-3 w-3 text-[#f43f5e]" /> Total Debits
+            <div className="rounded-2xl border border-rose-500/20 bg-rose-500/[0.03] p-3.5 text-center">
+              <p className="text-[10px] text-rose-400 uppercase tracking-wider font-medium flex items-center justify-center gap-1">
+                <TrendingDown className="size-3" /> Total Debits
               </p>
-              <p className="text-base font-semibold text-[#f43f5e] tabular-nums">
+              <p className="text-xl font-bold text-rose-400 tabular-nums mt-0.5">
                 -₹{parseResult.totalExpense.toLocaleString("en-IN")}
               </p>
             </div>
-            <div className="rounded-xl border border-white/[0.08] bg-white/[0.03] p-2.5 text-center">
-              <p className="text-[10px] text-[#a1a1aa] flex items-center justify-center gap-1">
-                <AlertTriangle className="h-3 w-3 text-[#e5c158]" /> Duplicates
+            <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-3.5 text-center">
+              <p className="text-[10px] text-[#8e8e93] uppercase tracking-wider font-medium flex items-center justify-center gap-1">
+                <AlertTriangle className="size-3 text-[#e5c158]" /> Duplicates
               </p>
-              <p className="text-base font-semibold text-white tabular-nums">
-                {parseResult.duplicateCount} Flagged
+              <p className="text-xl font-bold text-white tabular-nums mt-0.5">
+                {parseResult.duplicateCount} <span className="text-xs font-normal text-[#8e8e93]">flagged</span>
               </p>
             </div>
           </div>
 
           {/* Filtering & Search Toolbar */}
-          <div className="flex flex-col sm:flex-row gap-2 items-center justify-between">
-            <div className="relative w-full sm:w-64">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-neutral-400" />
+          <div className="flex flex-col sm:flex-row gap-2.5 items-center justify-between">
+            <div className="relative w-full sm:w-72">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-3.5 text-[#8e8e93]" />
               <Input
                 placeholder="Search merchant or narration..."
                 value={searchFilter}
                 onChange={(e) => setSearchFilter(e.target.value)}
-                className="pl-8 bg-white/[0.03] border-white/[0.08] text-xs h-8 text-white"
+                className="pl-9 bg-[#161616]/80 border-white/[0.08] text-xs h-9 text-white rounded-xl placeholder:text-[#63636e] focus:ring-[#e5c158]"
               />
             </div>
 
-            <div className="flex items-center gap-1.5 w-full sm:w-auto justify-end flex-wrap">
+            <div className="flex items-center gap-2 w-full sm:w-auto justify-end flex-wrap">
               <Button
                 variant="outline"
                 size="sm"
                 onClick={invertAllTypes}
-                className="h-7 text-[11px] rounded-lg border-white/[0.08] text-[#a1a1aa] hover:text-white"
+                className="h-8.5 text-xs rounded-xl border-white/[0.12] bg-white/[0.04] text-white hover:bg-white/[0.08] active:scale-[0.98] transition-all cursor-pointer"
                 title="Flip credits and debits if statement was inverted"
               >
-                <ArrowUpDown className="h-3 w-3 mr-1 text-[#e5c158]" />
+                <ArrowUpDown className="size-3.5 mr-1.5 text-[#e5c158]" />
                 Invert Types
               </Button>
               <Button
                 variant={viewFilter === "all" ? "default" : "outline"}
                 size="sm"
                 onClick={() => setViewFilter("all")}
-                className={`h-7 text-[11px] rounded-lg ${
+                className={`h-8.5 text-xs rounded-xl cursor-pointer active:scale-[0.98] transition-all ${
                   viewFilter === "all"
-                    ? "bg-[#e5c158] text-black font-semibold"
-                    : "border-white/[0.08] text-[#a1a1aa]"
+                    ? "font-semibold shadow-[0_2px_12px_rgba(193,160,99,0.3)]"
+                    : "border-white/[0.10] bg-white/[0.03] text-[#8e8e93] hover:text-white hover:bg-white/[0.06]"
                 }`}
               >
                 All ({transactions.length})
@@ -537,10 +565,10 @@ export default function BankStatementTab({ onSuccess }: BankStatementTabProps) {
                 variant={viewFilter === "new" ? "default" : "outline"}
                 size="sm"
                 onClick={() => setViewFilter("new")}
-                className={`h-7 text-[11px] rounded-lg ${
+                className={`h-8.5 text-xs rounded-xl cursor-pointer active:scale-[0.98] transition-all ${
                   viewFilter === "new"
-                    ? "bg-[#e5c158] text-black font-semibold"
-                    : "border-white/[0.08] text-[#a1a1aa]"
+                    ? "font-semibold shadow-[0_2px_12px_rgba(193,160,99,0.3)]"
+                    : "border-white/[0.10] bg-white/[0.03] text-[#8e8e93] hover:text-white hover:bg-white/[0.06]"
                 }`}
               >
                 New Only ({parseResult.newCount})
@@ -550,10 +578,10 @@ export default function BankStatementTab({ onSuccess }: BankStatementTabProps) {
                   variant={viewFilter === "duplicates" ? "default" : "outline"}
                   size="sm"
                   onClick={() => setViewFilter("duplicates")}
-                  className={`h-7 text-[11px] rounded-lg ${
+                  className={`h-8.5 text-xs rounded-xl cursor-pointer active:scale-[0.98] transition-all ${
                     viewFilter === "duplicates"
-                      ? "bg-white/[0.10] text-white font-medium"
-                      : "border-white/[0.08] text-[#a1a1aa]"
+                      ? "bg-white/[0.12] text-white font-semibold border border-white/[0.16]"
+                      : "border-white/[0.10] bg-white/[0.03] text-[#8e8e93] hover:text-white hover:bg-white/[0.06]"
                   }`}
                 >
                   Duplicates ({parseResult.duplicateCount})
@@ -563,11 +591,11 @@ export default function BankStatementTab({ onSuccess }: BankStatementTabProps) {
           </div>
 
           {/* Table Container */}
-          <div className="rounded-xl border border-white/[0.08] bg-[#0b0b0e] overflow-hidden max-h-[340px] overflow-y-auto">
+          <div className="rounded-2xl border border-white/[0.08] bg-[#0b0b0e] overflow-hidden max-h-[380px] overflow-y-auto">
             <table className="w-full text-left text-xs border-collapse">
-              <thead className="bg-[#121216] sticky top-0 border-b border-white/[0.08] z-10">
-                <tr className="text-[#a1a1aa] text-[11px]">
-                  <th className="p-2.5 pl-3 w-8">
+              <thead className="bg-[#141419] sticky top-0 border-b border-white/[0.08] z-10">
+                <tr className="text-[#8e8e93] text-xs font-medium">
+                  <th className="p-3 pl-3.5 w-9">
                     <Checkbox
                       checked={
                         selectedCount > 0 &&
@@ -578,11 +606,11 @@ export default function BankStatementTab({ onSuccess }: BankStatementTabProps) {
                       title="Select / Unselect All New"
                     />
                   </th>
-                  <th className="p-2.5">Date</th>
-                  <th className="p-2.5">Merchant / Bank Narration</th>
-                  <th className="p-2.5">Category</th>
-                  <th className="p-2.5 text-right">Amount (Click to Toggle +/-)</th>
-                  <th className="p-2.5 text-center">Status</th>
+                  <th className="p-3">Date</th>
+                  <th className="p-3">Merchant / Bank Narration</th>
+                  <th className="p-3">Category</th>
+                  <th className="p-3 text-right">Amount</th>
+                  <th className="p-3 text-center">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-white/[0.04]">
@@ -593,30 +621,30 @@ export default function BankStatementTab({ onSuccess }: BankStatementTabProps) {
                       tx.isDuplicate ? "bg-amber-500/[0.03]" : ""
                     }`}
                   >
-                    <td className="p-2.5 pl-3">
+                    <td className="p-3 pl-3.5">
                       <Checkbox
                         checked={tx.selected}
                         onCheckedChange={() => toggleSelect(tx.id)}
                       />
                     </td>
-                    <td className="p-2.5 font-mono text-[11px] text-[#a1a1aa] whitespace-nowrap">
+                    <td className="p-3 font-mono text-xs text-[#8e8e93] whitespace-nowrap">
                       {tx.date}
                     </td>
-                    <td className="p-2.5">
+                    <td className="p-3">
                       <Input
                         value={tx.title}
                         onChange={(e) => handleTitleChange(tx.id, e.target.value)}
-                        className="h-6 bg-transparent border-transparent hover:border-white/[0.12] focus:border-[#e5c158] text-xs font-medium text-white p-1"
+                        className="h-8 bg-[#161616]/80 border-white/[0.08] text-xs font-medium text-white px-2.5 rounded-lg focus:border-[#e5c158]"
                       />
-                      <p className="text-[10px] font-mono text-neutral-400 truncate max-w-[240px] pl-1">
+                      <p className="text-[11px] font-mono text-neutral-400 truncate max-w-[280px] mt-1 pl-0.5">
                         {tx.rawNarration}
                       </p>
                     </td>
-                    <td className="p-2.5 whitespace-nowrap">
+                    <td className="p-3 whitespace-nowrap">
                       <select
                         value={tx.category}
                         onChange={(e) => handleCategoryChange(tx.id, e.target.value)}
-                        className="h-6 rounded bg-white/[0.05] border border-white/[0.10] text-[10px] text-white px-1.5 focus:border-[#e5c158] outline-none cursor-pointer capitalize"
+                        className="h-8 rounded-lg bg-[#161616]/80 border border-white/[0.08] text-xs text-white px-2.5 focus:border-[#e5c158] outline-none cursor-pointer capitalize"
                       >
                         {[
                           "dining",
@@ -638,13 +666,13 @@ export default function BankStatementTab({ onSuccess }: BankStatementTabProps) {
                         ))}
                       </select>
                     </td>
-                    <td className="p-2.5 text-right font-mono font-medium whitespace-nowrap">
+                    <td className="p-3 text-right whitespace-nowrap">
                       <button
                         type="button"
                         onClick={() => handleToggleType(tx.id)}
                         title="Click to toggle Income (+) vs Expense (-)"
-                        className={`px-1.5 py-0.5 rounded cursor-pointer transition-all hover:bg-white/[0.08] inline-flex items-center gap-0.5 ${
-                          tx.type === "INCOME" ? "text-[#e5c158]" : "text-[#f43f5e]"
+                        className={`h-8 px-2.5 rounded-lg border border-white/[0.08] bg-[#161616]/80 cursor-pointer transition-all hover:bg-white/[0.08] inline-flex items-center gap-1 font-mono text-xs font-semibold ${
+                          tx.type === "INCOME" ? "text-[#f5cf6d]" : "text-rose-400"
                         }`}
                       >
                         {tx.type === "INCOME" ? "+" : "-"}₹
@@ -653,17 +681,17 @@ export default function BankStatementTab({ onSuccess }: BankStatementTabProps) {
                         })}
                       </button>
                     </td>
-                    <td className="p-2.5 text-center whitespace-nowrap">
+                    <td className="p-3 text-center whitespace-nowrap">
                       {tx.isDuplicate ? (
                         <span
                           title={tx.duplicateReason}
-                          className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-white/[0.04] text-[#a1a1aa] border border-white/[0.08]"
+                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs bg-amber-500/10 text-amber-300 border border-amber-500/20"
                         >
-                          <AlertTriangle className="h-3 w-3 text-[#e5c158]" /> Duplicate
+                          <AlertTriangle className="size-3 text-amber-400" /> Duplicate
                         </span>
                       ) : (
-                        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] bg-white/[0.04] text-[#fcfcfc] border border-white/[0.08]">
-                          <CheckCircle2 className="h-3 w-3 text-[#e5c158]" /> New
+                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+                          <CheckCircle2 className="size-3 text-emerald-400" /> New
                         </span>
                       )}
                     </td>
@@ -674,26 +702,24 @@ export default function BankStatementTab({ onSuccess }: BankStatementTabProps) {
           </div>
 
           {/* Bottom Actions */}
-          <div className="flex items-center justify-between pt-2 border-t border-white/[0.08]">
+          <div className="flex items-center justify-between pt-3 border-t border-white/[0.06]">
             <Button
-              variant="outline"
-              size="sm"
+              variant="ghost"
               onClick={() => setStep("upload")}
-              className="text-xs border-white/[0.10]"
+              className="rounded-xl text-[#8e8e93] hover:text-white"
             >
-              Back to Upload
+              <ChevronLeft className="size-4 mr-1" /> Back to Upload
             </Button>
 
             <Button
               onClick={handleCommit}
               disabled={selectedCount === 0 || isCommitting}
-              size="sm"
-              className="bg-gradient-to-r from-[#e5c158] via-[#c1a063] to-[#b09055] text-black font-semibold text-xs gap-2 shadow-[0_4px_16px_rgba(193,160,99,0.28)] hover:brightness-105"
+              className="cursor-pointer font-semibold shadow-[0_2px_12px_rgba(193,160,99,0.3)] active:scale-[0.98] transition-all"
             >
               {isCommitting ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                <Loader2 className="size-4 mr-1.5 animate-spin" />
               ) : (
-                <CheckCircle2 className="h-3.5 w-3.5" />
+                <CheckCircle2 className="size-4 mr-1.5" />
               )}
               Import ({selectedCount}) Transactions
             </Button>
@@ -704,22 +730,22 @@ export default function BankStatementTab({ onSuccess }: BankStatementTabProps) {
       {/* 5. SUCCESS CONFIRMATION */}
       {step === "success" && (
         <div className="py-8 px-4 text-center space-y-4">
-          <div className="h-12 w-12 rounded-full bg-white/[0.04] text-[#e5c158] border border-white/[0.08] flex items-center justify-center mx-auto">
-            <CheckCircle2 className="h-6 w-6" />
+          <div className="h-14 w-14 rounded-2xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center mx-auto shadow-[0_0_24px_rgba(16,185,129,0.2)]">
+            <CheckCircle2 className="h-7 w-7 text-emerald-400" />
           </div>
 
           <div className="space-y-1">
             <h3 className="text-base font-semibold text-white">
               Statement Imported Successfully
             </h3>
-            <p className="text-xs text-[#a1a1aa]">
-              Imported <strong className="text-white font-medium">{importedCount} transactions</strong> into your financial records with zero duplicates.
+            <p className="text-xs text-[#8e8e93]">
+              Imported <strong className="text-white font-medium">{importedCount} transactions</strong> into your financial ledger with zero duplicates.
             </p>
           </div>
 
           <Button
             onClick={() => onSuccess()}
-            className="bg-gradient-to-r from-[#e5c158] via-[#c1a063] to-[#b09055] text-black font-semibold text-xs shadow-md"
+            className="cursor-pointer font-semibold shadow-[0_2px_12px_rgba(193,160,99,0.3)] active:scale-[0.98] transition-all text-xs"
           >
             View Updated Transactions
           </Button>

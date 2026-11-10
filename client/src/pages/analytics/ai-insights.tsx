@@ -79,12 +79,12 @@ export default function AiInsights({ dateRange }: AiInsightsProps) {
     };
 
     const renderFormattedText = (text: string) => {
-        // Highlight Rupee figures and percentages with high-contrast luxury styling
-        const tokens = text.split(/(₹[\d,]+(?:\.\d+)?|\b\d+(?:\.\d+)?%)/g);
+        // Highlight currency figures and percentages with high-contrast tabular styling
+        const tokens = text.split(/([$€£₹¥]?[\d,]+(?:\.\d+)?%?)/g);
         return tokens.map((tok, i) => {
-            if (/^₹[\d,]+(?:\.\d+)?$/.test(tok) || /^\d+(?:\.\d+)?%$/.test(tok)) {
+            if (/^[$€£₹¥]?[\d,]+(?:\.\d+)?%?$/.test(tok) && tok.length > 1) {
                 return (
-                    <span key={i} className="font-semibold text-[#e5c158] font-mono">
+                    <span key={i} className="font-semibold text-[#e5c158] tabular-nums">
                         {tok}
                     </span>
                 );
@@ -94,16 +94,16 @@ export default function AiInsights({ dateRange }: AiInsightsProps) {
     };
 
     return (
-        <div className="w-full obsidian-card rounded-2xl p-6 md:p-8 mb-6 relative overflow-hidden shadow-[0_12px_40px_rgba(0,0,0,0.5)]">
+        <div className="w-full obsidian-card rounded-2xl p-6 md:p-8 mb-6 relative overflow-hidden bg-[#0e0e13]/80 backdrop-blur-2xl border border-white/[0.08] shadow-[0_12px_40px_rgba(0,0,0,0.5)]">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
                 <div className="flex items-center gap-3">
-                    <div className="p-2.5 rounded-xl bg-[#e5c158]/10 text-[#e5c158] border border-[#e5c158]/25 shadow-xs">
+                    <div className="p-2.5 rounded-2xl bg-[#e5c158]/10 text-[#e5c158] border border-[#e5c158]/20">
                         <Sparkles className="size-4" />
                     </div>
                     <div>
                         <h3 className="text-lg font-semibold tracking-tight text-white flex items-center gap-2">
                             Spending Insights
-                            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/[0.04] border border-white/[0.08] text-[#a1a1aa]">
+                            <span className="text-[10px] font-medium tracking-tight px-2 py-0.5 rounded-full bg-white/[0.04] border border-white/[0.08] text-[#8e8e93]">
                                 AI Powered
                             </span>
                         </h3>
@@ -116,7 +116,7 @@ export default function AiInsights({ dateRange }: AiInsightsProps) {
                 </div>
             </div>
 
-            <p className="text-xs text-[#a1a1aa] mb-6 font-normal">
+            <p className="text-xs text-[#8e8e93] mb-6 font-normal">
                 A clear breakdown of your spending habits, top categories, and savings for{" "}
                 <span className="text-white font-medium">{activePeriodLabel}</span>.
             </p>
@@ -139,7 +139,7 @@ export default function AiInsights({ dateRange }: AiInsightsProps) {
             ) : !insight ? (
                 <Button
                     onClick={generateInsight}
-                    className="rounded-xl bg-gradient-to-r from-[#e5c158] via-[#c1a063] to-[#b09055] text-black font-semibold shadow-[0_4px_16px_rgba(193,160,99,0.28)] hover:brightness-105 active:scale-[0.98] transition-all w-full sm:w-auto cursor-pointer"
+                    className="cursor-pointer font-semibold shadow-[0_2px_12px_rgba(193,160,99,0.3)] active:scale-[0.98] transition-all w-full sm:w-auto"
                 >
                     <Sparkles className="h-4 w-4 mr-2" />
                     Analyze {activePeriodLabel} Spending
@@ -178,11 +178,11 @@ export default function AiInsights({ dateRange }: AiInsightsProps) {
                         <Button
                             onClick={handleCopy}
                             variant="ghost"
-                            className="rounded-xl text-[#a1a1aa] hover:text-white hover:bg-white/[0.05] text-xs transition-all cursor-pointer"
+                            className="rounded-xl text-[#8e8e93] hover:text-white hover:bg-white/[0.05] text-xs transition-all cursor-pointer active:scale-[0.98]"
                         >
                             {copied ? (
                                 <>
-                                    <Check className="h-3.5 w-3.5 mr-1.5 text-emerald-400" />
+                                    <Check className="h-3.5 w-3.5 mr-1.5 text-[#30d158]" />
                                     <span>Copied</span>
                                 </>
                             ) : (

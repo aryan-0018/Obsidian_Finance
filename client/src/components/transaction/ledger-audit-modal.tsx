@@ -74,12 +74,12 @@ export function LedgerAuditModal() {
                 <DialogTitle className="text-base font-semibold tracking-tight text-white flex items-center gap-2">
                   Verify Records
                   {isSecure && (
-                    <Badge className="bg-white/[0.05] text-[#fcfcfc] border border-white/[0.08] text-[10px] font-normal">
+                    <Badge className="bg-[#30d158]/10 text-[#30d158] border border-[#30d158]/20 text-[10px] font-medium">
                       Verified
                     </Badge>
                   )}
                 </DialogTitle>
-                <DialogDescription className="text-xs text-[#a1a1aa]">
+                <DialogDescription className="text-xs text-[#8e8e93]">
                   Verifies that all your recorded transactions are accurate, matching, and safe.
                 </DialogDescription>
               </div>
@@ -90,7 +90,7 @@ export function LedgerAuditModal() {
               size="icon"
               onClick={handleRefresh}
               disabled={isFetching}
-              className="h-8 w-8 rounded-full bg-white/5 hover:bg-white/10 text-[#a1a1aa] hover:text-white transition-all"
+              className="h-8 w-8 rounded-full bg-white/5 hover:bg-white/10 text-[#8e8e93] hover:text-white transition-all"
               title="Re-run verification"
             >
               <RefreshCw className={`h-4 w-4 ${isFetching ? "animate-spin text-[#e5c158]" : ""}`} />
@@ -103,33 +103,33 @@ export function LedgerAuditModal() {
           {isFetching ? (
             <div className="py-10 flex flex-col items-center justify-center space-y-3">
               <Loader2 className="h-6 w-6 animate-spin text-[#e5c158]" />
-              <p className="text-xs text-[#a1a1aa]">
+              <p className="text-xs text-[#8e8e93]">
                 Verifying transaction balances and sequences...
               </p>
             </div>
           ) : isSecure ? (
             <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-5 space-y-2 text-center">
-              <div className="h-9 w-9 rounded-full bg-white/[0.04] text-[#e5c158] flex items-center justify-center mx-auto border border-white/[0.08]">
+              <div className="h-9 w-9 rounded-full bg-[#30d158]/10 text-[#30d158] flex items-center justify-center mx-auto border border-[#30d158]/20">
                 <CheckCircle2 className="h-4.5 w-4.5" />
               </div>
 
               <h3 className="text-sm font-semibold text-white">
                 All Transactions Verified & Safe
               </h3>
-              <p className="text-xs text-[#a1a1aa] max-w-sm mx-auto leading-relaxed">
+              <p className="text-xs text-[#8e8e93] max-w-sm mx-auto leading-relaxed">
                 All your recorded income, expenses, and balances match accurately with zero missing or altered entries.
               </p>
             </div>
           ) : (
-            <div className="rounded-xl border border-[#f43f5e]/20 bg-[#f43f5e]/5 p-5 space-y-2 text-center">
-              <div className="h-9 w-9 rounded-full bg-[#f43f5e]/10 text-[#f43f5e] flex items-center justify-center mx-auto border border-[#f43f5e]/20">
+            <div className="rounded-xl border border-[#ff453a]/20 bg-[#ff453a]/5 p-5 space-y-2 text-center">
+              <div className="h-9 w-9 rounded-full bg-[#ff453a]/10 text-[#ff453a] flex items-center justify-center mx-auto border border-[#ff453a]/20">
                 <ShieldAlert className="h-4.5 w-4.5" />
               </div>
 
-              <h3 className="text-sm font-semibold text-[#f43f5e]">
+              <h3 className="text-sm font-semibold text-[#ff453a]">
                 Discrepancy Identified
               </h3>
-              <p className="text-xs text-[#f43f5e]/80 max-w-sm mx-auto leading-relaxed">
+              <p className="text-xs text-[#ff453a]/80 max-w-sm mx-auto leading-relaxed">
                 One or more transactions don't match your expected transaction records.
               </p>
             </div>
@@ -139,7 +139,7 @@ export function LedgerAuditModal() {
           {auditData && !isFetching && (
             <div className="grid grid-cols-3 gap-2 text-center">
               <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-2.5">
-                <div className="flex items-center justify-center gap-1 text-[10px] text-[#a1a1aa] mb-0.5">
+                <div className="flex items-center justify-center gap-1 text-[10px] text-[#8e8e93] mb-0.5">
                   <Layers className="h-3 w-3 text-[#e5c158]" />
                   Records
                 </div>
@@ -149,8 +149,8 @@ export function LedgerAuditModal() {
               </div>
 
               <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-2.5">
-                <div className="flex items-center justify-center gap-1 text-[10px] text-[#a1a1aa] mb-0.5">
-                  <ShieldCheck className="h-3.5 w-3.5 text-[#e5c158]" />
+                <div className="flex items-center justify-center gap-1 text-[10px] text-[#8e8e93] mb-0.5">
+                  <ShieldCheck className="h-3.5 w-3.5 text-[#30d158]" />
                   Status
                 </div>
                 <p className="text-sm font-semibold text-white">
@@ -159,11 +159,11 @@ export function LedgerAuditModal() {
               </div>
 
               <div className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-2.5">
-                <div className="flex items-center justify-center gap-1 text-[10px] text-[#a1a1aa] mb-0.5">
+                <div className="flex items-center justify-center gap-1 text-[10px] text-[#8e8e93] mb-0.5">
                   <Lock className="h-3 w-3 text-[#e5c158]" />
                   Accuracy
                 </div>
-                <p className={`text-sm font-semibold tabular-nums ${isSecure ? "text-[#e5c158]" : "text-[#f43f5e]"}`}>
+                <p className={`text-sm font-semibold tabular-nums ${isSecure ? "text-[#30d158]" : "text-[#ff453a]"}`}>
                   {isSecure ? "100%" : "Mismatch"}
                 </p>
               </div>

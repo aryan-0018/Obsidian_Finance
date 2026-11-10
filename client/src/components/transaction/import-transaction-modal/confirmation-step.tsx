@@ -1,33 +1,21 @@
 import { useState } from "react";
 import { z } from "zod";
-import { ChevronDown, ChevronLeft, FileCheck } from "lucide-react";
+import { ChevronDown, ChevronLeft, CheckCircle2, AlertTriangle, FileSpreadsheet, Layers, Database, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
-import {
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { _TRANSACTION_TYPE, PAYMENT_METHODS_ENUM } from "@/constant";
+import { _TRANSACTION_TYPE, PAYMENT_METHODS_ENUM, MAX_IMPORT_LIMIT } from "@/constant";
 import { toast } from "sonner";
-import { MAX_IMPORT_LIMIT } from "@/constant";
 import { BulkTransactionType } from "@/features/transaction/transationType";
 import { useProgressLoader } from "@/hooks/use-progress-loader";
 import { useBulkImportTransactionMutation } from "@/features/transaction/transactionAPI";
 
-// Helper strictly for parsing DD/MM/YYYY or DD-MM-YYYY
 const parseCustomDate = (dateStr: string) => {
   if (!dateStr) return new Date();
-
-  // Try mapping DD/MM/YYYY or DD-MM-YYYY to YYYY-MM-DD
   const parts = dateStr.match(/(\d+)[-/](\d+)[-/](\d+)/);
   if (parts) {
-    // If the year is first (YYYY-MM-DD)
     if (parts[1].length === 4) return new Date(dateStr);
-
-    // Otherwise assume DD-MM-YYYY and flip to YYYY-MM-DD
-    const day = parts[1].padStart(2, '0');
-    const month = parts[2].padStart(2, '0');
+    const day = parts[1].padStart(2, "0");
+    const month = parts[2].padStart(2, "0");
     const year = parts[3].length === 2 ? `20${parts[3]}` : parts[3];
     return new Date(`${year}-${month}-${day}`);
   }
@@ -36,7 +24,7 @@ const parseCustomDate = (dateStr: string) => {
 
 const normalizePaymentMethod = (method: string) => {
   if (!method) return undefined;
-  const upper = method.toUpperCase().replace(/\s+/g, '_');
+  const upper = method.toUpperCase().replace(/\s+/g, "_");
   const values = Object.values(PAYMENT_METHODS_ENUM) as string[];
   if (values.includes(upper)) {
     return upper;
@@ -124,10 +112,69 @@ const ConfirmationStep = ({
 
   const [bulkImportTransaction] = useBulkImportTransactionMutation();
 
+  const getAssignFieldToMappedTransactions = () => {
+    let hasValidationErrors = false;
+    const results: Partial<BulkTransactionType>[] = [];
+    const newErrors: Record<string, string> = {};
+
+    csvData.forEach((row, index) => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const transaction: Record<string, any> = {};
+      Object.entries(mappings).forEach(([csvColumn, transactionField]) => {
+        if (transactionField === "Skip" || row[csvColumn] === undefined) return;
+        transaction[transactionField] =
+          transactionField === "amount"
+            ? Number(row[csvColumn])
+            : transactionField === "date"
+              ? parseCustomDate(row[csvColumn])
+              : transactionField === "paymentMethod"
+                ? normalizePaymentMethod(row[csvColumn])
+                : transactionField === "type"
+                  ? row[csvColumn]?.toUpperCase()
+                  : row[csvColumn];
+      });
+
+      try {
+        const validated = transactionSchema.parse({
+          ...transaction,
+          date: transaction.date ? new Date(transaction.date) : undefined,
+        });
+        results.push({
+          ...validated,
+          date: validated.date.toISOString(),
+        });
+      } catch (error) {
+        hasValidationErrors = true;
+        const message =
+          error instanceof z.ZodError
+            ? error.errors
+                .map((e) => {
+                  if (e.path[0] === "type")
+                    return "Transaction type must be INCOME or EXPENSE";
+                  if (e.path[0] === "paymentMethod")
+                    return (
+                      "Payment method must be: " +
+                      Object.values(PAYMENT_METHODS_ENUM).join(", ")
+                    );
+                  return `${e.path[0]}: ${e.message}`;
+                })
+                .join("\n")
+            : "Invalid record data";
+        newErrors[index + 1] = message;
+      }
+    });
+
+    setErrors(newErrors);
+    return {
+      transactions: results,
+      hasValidationErrors:
+        hasValidationErrors || Object.keys(newErrors).length > 0,
+    };
+  };
+
   const handleImport = () => {
     const { transactions, hasValidationErrors } =
       getAssignFieldToMappedTransactions();
-    console.log(transactions, "transactions");
 
     if (hasErrors || hasValidationErrors) return;
 
@@ -135,9 +182,9 @@ const ConfirmationStep = ({
       toast.error(`Cannot import more than ${MAX_IMPORT_LIMIT} transactions`);
       return;
     }
+
     resetProgress();
     startProgress(10);
-    // Start progress
     let currentProgress = 10;
     const interval = setInterval(() => {
       const increment = currentProgress < 90 ? 10 : 1;
@@ -147,13 +194,11 @@ const ConfirmationStep = ({
 
     const payload = { transactions: transactions as BulkTransactionType[] };
 
-    console.log(payload, "payload");
-
     bulkImportTransaction(payload)
       .unwrap()
       .then(() => {
         updateProgress(100);
-        toast.success("Imported transactions successfully");
+        toast.success(`Successfully imported ${transactions.length} transactions`);
       })
       .catch((error) => {
         resetProgress();
@@ -169,148 +214,115 @@ const ConfirmationStep = ({
       });
   };
 
-  const getAssignFieldToMappedTransactions = () => {
-    let hasValidationErrors = false;
-    const results: Partial<BulkTransactionType>[] = [];
-    const newErrors: Record<string, string> = {};
-
-    csvData.forEach((row, index) => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const transaction: Record<string, any> = {};
-      // Apply mappings
-      Object.entries(mappings).forEach(([csvColumn, transactionField]) => {
-        if (transactionField === "Skip" || row[csvColumn] === undefined) return;
-        transaction[transactionField] =
-          transactionField === "amount"
-            ? Number(row[csvColumn])
-            : transactionField === "date"
-              ? parseCustomDate(row[csvColumn])
-              : transactionField === "paymentMethod"
-                ? normalizePaymentMethod(row[csvColumn])
-                : transactionField === "type"
-                  ? row[csvColumn]?.toUpperCase()
-                  : row[csvColumn];
-      });
-      try {
-        const validated = transactionSchema.parse({
-          ...transaction,
-          date: transaction.date ? new Date(transaction.date) : undefined
-        });
-        results.push({
-          ...validated,
-          date: validated.date.toISOString()
-        });
-      } catch (error) {
-        hasValidationErrors = true;
-        const message =
-          error instanceof z.ZodError
-            ? error.errors
-              .map((e) => {
-                if (e.path[0] === "type")
-                  return "Transaction type:- must be INCOME or EXPENSE";
-                if (e.path[0] === "paymentMethod")
-                  return (
-                    "Payment method:- must be one of: " +
-                    Object.values(PAYMENT_METHODS_ENUM).join(", ")
-                  );
-                return `${e.path[0]}: ${e.message}`;
-              })
-              .join("\n")
-            : "Invalid data";
-        newErrors[index + 1] = message;
-      }
-    });
-    setErrors(newErrors);
-    return { transactions: results, hasValidationErrors: hasValidationErrors || Object.keys(newErrors).length > 0 };
-  };
-
   const hasErrors = Object.keys(errors).length > 0;
 
-  console.log(errors, "errors");
-
   return (
-    <div className="space-y-6">
-      <DialogHeader>
-        <DialogTitle className="flex items-center gap-1">
-          Confirm Import
-        </DialogTitle>
-        <DialogDescription>
-          Review your settings before importing
-        </DialogDescription>
-      </DialogHeader>
-
-      <div className="space-y-4">
-        <div className="border rounded-md p-4 w-full">
-          <h4 className="flex items-center gap-1 font-medium mb-2">
-            <FileCheck className="w-4 h-4" />
-            Import Summary
-          </h4>
-          <div className="grid grid-cols-2 w-full gap-4 text-sm">
-            <div>
-              <p className="text-muted-foreground">File</p>
-              <p>{file?.name}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Columns Mapped</p>
-              <p>{Object.keys(mappings).length}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Transactions</p>
-              <p>{csvData.length}</p>
-            </div>
-            <div>
-              <p className="text-muted-foreground">Transactions Limit </p>
-              <p>{MAX_IMPORT_LIMIT}</p>
-            </div>
-          </div>
-        </div>
-
-        {hasErrors && (
-          <div
-            className="w-full block border border-red-100 bg-[#fef2f2] dark:bg-background
-            rounded text-sm max-h-60 overflow-y-auto"
-            style={{
-              maxHeight: "250px",
-            }}
-          >
-            <p className="font-medium mb-2 bg-[#fef2f2] dark:bg-background sticky top-0 px-2 py-1">
-              Issues found:
-            </p>
-            <div className="space-y-1 p-2">
-              {Object.entries(errors).map(([row, msg]) => (
-                <details key={row} className="group">
-                  <summary className="flex text-sm items-center justify-between cursor-pointer !text-red-600">
-                    <span>Row {row}</span>
-                    <ChevronDown className="w-4 h-4 transform group-open:rotate-180 transition-transform" />
-                  </summary>
-                  <div className="mt-1 pl-2 text-xs !text-red-500 border-l-2 border-red-200">
-                    {msg.split("\n").map((line, i) => (
-                      <p key={i}>{line}</p>
-                    ))}
-                  </div>
-                </details>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {isLoading && (
-          <div className="space-y-2">
-            <Progress value={progress} className="h-2" />
-            <p className="text-xs text-muted-foreground">
-              Importing... {progress}%
-            </p>
-          </div>
-        )}
+    <div className="space-y-4">
+      <div>
+        <h4 className="text-sm font-semibold text-white tracking-tight">Review Import</h4>
+        <p className="text-xs text-[#8e8e93]">
+          Verify summary details before writing rows to your ledger.
+        </p>
       </div>
 
-      <div className="flex justify-between">
-        <Button variant="outline" onClick={onBack} disabled={isLoading}>
-          <ChevronLeft className="w-4 h-4 mr-2" />
+      {/* Summary Stat Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+        <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-3.5 text-center">
+          <div className="h-7 w-7 rounded-xl bg-white/[0.04] text-[#8e8e93] mx-auto mb-1.5 flex items-center justify-center">
+            <FileSpreadsheet className="size-4" />
+          </div>
+          <p className="text-[10px] text-[#8e8e93] uppercase tracking-wider font-medium">Source File</p>
+          <p className="text-xs font-semibold text-white truncate mt-0.5" title={file?.name}>
+            {file?.name || "CSV Upload"}
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-3.5 text-center">
+          <div className="h-7 w-7 rounded-xl bg-white/[0.04] text-[#8e8e93] mx-auto mb-1.5 flex items-center justify-center">
+            <Layers className="size-4" />
+          </div>
+          <p className="text-[10px] text-[#8e8e93] uppercase tracking-wider font-medium">Mapped Columns</p>
+          <p className="text-sm font-semibold text-white mt-0.5">
+            {Object.keys(mappings).length} fields
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-[#e5c158]/20 bg-[#e5c158]/[0.03] p-3.5 text-center">
+          <div className="h-7 w-7 rounded-xl bg-[#e5c158]/10 text-[#f5cf6d] mx-auto mb-1.5 flex items-center justify-center">
+            <Database className="size-4" />
+          </div>
+          <p className="text-[10px] text-[#e5c158] uppercase tracking-wider font-medium">Transactions</p>
+          <p className="text-sm font-bold text-[#f5cf6d] mt-0.5 tabular-nums">
+            {csvData.length} rows
+          </p>
+        </div>
+
+        <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-3.5 text-center">
+          <div className="h-7 w-7 rounded-xl bg-emerald-500/10 text-emerald-400 mx-auto mb-1.5 flex items-center justify-center">
+            <CheckCircle2 className="size-4" />
+          </div>
+          <p className="text-[10px] text-[#8e8e93] uppercase tracking-wider font-medium">Ready State</p>
+          <p className="text-xs font-semibold text-emerald-400 mt-0.5">
+            {hasErrors ? "Issues Found" : "Validated"}
+          </p>
+        </div>
+      </div>
+
+      {hasErrors && (
+        <div className="w-full rounded-2xl border border-rose-500/20 bg-rose-500/[0.04] p-3.5 max-h-56 overflow-y-auto">
+          <div className="flex items-center gap-2 mb-2 pb-1.5 border-b border-rose-500/20 text-xs font-semibold text-rose-300">
+            <AlertTriangle className="size-4 text-rose-400" />
+            <span>Validation Issues Detected ({Object.keys(errors).length} rows need attention)</span>
+          </div>
+          <div className="space-y-1.5">
+            {Object.entries(errors).map(([row, msg]) => (
+              <details key={row} className="group rounded-xl bg-black/40 border border-white/[0.06] p-2 text-xs">
+                <summary className="flex items-center justify-between cursor-pointer text-rose-300 hover:text-rose-200 select-none">
+                  <span className="font-semibold">Row #{row}</span>
+                  <ChevronDown className="size-3.5 text-neutral-400 group-open:rotate-180 transition-transform" />
+                </summary>
+                <div className="mt-1.5 pt-1.5 border-t border-white/[0.06] text-[11px] text-neutral-400 font-mono whitespace-pre-wrap">
+                  {msg}
+                </div>
+              </details>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {isLoading && (
+        <div className="p-4 rounded-2xl border border-white/[0.06] bg-white/[0.02] space-y-2">
+          <div className="flex justify-between text-xs text-[#8e8e93]">
+            <span>Importing transaction batch...</span>
+            <span className="font-mono text-[#f5cf6d] font-medium">{progress}%</span>
+          </div>
+          <Progress value={progress} className="h-1.5 bg-white/[0.06] [&>div]:bg-[#e5c158]" />
+        </div>
+      )}
+
+      <div className="flex items-center justify-between pt-3 border-t border-white/[0.06]">
+        <Button
+          variant="ghost"
+          onClick={onBack}
+          disabled={isLoading}
+          className="rounded-xl text-[#8e8e93] hover:text-white"
+        >
+          <ChevronLeft className="size-4 mr-1" />
           Back
         </Button>
-        <Button onClick={handleImport} disabled={isLoading}>
-          {isLoading ? "Importing..." : "Confirm Import"}
+        <Button
+          onClick={handleImport}
+          disabled={isLoading || hasErrors}
+          className="cursor-pointer font-semibold shadow-[0_2px_12px_rgba(193,160,99,0.3)] active:scale-[0.98] transition-all"
+        >
+          {isLoading ? (
+            <>
+              <Loader2 className="size-4 mr-2 animate-spin" />
+              Importing...
+            </>
+          ) : (
+            "Confirm & Import"
+          )}
         </Button>
       </div>
     </div>

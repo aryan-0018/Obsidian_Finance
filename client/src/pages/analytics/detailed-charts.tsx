@@ -41,7 +41,7 @@ const DetailedCharts: React.FC<DetailedChartsProps> = ({ dateRange }) => {
 
     if (chartData.length === 0) {
         return (
-            <div className="obsidian-card rounded-2xl bg-[#111111]/85 backdrop-blur-2xl border border-white/[0.08] shadow-[0_15px_35px_rgba(0,0,0,0.5)] p-8">
+            <div className="obsidian-card rounded-2xl bg-[#0e0e13]/80 backdrop-blur-2xl border border-white/[0.08] shadow-[0_15px_35px_rgba(0,0,0,0.5)] p-8">
                 <EmptyState title="Insufficient Data" description="No financial data available for advanced analytics in this period." />
             </div>
         );
@@ -56,10 +56,10 @@ const DetailedCharts: React.FC<DetailedChartsProps> = ({ dateRange }) => {
     return (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 w-full">
             {/* Chart 1: Smooth Net Flow Area Chart */}
-            <div className="obsidian-card rounded-2xl overflow-hidden relative">
+            <div className="obsidian-card rounded-2xl bg-[#0e0e13]/80 backdrop-blur-2xl border border-white/[0.08] overflow-hidden relative">
                 <div className="border-b border-white/[0.06] p-5 pb-3">
                     <h3 className="text-base font-semibold text-white tracking-tight">Net Flow Trajectory</h3>
-                    <p className="text-xs text-[#a1a1aa] font-normal mt-0.5">Surplus vs deficit momentum over time</p>
+                    <p className="text-xs text-[#8e8e93] font-normal mt-0.5">Surplus vs deficit momentum over time</p>
                 </div>
                 <div className="p-5 pt-3 relative z-10 h-[340px]">
                     <ResponsiveContainer width="100%" height="100%">
@@ -71,11 +71,11 @@ const DetailedCharts: React.FC<DetailedChartsProps> = ({ dateRange }) => {
                                 </linearGradient>
                             </defs>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.04)" />
-                            <XAxis dataKey="date" tickLine={false} axisLine={false} tick={{ fill: "#a1a1aa", fontSize: 11 }} dy={8} tickFormatter={(val) => format(new Date(val), "MMM d")} />
-                            <YAxis tickLine={false} axisLine={false} tick={{ fill: "#a1a1aa", fontSize: 11 }} tickFormatter={(val) => formatCurrency(val, { currency, compact: true, decimalPlaces: 0 })} />
+                            <XAxis dataKey="date" tickLine={false} axisLine={false} tick={{ fill: "#8e8e93", fontSize: 11 }} dy={8} tickFormatter={(val) => format(new Date(val), "MMM d")} />
+                            <YAxis tickLine={false} axisLine={false} tick={{ fill: "#8e8e93", fontSize: 11 }} tickFormatter={(val) => formatCurrency(val, { currency, compact: true, decimalPlaces: 0 })} />
                             <Tooltip
-                                contentStyle={{ backgroundColor: "rgba(14, 14, 18, 0.96)", backdropFilter: "blur(20px)", borderColor: "rgba(255,255,255,0.10)", borderRadius: "14px", color: "#fff", boxShadow: "0 14px 35px rgba(0,0,0,0.7)" }}
-                                itemStyle={{ color: "#e5c158" }}
+                                contentStyle={{ backgroundColor: "rgba(14, 14, 19, 0.92)", backdropFilter: "blur(24px) saturate(160%)", borderColor: "rgba(255,255,255,0.12)", borderRadius: "16px", color: "#fff", boxShadow: "0 20px 40px -15px rgba(0,0,0,0.8)", padding: "10px 14px" }}
+                                itemStyle={{ color: "#e5c158", fontVariantNumeric: "tabular-nums" }}
                                 formatter={(value: number) => formatCurrency(value, { currency })}
                                 labelFormatter={(label) => format(new Date(label), "MMMM d, yyyy")}
                             />
@@ -86,25 +86,25 @@ const DetailedCharts: React.FC<DetailedChartsProps> = ({ dateRange }) => {
             </div>
 
             {/* Chart 2: Stacked Bar Chart for Income/Expense Intensity */}
-            <div className="obsidian-card rounded-2xl overflow-hidden relative">
+            <div className="obsidian-card rounded-2xl bg-[#0e0e13]/80 backdrop-blur-2xl border border-white/[0.08] overflow-hidden relative">
                 <div className="border-b border-white/[0.06] p-5 pb-3">
                     <h3 className="text-base font-semibold text-white tracking-tight">Cash Flow Volume</h3>
-                    <p className="text-xs text-[#a1a1aa] font-normal mt-0.5">Aggregated inflow vs outflow intensity</p>
+                    <p className="text-xs text-[#8e8e93] font-normal mt-0.5">Aggregated inflow vs outflow intensity</p>
                 </div>
                 <div className="p-5 pt-3 relative z-10 h-[340px]">
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={advancedData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.04)" />
-                            <XAxis dataKey="date" tickLine={false} axisLine={false} tick={{ fill: "#a1a1aa", fontSize: 11 }} dy={8} tickFormatter={(val) => format(new Date(val), "MMM d")} />
-                            <YAxis tickLine={false} axisLine={false} tick={{ fill: "#a1a1aa", fontSize: 11 }} tickFormatter={(val) => formatCurrency(val, { currency, compact: true, decimalPlaces: 0 })} />
+                            <XAxis dataKey="date" tickLine={false} axisLine={false} tick={{ fill: "#8e8e93", fontSize: 11 }} dy={8} tickFormatter={(val) => format(new Date(val), "MMM d")} />
+                            <YAxis tickLine={false} axisLine={false} tick={{ fill: "#8e8e93", fontSize: 11 }} tickFormatter={(val) => formatCurrency(val, { currency, compact: true, decimalPlaces: 0 })} />
                             <Tooltip
-                                contentStyle={{ backgroundColor: "rgba(14, 14, 18, 0.96)", backdropFilter: "blur(20px)", borderColor: "rgba(255,255,255,0.10)", borderRadius: "14px", color: "#fff", boxShadow: "0 14px 35px rgba(0,0,0,0.7)" }}
+                                contentStyle={{ backgroundColor: "rgba(14, 14, 19, 0.92)", backdropFilter: "blur(24px) saturate(160%)", borderColor: "rgba(255,255,255,0.12)", borderRadius: "16px", color: "#fff", boxShadow: "0 20px 40px -15px rgba(0,0,0,0.8)", padding: "10px 14px" }}
                                 formatter={(value: number) => formatCurrency(value, { currency })}
                                 labelFormatter={(label) => format(new Date(label), "MMMM d, yyyy")}
                                 cursor={{ fill: "rgba(255,255,255,0.04)" }}
                             />
-                            <Bar dataKey="income" stackId="a" fill="#e5c158" radius={[0, 0, 4, 4]} />
-                            <Bar dataKey="expenses" stackId="a" fill="#f43f5e" radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="income" stackId="a" fill="#30d158" radius={[0, 0, 4, 4]} />
+                            <Bar dataKey="expenses" stackId="a" fill="#ff453a" radius={[4, 4, 0, 0]} />
                         </BarChart>
                     </ResponsiveContainer>
                 </div>

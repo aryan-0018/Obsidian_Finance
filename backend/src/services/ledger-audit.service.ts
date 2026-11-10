@@ -1,5 +1,6 @@
 import crypto from "crypto";
 import TransactionModel from "../models/transaction.model";
+import { convertToSmallestUnit } from "../utils/format-currency";
 
 export interface LedgerAuditResult {
   status: "VERIFIED_SECURE" | "COMPROMISED";
@@ -99,4 +100,24 @@ export const verifyLedgerIntegrityService = async (
     executionTimeMs,
     tamperedBlocks,
   };
+};
+
+export const recomputeUserLedgerChain = async (userId: string): Promise<void> => {
+  const transactions = await TransactionModel.find({ userId })
+    .sort({ createdAt: 1, _id: 1 });
+  let previousHash = getGenesisHash();
+  for (const tx of transactions) {
+    const rawSmallestAmount = convertToSmallestUnit(Number(tx.amount));
+    const blockHash = computeTransactionBlockHash(previousHash, {
+      _id: tx._id,
+      date: tx.date,
+      amount: rawSmallestAmount,
+      type: tx.type,
+      title: tx.title,
+    });
+    tx.prevLedgerHash = previousHash;
+    tx.ledgerHash = blockHash;
+    await tx.save();
+    previousHash = blockHash;
+  }
 };

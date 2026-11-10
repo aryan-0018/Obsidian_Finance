@@ -120,16 +120,16 @@ export function TelegramCopilotButton({
               <DialogTitle className="text-base font-semibold tracking-tight text-white flex items-center gap-2">
                 Telegram Assistant
                 {isConnected ? (
-                  <Badge className="bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] h-5 rounded-full px-2 font-medium">
+                  <Badge className="bg-[#30d158]/10 text-[#30d158] border border-[#30d158]/25 text-[10px] h-5 rounded-full px-2 font-medium">
                     Connected
                   </Badge>
                 ) : (
-                  <Badge variant="outline" className="text-[#a1a1aa] text-[10px] h-5 border-white/[0.08] rounded-full px-2 font-normal">
+                  <Badge variant="outline" className="text-[#8e8e93] text-[10px] h-5 border-white/[0.08] rounded-full px-2 font-normal">
                     Not Connected
                   </Badge>
                 )}
               </DialogTitle>
-              <DialogDescription className="text-xs text-[#a1a1aa]">
+              <DialogDescription className="text-xs text-[#8e8e93]">
                 Record expenses, upload receipt photos, and check balances on Telegram.
               </DialogDescription>
             </div>
@@ -138,14 +138,14 @@ export function TelegramCopilotButton({
 
         <div className="space-y-4 pt-2">
           {isConnected ? (
-            <div className="rounded-xl bg-white/[0.02] border border-white/[0.06] p-3.5 space-y-3">
+            <div className="rounded-2xl bg-white/[0.02] border border-white/[0.06] p-3.5 space-y-3">
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-xs font-medium text-white flex items-center gap-1.5">
-                    <CheckCircle2 className="h-4 w-4 text-[#e5c158]" />
+                    <CheckCircle2 className="h-4 w-4 text-[#30d158]" />
                     Connected to @{telegramUsername || "User"}
                   </p>
-                  <p className="text-[11px] text-[#a1a1aa] mt-1 leading-relaxed">
+                  <p className="text-[11px] text-[#8e8e93] mt-1 leading-relaxed">
                     Any receipt photo or message sent to @{botUsername} automatically saves to your transactions in real-time.
                   </p>
                 </div>
@@ -154,7 +154,7 @@ export function TelegramCopilotButton({
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-7 text-xs border-white/[0.08] text-[#e5c158] hover:text-white"
+                  className="h-7 text-xs rounded-xl border-white/[0.08] text-[#e5c158] hover:text-white"
                   asChild
                 >
                   <a href={`https://t.me/${botUsername}`} target="_blank" rel="noopener noreferrer">
@@ -166,7 +166,7 @@ export function TelegramCopilotButton({
                   variant="ghost"
                   onClick={handleUnlink}
                   disabled={isUnlinking}
-                  className="h-7 text-xs text-rose-400 hover:bg-rose-500/10 hover:text-rose-300"
+                  className="h-7 text-xs rounded-xl text-[#ff453a] hover:bg-[#ff453a]/10 hover:text-[#ff453a]"
                 >
                   {isUnlinking ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Unlink className="h-3 w-3 mr-1" />}
                   Disconnect
@@ -176,36 +176,36 @@ export function TelegramCopilotButton({
           ) : (
             <div className="space-y-3">
               {!pairingInfo ? (
-                <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3.5 space-y-2.5">
+                <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-3.5 space-y-2.5">
                   <p className="text-xs text-white font-medium">Link in seconds</p>
-                  <p className="text-[11px] text-[#a1a1aa]">
+                  <p className="text-[11px] text-[#8e8e93]">
                     Generate your secure token to pair Obsidian with your personal Telegram account.
                   </p>
                   <Button
                     onClick={handleGenerateCode}
                     disabled={isGenerating}
                     size="sm"
-                    className="w-full gap-2 rounded-xl bg-gradient-to-r from-[#e5c158] via-[#c1a063] to-[#b09055] hover:opacity-95 text-black font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] cursor-pointer"
+                    className="w-full gap-2 cursor-pointer font-semibold shadow-[0_2px_12px_rgba(193,160,99,0.3)]"
                   >
                     {isGenerating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
                     Generate One-Click Link Code
                   </Button>
                 </div>
               ) : (
-                <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-3.5 space-y-3">
+                <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-3.5 space-y-3">
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="text-xs font-medium text-white">Pairing Code (15 min)</p>
-                      <p className="text-[11px] text-[#a1a1aa]">Send this to @{pairingInfo.botUsername}</p>
+                      <p className="text-[11px] text-[#8e8e93]">Send this to @{pairingInfo.botUsername}</p>
                     </div>
-                    <Badge className="font-mono text-sm px-2.5 py-0.5 font-bold text-[#e5c158] bg-black/60 border border-[#e5c158]/30">
+                    <Badge className="tabular-nums font-semibold tracking-wider text-sm px-2.5 py-0.5 text-[#e5c158] bg-black/60 border border-[#e5c158]/30">
                       {pairingInfo.code}
                     </Badge>
                   </div>
                   <div className="flex gap-2">
                     <Button
                       size="sm"
-                      className="flex-1 text-xs rounded-xl bg-gradient-to-r from-[#e5c158] via-[#c1a063] to-[#b09055] hover:opacity-95 text-black font-semibold shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] gap-1.5"
+                      className="flex-1 text-xs cursor-pointer font-semibold shadow-[0_2px_12px_rgba(193,160,99,0.3)] gap-1.5"
                       asChild
                     >
                       <a href={pairingInfo.link} target="_blank" rel="noopener noreferrer">
@@ -217,7 +217,7 @@ export function TelegramCopilotButton({
                       size="sm"
                       variant="outline"
                       onClick={() => copyToClipboard(`/start ${pairingInfo.code}`)}
-                      className="text-xs border-white/[0.08] rounded-xl gap-1.5 text-white hover:text-white"
+                      className="text-xs border-white/[0.08] rounded-xl gap-1.5 text-white hover:text-white active:scale-[0.98]"
                     >
                       <Copy className="h-3.5 w-3.5" />
                       Copy
@@ -233,17 +233,17 @@ export function TelegramCopilotButton({
             <div className="rounded-xl border border-white/[0.05] bg-white/[0.02] p-2 text-center">
               <Camera className="h-4 w-4 mx-auto text-[#e5c158] mb-1" />
               <p className="text-[10px] font-medium text-white">Receipt Scan</p>
-              <p className="text-[9px] text-[#a1a1aa]">Automated entry</p>
+              <p className="text-[9px] text-[#8e8e93]">Automated entry</p>
             </div>
             <div className="rounded-xl border border-white/[0.05] bg-white/[0.02] p-2 text-center">
               <MessageSquare className="h-4 w-4 mx-auto text-[#e5c158] mb-1" />
               <p className="text-[10px] font-medium text-white">Quick Log</p>
-              <p className="text-[9px] text-[#a1a1aa]">Natural language</p>
+              <p className="text-[9px] text-[#8e8e93]">Natural language</p>
             </div>
             <div className="rounded-xl border border-white/[0.05] bg-white/[0.02] p-2 text-center">
               <Sparkles className="h-4 w-4 mx-auto text-[#e5c158] mb-1" />
               <p className="text-[10px] font-medium text-white">Balance Check</p>
-              <p className="text-[9px] text-[#a1a1aa]">Instant query</p>
+              <p className="text-[9px] text-[#8e8e93]">Instant query</p>
             </div>
           </div>
         </div>

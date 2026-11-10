@@ -8,16 +8,21 @@ export const getReportEmailTemplate = (
   frequency?: string
 ) => {
   const {
-    username,
-    period,
-    totalIncome,
-    totalExpenses,
-    availableBalance,
-    savingsRate,
-    topSpendingCategories,
-    insights,
+    username = "Valued Client",
+    period = "Selected Period",
+    totalIncome = 0,
+    totalExpenses = 0,
+    availableBalance = 0,
+    savingsRate = 0,
+    topSpendingCategories = [],
+    insights = [],
     recentTransactions = [],
-  } = reportData;
+  } = reportData || {};
+
+  const cleanIncome = Number(totalIncome) || 0;
+  const cleanExpenses = Number(totalExpenses) || 0;
+  const cleanBalance = Number(availableBalance) || 0;
+  const cleanSavingsRate = isNaN(Number(savingsRate)) ? 0 : Number(savingsRate);
 
   // If frequency is passed and not standard recurring (or if it's an on-demand report), format neatly
   let reportTitle = "Financial Summary";
@@ -27,15 +32,15 @@ export const getReportEmailTemplate = (
     reportTitle = `Financial Summary`;
   }
 
-  const categoryList = topSpendingCategories
+  const categoryList = (topSpendingCategories || [])
     .map(
       (cat: any) => `<li>
-      <strong>${capitalizeFirstLetter(cat.name)}</strong>: ${cat.amount !== undefined ? formatCurrency(cat.amount) : ""} (${cat.percent}%)
+      <strong>${capitalizeFirstLetter(cat.name || "Other")}</strong>: ${cat.amount !== undefined ? formatCurrency(cat.amount) : ""} (${cat.percent || 0}%)
       </li>`
     )
     .join("");
 
-  const insightsList = insights
+  const insightsList = (insights || [])
     .map((insight: string) => `<li style="margin-bottom: 8px;">${insight}</li>`)
     .join("");
 
@@ -104,19 +109,19 @@ export const getReportEmailTemplate = (
                  <table width="100%" style="border-collapse: collapse; background-color: #f8fafc; border-radius: 8px; overflow: hidden; border: 1px solid #e2e8f0;">
                    <tr>
                      <td style="padding: 12px 16px; font-size: 15px; border-bottom: 1px solid #e2e8f0;"><strong>Total Income:</strong></td>
-                     <td style="padding: 12px 16px; text-align: right; font-size: 15px; font-weight: 600; color: #16a34a; border-bottom: 1px solid #e2e8f0;">${formatCurrency(totalIncome)}</td>
+                     <td style="padding: 12px 16px; text-align: right; font-size: 15px; font-weight: 600; color: #16a34a; border-bottom: 1px solid #e2e8f0;">${formatCurrency(cleanIncome)}</td>
                    </tr>
                    <tr>
                      <td style="padding: 12px 16px; font-size: 15px; border-bottom: 1px solid #e2e8f0;"><strong>Total Expenses:</strong></td>
-                     <td style="padding: 12px 16px; text-align: right; font-size: 15px; font-weight: 600; color: #dc2626; border-bottom: 1px solid #e2e8f0;">${formatCurrency(totalExpenses)}</td>
+                     <td style="padding: 12px 16px; text-align: right; font-size: 15px; font-weight: 600; color: #dc2626; border-bottom: 1px solid #e2e8f0;">${formatCurrency(cleanExpenses)}</td>
                    </tr>
                    <tr>
                      <td style="padding: 12px 16px; font-size: 15px; border-bottom: 1px solid #e2e8f0;"><strong>Net Available Balance:</strong></td>
-                     <td style="padding: 12px 16px; text-align: right; font-size: 15px; font-weight: 700; color: ${availableBalance >= 0 ? "#16a34a" : "#dc2626"}; border-bottom: 1px solid #e2e8f0;">${formatCurrency(availableBalance)}</td>
+                     <td style="padding: 12px 16px; text-align: right; font-size: 15px; font-weight: 700; color: ${cleanBalance >= 0 ? "#16a34a" : "#dc2626"}; border-bottom: 1px solid #e2e8f0;">${formatCurrency(cleanBalance)}</td>
                    </tr>
                    <tr>
                      <td style="padding: 12px 16px; font-size: 15px;"><strong>Savings Rate:</strong></td>
-                     <td style="padding: 12px 16px; text-align: right; font-size: 15px; font-weight: 600; color: #0284c7;">${savingsRate.toFixed(2)}%</td>
+                     <td style="padding: 12px 16px; text-align: right; font-size: 15px; font-weight: 600; color: #0284c7;">${cleanSavingsRate.toFixed(1)}%</td>
                    </tr>
                  </table>
 

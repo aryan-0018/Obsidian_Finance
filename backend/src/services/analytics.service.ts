@@ -19,6 +19,7 @@ import {
   startOfDay,
   endOfDay,
   endOfMonth,
+  format,
 } from "date-fns";
 import { convertToUnit } from "../utils/format-currency";
 import {
@@ -172,8 +173,29 @@ export const summaryAnalyticsService = async (
 
   const budgetProfile = await getBudgetService(userId);
   const budgetLimit = Number(budgetProfile?.limit) || 0;
-  // True remaining budget calculation: independent of Income; 0 if no budget is configured
-  const remainingBudget = budgetLimit > 0 ? (budgetLimit - totalExpensesInUnit) : 0;
+  // If the queried range is not monthly (e.g. ALL_TIME or THIS_YEAR), calculate current calendar month expenses for the monthly budget limit
+  let monthlyExpensesForBudget = totalExpensesInUnit;
+  if (rangeValue !== DateRangeEnum.THIS_MONTH && rangeValue !== DateRangeEnum.LAST_30_DAYS) {
+    const startOfCurrentMonth = startOfMonth(new Date());
+    const endOfCurrentMonth = endOfMonth(new Date());
+    const [thisMonthExpensesData] = await TransactionModel.aggregate([
+      {
+        $match: {
+          userId: new mongoose.Types.ObjectId(userId),
+          type: TransactionTypeEnum.EXPENSE,
+          date: { $gte: startOfCurrentMonth, $lte: endOfCurrentMonth },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          total: { $sum: { $abs: "$amount" } },
+        },
+      },
+    ]);
+    monthlyExpensesForBudget = convertToUnit(thisMonthExpensesData?.total || 0);
+  }
+  const remainingBudget = budgetLimit > 0 ? (budgetLimit - monthlyExpensesForBudget) : 0;
 
   let percentageChange: any = {
     income: 0,
@@ -191,16 +213,36 @@ export const summaryAnalyticsService = async (
   if (from && to && rangeValue !== DateRangeEnum.ALL_TIME) {
     //last 30 days  previous las 30 days,
 
-    const period = differenceInDays(to, from) + 1;
-
     const isYearly = [
       DateRangeEnum.LAST_YEAR,
       DateRangeEnum.THIS_YEAR,
     ].includes(rangeValue);
+    const isMonthly = [
+      DateRangeEnum.LAST_MONTH,
+      DateRangeEnum.THIS_MONTH,
+    ].includes(rangeValue);
+    const isQuarterly = [
+      DateRangeEnum.LAST_QUARTER,
+      DateRangeEnum.THIS_QUARTER,
+    ].includes(rangeValue);
 
-    const prevPeriodFrom = isYearly ? subYears(from, 1) : subDays(from, period);
+    let prevPeriodFrom: Date;
+    let prevPeriodTo: Date;
 
-    const prevPeriodTo = isYearly ? subYears(to, 1) : subDays(to, period);
+    if (isYearly) {
+      prevPeriodFrom = subYears(from, 1);
+      prevPeriodTo = subYears(to, 1);
+    } else if (isMonthly) {
+      prevPeriodFrom = subMonths(from, 1);
+      prevPeriodTo = subMonths(to, 1);
+    } else if (isQuarterly) {
+      prevPeriodFrom = subQuarters(from, 1);
+      prevPeriodTo = subQuarters(to, 1);
+    } else {
+      const period = differenceInDays(to, from) + 1;
+      prevPeriodFrom = subDays(from, period);
+      prevPeriodTo = subDays(to, period);
+    }
 
     const prevPeriodPipeline = [
       {
@@ -266,9 +308,63 @@ export const summaryAnalyticsService = async (
   // Calculate Wealth Runway, Daily Burn Velocity & Financial Discipline Index
   const userDoc = await UserModel.findById(userId).select("portfolioBalance currency");
   const baseWealth = Number(userDoc?.portfolioBalance) || 0;
-  const currentNetWealth = Math.max(0, baseWealth + availableBalanceInUnit);
 
-  const effectivePeriodDays = (from && to) ? Math.max(1, differenceInDays(to, from) + 1) : 30;
+  // Calculate user's true all-time cash flow accrual (all-time income minus all-time expenses)
+  let allTimeCashFlowInUnit = availableBalanceInUnit;
+  if (rangeValue !== DateRangeEnum.ALL_TIME) {
+    const [allTimeData] = await TransactionModel.aggregate([
+      {
+        $match: {
+          userId: new mongoose.Types.ObjectId(userId),
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          totalIncome: {
+            $sum: {
+              $cond: [
+                { $eq: ["$type", TransactionTypeEnum.INCOME] },
+                { $abs: "$amount" },
+                0,
+              ],
+            },
+          },
+          totalExpenses: {
+            $sum: {
+              $cond: [
+                { $eq: ["$type", TransactionTypeEnum.EXPENSE] },
+                { $abs: "$amount" },
+                0,
+              ],
+            },
+          },
+        },
+      },
+    ]);
+    const allInc = convertToUnit(allTimeData?.totalIncome || 0);
+    const allExp = convertToUnit(allTimeData?.totalExpenses || 0);
+    allTimeCashFlowInUnit = allInc - allExp;
+  }
+
+  // True Total Portfolio Balance matching EditableBalanceCard on dashboard
+  const totalPortfolioBalance = baseWealth + allTimeCashFlowInUnit;
+  const currentNetWealth = Math.max(0, totalPortfolioBalance);
+
+  let effectivePeriodDays = 30;
+  if (from && to) {
+    effectivePeriodDays = Math.max(1, differenceInDays(to, from) + 1);
+  } else if (rangeValue === DateRangeEnum.ALL_TIME) {
+    const earliestTx = await TransactionModel.findOne({
+      userId: new mongoose.Types.ObjectId(userId),
+    })
+      .sort({ date: 1 })
+      .select("date")
+      .lean();
+    if (earliestTx?.date) {
+      effectivePeriodDays = Math.max(1, differenceInDays(new Date(), new Date(earliestTx.date)) + 1);
+    }
+  }
   const dailyBurn = totalExpensesInUnit / effectivePeriodDays;
   const monthlyProjectedExpense = dailyBurn * 30;
   const monthlyRunway = monthlyProjectedExpense > 0
@@ -302,6 +398,9 @@ export const summaryAnalyticsService = async (
     availableBalance: availableBalanceInUnit,
     totalIncome: totalIncomeInUnit,
     totalExpenses: totalExpensesInUnit,
+    allTimeCashFlow: allTimeCashFlowInUnit,
+    totalPortfolioBalance: totalPortfolioBalance,
+    basePortfolioBalance: baseWealth,
     savingRate: {
       percentage: parseFloat((savingData.savingsPercentage || 0).toFixed(2)),
       expenseRatio: parseFloat((savingData.expenseRatio || 0).toFixed(2)),
@@ -312,6 +411,7 @@ export const summaryAnalyticsService = async (
       runwayMonths: monthlyRunway >= 999 ? "Perpetual" : `${monthlyRunway} mo`,
       healthScore,
       healthRating,
+      netWealth: currentNetWealth,
     },
     transactionCount,
     percentageChange,
@@ -570,7 +670,7 @@ export const expensePieChartBreakdownService = async (
 function calaulatePercentageChange(previous: number, current: number) {
   if (previous === 0) return current === 0 ? 0 : 100;
   const changes = ((current - previous) / Math.abs(previous)) * 100;
-  const cappedChange = Math.min(Math.max(changes, -100), 100);
+  const cappedChange = Math.min(Math.max(changes, -100), 1000);
   return parseFloat(cappedChange.toFixed(2));
 }
 
@@ -734,49 +834,64 @@ export const chatWithAiFinancialAdvisorService = async (
   const userName = user?.name || "Client";
   const userEmail = user?.email || "";
 
-  // 1. All-time portfolio summary
-  const allTimeSummary = await summaryAnalyticsService(
-    userId,
-    DateRangeEnum.ALL_TIME
-  );
-  const allTimeBreakdown = await expensePieChartBreakdownService(
-    userId,
-    DateRangeEnum.ALL_TIME
-  );
-
-  // 2. Active viewing period summary
+  // 1. Multi-period summaries and breakdowns in parallel
   let activePreset: DateRangePreset | undefined = undefined;
   if (currentRange?.value) {
     activePreset = currentRange.value as DateRangePreset;
   }
-  const currentSummary = await summaryAnalyticsService(
-    userId,
-    activePreset,
-    currentRange?.from ? new Date(currentRange.from) : undefined,
-    currentRange?.to ? new Date(currentRange.to) : undefined
-  );
-  const currentBreakdown = await expensePieChartBreakdownService(
-    userId,
-    activePreset,
-    currentRange?.from ? new Date(currentRange.from) : undefined,
-    currentRange?.to ? new Date(currentRange.to) : undefined
-  );
+
+  const [
+    allTimeSummary,
+    allTimeBreakdown,
+    thisMonthSummary,
+    lastMonthSummary,
+    thisYearSummary,
+    lastYearSummary,
+    currentSummary,
+    currentBreakdown,
+    budget,
+    transactions,
+  ] = await Promise.all([
+    summaryAnalyticsService(userId, DateRangeEnum.ALL_TIME),
+    expensePieChartBreakdownService(userId, DateRangeEnum.ALL_TIME),
+    summaryAnalyticsService(userId, DateRangeEnum.THIS_MONTH),
+    summaryAnalyticsService(userId, DateRangeEnum.LAST_MONTH),
+    summaryAnalyticsService(userId, DateRangeEnum.THIS_YEAR),
+    summaryAnalyticsService(userId, DateRangeEnum.LAST_YEAR),
+    summaryAnalyticsService(
+      userId,
+      activePreset,
+      currentRange?.from ? new Date(currentRange.from) : undefined,
+      currentRange?.to ? new Date(currentRange.to) : undefined
+    ),
+    expensePieChartBreakdownService(
+      userId,
+      activePreset,
+      currentRange?.from ? new Date(currentRange.from) : undefined,
+      currentRange?.to ? new Date(currentRange.to) : undefined
+    ),
+    getBudgetService(userId),
+    TransactionModel.find({
+      userId: new mongoose.Types.ObjectId(userId),
+    })
+      .sort({ date: -1 })
+      .limit(100)
+      .lean(),
+  ]);
+
+  // 2. User base wealth & true portfolio balance
+  const baseBalance = Number(user?.portfolioBalance) || 0;
+  const allTimeCashFlow = allTimeSummary.availableBalance || 0;
+  const trueTotalPortfolioBalance = baseBalance + allTimeCashFlow;
 
   // 3. User budget
-  const budget = await getBudgetService(userId);
   const budgetLimit = budget?.limit || 0;
-  const currentMonthSpent = currentSummary.totalExpenses || 0;
-
-  // 4. Up to 100 recent transactions across all dates
-  const transactions = await TransactionModel.find({
-    userId: new mongoose.Types.ObjectId(userId),
-  })
-    .sort({ date: -1 })
-    .limit(100)
-    .lean();
+  const currentMonthSpent = thisMonthSummary.totalExpenses || 0;
+  const remainingBudget = thisMonthSummary.remainingBudget || 0;
 
   const todayStr = new Date().toISOString().split("T")[0];
   const activePeriodLabel = currentRange?.label || "Last 30 Days";
+  const currentYearNum = new Date().getFullYear();
 
   const contextPrompt = `
 You are the Obsidian Finance Autonomous Financial Advisor & Wealth Strategist for ${userName} (${userEmail}).
@@ -786,11 +901,16 @@ You have FULL AUTHORITY to execute financial actions on the user's behalf (add t
 CURRENT SYSTEM DATE: ${todayStr}
 CURRENT DASHBOARD VIEWING PERIOD: "${activePeriodLabel}"
 
-PORTFOLIO INTELLIGENCE:
-1. ALL-TIME METRICS:
-- Total Income: ₹${allTimeSummary.totalIncome.toLocaleString("en-IN")}
-- Total Expenses: ₹${allTimeSummary.totalExpenses.toLocaleString("en-IN")}
-- Net Available Balance: ₹${allTimeSummary.availableBalance.toLocaleString("en-IN")}
+PORTFOLIO INTELLIGENCE & MULTI-PERIOD METRICS:
+1. PORTFOLIO BALANCES (Displayed on User's Dashboard Header):
+- Starting / Base Portfolio Balance: ₹${baseBalance.toLocaleString("en-IN")}
+- Cumulative All-Time Cash Flow Accrual (Income - Expenses): ${allTimeCashFlow >= 0 ? "+" : ""}₹${allTimeCashFlow.toLocaleString("en-IN")}
+- TRUE TOTAL PORTFOLIO BALANCE (Net Wealth / Balance on Dashboard): ₹${trueTotalPortfolioBalance.toLocaleString("en-IN")}
+
+2. ALL-TIME METRICS:
+- Total All-Time Income: ₹${allTimeSummary.totalIncome.toLocaleString("en-IN")}
+- Total All-Time Expenses: ₹${allTimeSummary.totalExpenses.toLocaleString("en-IN")}
+- Net Available All-Time Cash Flow: ₹${allTimeSummary.availableBalance.toLocaleString("en-IN")}
 - All-Time Savings Rate: ${allTimeSummary.savingRate?.percentage || 0}%
 - Total Ledger Entries: ${allTimeSummary.transactionCount}
 - Top All-Time Categories: ${
@@ -802,26 +922,62 @@ PORTFOLIO INTELLIGENCE:
       .join(", ") || "None recorded yet"
   }
 
-2. CURRENT ACTIVE PERIOD METRICS ("${activePeriodLabel}"):
-- Income: ₹${currentSummary.totalIncome.toLocaleString("en-IN")}
-- Expenses: ₹${currentSummary.totalExpenses.toLocaleString("en-IN")}
-- Net Balance: ₹${currentSummary.availableBalance.toLocaleString("en-IN")}
-- Savings Rate: ${currentSummary.savingRate?.percentage || 0}%
-- Top Categories: ${
-    currentBreakdown.breakdown
-      .map(
-        (cat: any) =>
-          `${cat._id || cat.name}: ₹${Number(cat.value).toLocaleString("en-IN")}`
-      )
-      .join(", ") || "None recorded in this period"
-  }
+3. PERIOD INTELLIGENCE MATRIX (Verified Figures For Different Timeframes):
+- This Calendar Month (${format(new Date(), "MMMM yyyy")}):
+  * Income: ₹${thisMonthSummary.totalIncome.toLocaleString("en-IN")}
+  * Expenses: ₹${thisMonthSummary.totalExpenses.toLocaleString("en-IN")}
+  * Net Cash Flow: ${thisMonthSummary.availableBalance >= 0 ? "+" : ""}₹${thisMonthSummary.availableBalance.toLocaleString("en-IN")}
+  * Savings Rate: ${thisMonthSummary.savingRate?.percentage || 0}%
+  * Remaining Monthly Budget: ₹${thisMonthSummary.budgetLimit > 0 ? thisMonthSummary.remainingBudget.toLocaleString("en-IN") : "N/A"}
+  * Transactions: ${thisMonthSummary.transactionCount}
 
-3. MONTHLY BUDGET:
-- Budget Limit: ₹${budgetLimit.toLocaleString("en-IN")}
+- Last Calendar Month (${format(subMonths(new Date(), 1), "MMMM yyyy")}):
+  * Income: ₹${lastMonthSummary.totalIncome.toLocaleString("en-IN")}
+  * Expenses: ₹${lastMonthSummary.totalExpenses.toLocaleString("en-IN")}
+  * Net Cash Flow: ${lastMonthSummary.availableBalance >= 0 ? "+" : ""}₹${lastMonthSummary.availableBalance.toLocaleString("en-IN")}
+  * Savings Rate: ${lastMonthSummary.savingRate?.percentage || 0}%
+  * Transactions: ${lastMonthSummary.transactionCount}
+
+- This Year (YTD ${currentYearNum}):
+  * Income: ₹${thisYearSummary.totalIncome.toLocaleString("en-IN")}
+  * Expenses: ₹${thisYearSummary.totalExpenses.toLocaleString("en-IN")}
+  * Net Cash Flow: ${thisYearSummary.availableBalance >= 0 ? "+" : ""}₹${thisYearSummary.availableBalance.toLocaleString("en-IN")}
+  * Savings Rate: ${thisYearSummary.savingRate?.percentage || 0}%
+  * Transactions: ${thisYearSummary.transactionCount}
+
+- Last Year (${currentYearNum - 1}):
+  * Income: ₹${lastYearSummary.totalIncome.toLocaleString("en-IN")}
+  * Expenses: ₹${lastYearSummary.totalExpenses.toLocaleString("en-IN")}
+  * Net Cash Flow: ${lastYearSummary.availableBalance >= 0 ? "+" : ""}₹${lastYearSummary.availableBalance.toLocaleString("en-IN")}
+  * Savings Rate: ${lastYearSummary.savingRate?.percentage || 0}%
+  * Transactions: ${lastYearSummary.transactionCount}
+
+- Active Dashboard Viewing Period ("${activePeriodLabel}"):
+  * Income: ₹${currentSummary.totalIncome.toLocaleString("en-IN")}
+  * Expenses: ₹${currentSummary.totalExpenses.toLocaleString("en-IN")}
+  * Period Net Cash Flow: ₹${currentSummary.availableBalance.toLocaleString("en-IN")}
+  * Period Savings Rate: ${currentSummary.savingRate?.percentage || 0}%
+  * Top Categories: ${
+      currentBreakdown.breakdown
+        .map(
+          (cat: any) =>
+            `${cat._id || cat.name}: ₹${Number(cat.value).toLocaleString("en-IN")}`
+        )
+        .join(", ") || "None recorded in this period"
+    }
+
+4. MONTHLY BUDGET:
+- Monthly Budget Limit: ₹${budgetLimit.toLocaleString("en-IN")}
 - Current Month Spending: ₹${currentMonthSpent.toLocaleString("en-IN")}
-- Budget Remaining: ₹${Math.max(0, budgetLimit - currentMonthSpent).toLocaleString("en-IN")}
+- Remaining Budget: ₹${remainingBudget.toLocaleString("en-IN")}
 
-4. COMPLETE TRANSACTION LEDGER (Latest ${transactions.length} entries):
+5. WEALTH PACE & RUNWAY:
+- Daily Spending Pace: ₹${currentSummary.runwayMetrics?.dailyBurnRate || 0}/day
+- Projected Monthly Spend: ₹${currentSummary.runwayMetrics?.projectedMonthlyExpense || 0}
+- Runway (How long savings will last): ${currentSummary.runwayMetrics?.runwayMonths || "Perpetual"}
+- Financial Health Score: ${currentSummary.runwayMetrics?.healthScore || 85}/100 (${currentSummary.runwayMetrics?.healthRating || "Prime"})
+
+6. COMPLETE TRANSACTION LEDGER (Latest ${transactions.length} entries):
 ${
   transactions
     .map(
@@ -855,7 +1011,18 @@ ALLOWED ACTIONS:
 7. "AUDIT_LEDGER": If user asks to audit, verify, or inspect the cryptographic Merkle hash chain or tamper proof ledger.
 8. "TELEGRAM_ACTION": If user asks for Telegram pairing code, connection status, or to unlink Telegram.
 9. "OPEN_MODAL": If user asks to open an interactive view like Add Transaction, Receipt Scanner, Bank Statement Import, or Ledger Audit.
-10. "NONE": For purely analytical questions, financial questions, or portfolio assessments. When answering, cite exact numbers from the metrics and ledger above. Never give generic boilerplate advice.
+10. "NONE": For purely analytical questions, financial questions, or portfolio assessments:
+    - If the user asks "what is my balance", "how much money do I have", or "my portfolio balance", ALWAYS cite their TRUE TOTAL PORTFOLIO BALANCE of ₹${trueTotalPortfolioBalance.toLocaleString("en-IN")}, and explain that it includes their base balance (₹${baseBalance.toLocaleString("en-IN")}) plus accrued net cash flow (${allTimeCashFlow >= 0 ? "+" : ""}₹${allTimeCashFlow.toLocaleString("en-IN")}).
+    - If the user asks about ANY specific period or timeframe (e.g. "this month", "last month", "this year", "last year", "all time", or the active dashboard period): ALWAYS cite the exact matching figures from section 3 "PERIOD INTELLIGENCE MATRIX" above. E.g., for "last month income" cite ₹${lastMonthSummary.totalIncome.toLocaleString("en-IN")}; for "last month spending" cite ₹${lastMonthSummary.totalExpenses.toLocaleString("en-IN")}; for "this year income" cite ₹${thisYearSummary.totalIncome.toLocaleString("en-IN")}; for "this year spending" cite ₹${thisYearSummary.totalExpenses.toLocaleString("en-IN")}.
+    - If the user asks "how much did I spend" without a specific period, state the spending for the active period (₹${currentSummary.totalExpenses.toLocaleString("en-IN")}) and their remaining monthly budget (₹${remainingBudget.toLocaleString("en-IN")}).
+    - If the user asks "Can I afford X?", evaluate against Remaining Monthly Budget (₹${remainingBudget.toLocaleString("en-IN")}) and True Total Portfolio Balance (₹${trueTotalPortfolioBalance.toLocaleString("en-IN")}):
+      * If X is within the remaining budget, approve with confidence.
+      * If X exceeds the remaining budget but is within total portfolio balance, clearly explain that it exceeds the monthly budget limit by ₹(X - remainingBudget) but is fully covered by liquid portfolio reserves.
+      * If X exceeds the total portfolio balance, state clearly that it is not affordable.
+    - If the user asks about Savings Rate, cite the savings rate for the requested period (e.g., ${thisMonthSummary.savingRate?.percentage || 0}% for this month or ${currentSummary.savingRate?.percentage || 0}% for the active period).
+    - If the user asks about Runway or how long savings will last, cite ${currentSummary.runwayMetrics?.runwayMonths || "Perpetual"} months based on daily burn rate of ₹${currentSummary.runwayMetrics?.dailyBurnRate || 0}/day.
+    - If the user asks about specific merchants or categories (e.g. Swiggy, Dining, Groceries), search the complete transaction ledger provided above, sum the exact amounts, and report the precise total and count of transactions.
+    - Never invent numbers or give vague boilerplate advice. All numbers must strictly correspond to the real ledger and metrics above.
 
 OUTPUT FORMAT REQUIREMENTS:
 Output strictly valid JSON matching this schema:
@@ -1538,6 +1705,7 @@ Output strictly valid JSON matching this schema:
     }
 
     // 4. Default: Analytical Synthesis with exact live numbers
+    const totalBal = Math.round(trueTotalPortfolioBalance).toLocaleString("en-IN");
     const avail = Math.round(currentSummary.availableBalance).toLocaleString("en-IN");
     const inc = Math.round(currentSummary.totalIncome).toLocaleString("en-IN");
     const exp = Math.round(currentSummary.totalExpenses).toLocaleString("en-IN");
@@ -1545,26 +1713,28 @@ Output strictly valid JSON matching this schema:
     const topCat = currentBreakdown.breakdown[0]
       ? `${currentBreakdown.breakdown[0]._id || currentBreakdown.breakdown[0].name} (₹${Math.round(currentBreakdown.breakdown[0].value).toLocaleString("en-IN")})`
       : "None recorded";
+    const remBudget = Math.max(0, budgetLimit - currentMonthSpent).toLocaleString("en-IN");
 
     return {
       headline: "Financial Overview",
-      summary: `You have ₹${avail} available this month. Total earnings are ₹${inc} and total spending is ₹${exp}, with a ${rate}% savings rate.`,
+      summary: `Your total portfolio balance is ₹${totalBal}. This period, earnings are ₹${inc} and spending is ₹${exp}, with a ${rate}% savings rate and ₹${remBudget} remaining in your monthly budget.`,
       keyMetrics: [
-        { label: "Available Money", value: `₹${avail}` },
+        { label: "Portfolio Balance", value: `₹${totalBal}` },
         { label: "Total Income", value: `₹${inc}` },
         { label: "Total Expenses", value: `₹${exp}` },
-        { label: "Savings Rate", value: `${rate}%` },
+        { label: "Remaining Budget", value: `₹${remBudget}` },
       ],
       bulletPoints: [
+        `Base balance: ₹${baseBalance.toLocaleString("en-IN")}`,
+        `Net cash flow accrual: ${allTimeCashFlow >= 0 ? "+" : ""}₹${allTimeCashFlow.toLocaleString("en-IN")}`,
         `Top spending category: ${topCat}`,
-        `Current budget limit: ₹${budgetLimit.toLocaleString("en-IN")}`,
-        `Remaining budget: ₹${Math.max(0, budgetLimit - currentMonthSpent).toLocaleString("en-IN")}`,
+        `Monthly budget limit: ₹${budgetLimit.toLocaleString("en-IN")}`,
       ],
       recommendation:
         rate >= 20
           ? "Great job maintaining a healthy savings rate above 20%!"
           : "Consider reducing discretionary dining and shopping to boost your monthly savings.",
-      reply: `You have ₹${avail} available this month. Total earnings are ₹${inc} and total spending is ₹${exp}, with a ${rate}% savings rate.\n\n• Top spending category: ${topCat}\n• Remaining budget: ₹${Math.max(0, budgetLimit - currentMonthSpent).toLocaleString("en-IN")}\n\nTip: ${rate >= 20 ? "Great job maintaining a healthy savings rate!" : "Try to save at least 20% of your monthly income."}`,
+      reply: `Your total portfolio balance is ₹${totalBal}. This period, earnings are ₹${inc} and spending is ₹${exp}, with a ${rate}% savings rate and ₹${remBudget} remaining in your monthly budget.\n\n• Top spending category: ${topCat}\n• Remaining budget: ₹${remBudget}\n\nTip: ${rate >= 20 ? "Great job maintaining a healthy savings rate!" : "Try to save at least 20% of your monthly income."}`,
     };
   }
 };

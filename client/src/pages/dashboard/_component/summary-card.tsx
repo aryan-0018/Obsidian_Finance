@@ -105,7 +105,15 @@ const getCardStatus = (
       };
     }
 
-    // Check savings percentage first
+    if (value < 0) {
+      return {
+        label: "Deficit: High Spend",
+        color: "text-[#f43f5e]",
+        Icon: TrendingDownIcon,
+        description: `${expenseRatio ? expenseRatio.toFixed(0) : Math.abs(value).toFixed(0)}% of income spent`,
+      };
+    }
+
     if (value < 10) {
       return {
         label: "Low Savings",
@@ -117,36 +125,27 @@ const getCardStatus = (
 
     if (value < 20) {
       return {
-        label: "Moderate",
+        label: "Moderate Savings",
         color: "text-amber-400",
         Icon: TrendingDownIcon,
+        description: `${value.toFixed(1)}% saved`,
+      };
+    }
+
+    if (value < 35) {
+      return {
+        label: "Healthy Savings",
+        color: "text-emerald-400",
+        Icon: TrendingUpIcon,
         description: `${expenseRatio?.toFixed(0)}% spent`,
       };
     }
 
-    // High savings → check if expense ratio is unusually high for warning
-    if (expenseRatio && expenseRatio > 75) {
-      return {
-        label: "High Spend",
-        color: "text-[#f43f5e]",
-        Icon: TrendingDownIcon,
-        description: `${expenseRatio.toFixed(0)}% spent`,
-      };
-    }
-
-    if (expenseRatio && expenseRatio > 60) {
-      return {
-        label: "Warning: High Spend",
-        color: "text-amber-500",
-        Icon: TrendingDownIcon,
-        description: `${expenseRatio.toFixed(0)}% spent`,
-      };
-    }
-
     return {
-      label: "Good Savings",
+      label: "Prime Savings",
       color: "text-[#e5c158]",
       Icon: TrendingUpIcon,
+      description: `${value.toFixed(1)}% saved`,
     };
   }
 

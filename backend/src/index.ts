@@ -24,6 +24,7 @@ import analyticsRoutes from "./routes/analytics.route";
 import budgetRoutes from "./routes/budget.route";
 import { initTelegramBot } from "./services/telegram.service";
 import helmet from "helmet";
+import mongoose from "mongoose";
 
 const app = express();
 const BASE_PATH = Env.BASE_PATH;
@@ -58,6 +59,20 @@ app.get(
    });
   })
 );
+
+const healthCheckHandler = asyncHandler(async (_req: Request, res: Response) => {
+  const isDbConnected = mongoose.connection.readyState === 1;
+  res.status(HTTPSTATUS.OK).json({
+    status: isDbConnected ? "healthy" : "degraded",
+    message: "Obsidian Finance API is online",
+    uptime: Math.floor(process.uptime()),
+    timestamp: new Date().toISOString(),
+    database: isDbConnected ? "connected" : "disconnected",
+  });
+});
+
+app.get("/health", healthCheckHandler);
+app.get(`${BASE_PATH}/health`, healthCheckHandler);
 
 
 

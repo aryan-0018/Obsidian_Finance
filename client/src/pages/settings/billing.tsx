@@ -1,66 +1,105 @@
 import { Separator } from "@/components/ui/separator";
-import { Sparkles, ShieldCheck, Check } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Check } from "lucide-react";
 
 const Billing = () => {
+  const planDetails = [
+    { label: "Plan Tier", value: "Obsidian Edition" },
+    { label: "Billing Cycle", value: "Lifetime Access" },
+    { label: "Renewal Date", value: "No Expiration" },
+    { label: "Recurring Fee", value: "₹0.00 / month" },
+    { label: "Payment Method", value: "None Required" },
+  ];
+
+  const features = [
+    {
+      title: "Receipt Scanning",
+      description: "Extract amounts, vendors, and dates directly from uploaded receipt images.",
+    },
+    {
+      title: "Telegram Assistant",
+      description: "Log expenses and query your balances on the go via your Telegram bot.",
+    },
+    {
+      title: "Automated Monthly Reports",
+      description: "Scheduled email statements delivered straight to your inbox on the 1st of each month.",
+    },
+    {
+      title: "Cryptographic Ledger Audit",
+      description: "Tamper-evident verification of all transaction records using sequential hashing.",
+    },
+    {
+      title: "AI Financial Insights",
+      description: "Detailed category breakdowns, savings recommendations, and spending analysis.",
+    },
+  ];
+
   return (
     <div className="space-y-6">
       <div>
         <h3 className="text-xl font-semibold tracking-tight text-white">Plan & Features</h3>
-        <p className="text-xs text-[#a1a1aa] mt-1 font-normal">
-          Manage your plan and see all available features.
+        <p className="text-xs text-[#8e8e93] mt-1 font-normal">
+          Review your account subscription status and included workspace capabilities.
         </p>
       </div>
       <Separator className="bg-white/[0.06]" />
 
-      <div className="w-full">
-        {/* Membership Overview Card */}
-        <div className="obsidian-card rounded-2xl p-5 sm:p-8 md:p-10 relative overflow-hidden">
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-8">
-            <div className="flex-1 space-y-4">
-              <div className="inline-flex items-center gap-1.5 bg-[#e5c158]/15 border border-[#c1a063]/30 text-[#e5c158] text-xs font-medium px-3 py-1 rounded-full">
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Active Plan</span>
+      <div className="space-y-5">
+        {/* Subscription Status Card */}
+        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5 sm:p-6 space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2.5">
+                <h4 className="text-base font-semibold text-white tracking-tight">Obsidian Lifetime</h4>
+                <Badge className="bg-[#e5c158]/10 text-[#e5c158] border border-[#e5c158]/20 text-[11px] font-medium px-2.5 py-0.5 rounded-full">
+                  Active
+                </Badge>
               </div>
-              <div>
-                <h2 className="text-2xl sm:text-3xl font-semibold text-white tracking-tight">Obsidian Plan</h2>
-                <p className="text-[#a1a1aa] max-w-lg font-normal text-sm mt-1.5 leading-relaxed">
-                  You are currently on the active plan. Enjoy instant receipt scanning, Telegram assistant sync, automated monthly reports, and automatic record verification.
-                </p>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 pt-2">
-                <div className="flex items-center gap-2 text-xs text-[#fcfcfc]">
-                  <Check className="h-4 w-4 text-[#e5c158]" />
-                  <span>Instant Receipt Scanner</span>
-                </div>
-                <div className="flex items-center gap-2 text-xs text-[#fcfcfc]">
-                  <Check className="h-4 w-4 text-[#e5c158]" />
-                  <span>Telegram Assistant Sync</span>
-                </div>
-                <div className="flex items-center gap-2 text-xs text-[#fcfcfc]">
-                  <Check className="h-4 w-4 text-[#e5c158]" />
-                  <span>Automatic Record Verification</span>
-                </div>
-                <div className="flex items-center gap-2 text-xs text-[#fcfcfc]">
-                  <Check className="h-4 w-4 text-[#e5c158]" />
-                  <span>Automated Monthly Email Reports</span>
-                </div>
-              </div>
+              <p className="text-xs text-[#8e8e93]">
+                Full access to all financial tracking tools, automated reporting, and integrations.
+              </p>
             </div>
-
-            {/* Vertical Separator for Desktop / Horizontal for Mobile */}
-            <div className="hidden md:block w-px bg-gradient-to-b from-transparent via-[#c1a063]/30 to-transparent self-stretch my-2" />
-            <div className="block md:hidden h-px w-full bg-gradient-to-r from-transparent via-[#c1a063]/30 to-transparent my-2" />
-
-            {/* Right Side: Cost */}
-            <div className="flex flex-col justify-center items-center text-center md:w-56 shrink-0 p-6 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
-              <div className="text-5xl font-light text-white tracking-tight tabular-nums">Free</div>
-              <p className="text-xs text-[#e5c158] font-medium mt-1">Included</p>
-              <div className="flex items-center gap-1.5 mt-3 text-[11px] text-[#a1a1aa] font-normal">
-                <ShieldCheck className="h-3.5 w-3.5 text-[#e5c158]" />
-                <span>Zero Subscription Fees</span>
-              </div>
+            <div className="text-right hidden sm:block">
+              <span className="text-lg font-semibold text-white">Free</span>
+              <p className="text-[11px] text-[#8e8e93]">Lifetime access</p>
             </div>
+          </div>
+
+          <div className="border-t border-white/[0.06] pt-4">
+            <dl className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+              {planDetails.map((item) => (
+                <div key={item.label} className="flex items-center justify-between p-2.5 rounded-xl bg-white/[0.02] border border-white/[0.04]">
+                  <dt className="text-[#8e8e93] font-normal">{item.label}</dt>
+                  <dd className="text-white font-medium">{item.value}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        </div>
+
+        {/* Included Capabilities */}
+        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.02] p-5 sm:p-6 space-y-4">
+          <div>
+            <h4 className="text-sm font-semibold text-white tracking-tight">Included Features</h4>
+            <p className="text-xs text-[#8e8e93] mt-0.5">
+              Everything available with your active Obsidian account.
+            </p>
+          </div>
+
+          <div className="divide-y divide-white/[0.06]">
+            {features.map((feat) => (
+              <div key={feat.title} className="py-3 first:pt-1 last:pb-1 flex items-start gap-3">
+                <div className="h-5 w-5 rounded-full bg-white/[0.06] border border-white/[0.08] flex items-center justify-center shrink-0 mt-0.5">
+                  <Check className="h-3 w-3 text-[#e5c158]" />
+                </div>
+                <div className="space-y-0.5">
+                  <p className="text-xs font-medium text-white">{feat.title}</p>
+                  <p className="text-[11px] text-[#8e8e93] leading-relaxed font-normal">
+                    {feat.description}
+                  </p>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       </div>

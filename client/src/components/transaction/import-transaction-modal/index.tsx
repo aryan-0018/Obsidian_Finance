@@ -13,9 +13,13 @@ import ColumnMappingStep from "./column-mapping-step";
 import { CsvColumn, TransactionField } from "@/@types/transaction.type";
 import ConfirmationStep from "./confirmation-step";
 import BankStatementTab from "./bank-statement-tab";
+import { cn } from "@/lib/utils";
 
 const ImportTransactionModal = () => {
   const [activeMode, setActiveMode] = useState<"statement" | "csv">("statement");
+  const [statementStep, setStatementStep] = useState<
+    "upload" | "processing" | "password_prompt" | "review" | "success"
+  >("upload");
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [file, setFile] = useState<File | null>(null);
   const [csvColumns, setCsvColumns] = useState<CsvColumn[]>([]);
@@ -74,9 +78,9 @@ const ImportTransactionModal = () => {
 
     if (hasAllRequired) {
       setMappings(autoMappings);
-      setStep(3); // Skip mapping step completely if perfect match
+      setStep(3);
     } else {
-      setMappings(autoMappings); // Pre-fill what we found
+      setMappings(autoMappings);
       setStep(2);
     }
   };
@@ -86,6 +90,7 @@ const ImportTransactionModal = () => {
     setCsvColumns([]);
     setMappings({});
     setStep(1);
+    setStatementStep("upload");
   };
 
   const handleClose = () => {
@@ -105,7 +110,12 @@ const ImportTransactionModal = () => {
   const renderCsvStep = () => {
     switch (step) {
       case 1:
-        return <FileUploadStep onFileUpload={handleFileUpload} />;
+        return (
+          <FileUploadStep
+            onFileUpload={handleFileUpload}
+            onCancel={handleClose}
+          />
+        );
       case 2:
         return (
           <ColumnMappingStep
@@ -131,70 +141,148 @@ const ImportTransactionModal = () => {
     }
   };
 
+  const modalWidth =
+    activeMode === "statement" && statementStep === "review"
+      ? "sm:max-w-4xl"
+      : activeMode === "csv" && step === 2
+        ? "sm:max-w-2xl"
+        : activeMode === "csv" && step === 3
+          ? "sm:max-w-xl"
+          : "sm:max-w-[480px]";
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <Button
         variant="outline"
-        className="!cursor-pointer border-white/[0.12] bg-white/[0.03] hover:bg-white/[0.06] text-white hover:text-[#e5c158] hover:border-[#c1a063]/40 gap-2 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]"
+        className="gap-2 rounded-xl border-white/[0.10] bg-white/[0.03] text-white hover:text-[#e5c158] hover:border-[#e5c158]/40 active:scale-[0.98] transition-all cursor-pointer"
         onClick={() => setOpen(true)}
       >
-        <ImportIcon className="!w-4 !h-4 text-[#e5c158]" />
-        Import Statements
+        <ImportIcon className="size-4 text-[#e5c158]" />
+        <span>Import</span>
       </Button>
 
-      <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-3xl obsidian-card bg-[#0e0e13]/95 backdrop-blur-2xl border border-white/[0.09] text-[#f5f5f7] p-6 sm:p-7 max-h-[90vh] overflow-y-auto rounded-3xl shadow-[0_32px_64px_rgba(0,0,0,0.85),inset_0_1px_0_rgba(255,255,255,0.12)]">
-        <DialogHeader className="space-y-1 pb-3 border-b border-white/[0.06]">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="h-9 w-9 rounded-2xl bg-[#e5c158]/10 text-[#e5c158] flex items-center justify-center border border-[#e5c158]/25">
-                <ImportIcon className="h-4.5 w-4.5" />
-              </div>
-              <div>
-                <DialogTitle className="text-base font-semibold tracking-tight text-white flex items-center gap-2">
-                  Import Transactions
-                </DialogTitle>
-                <DialogDescription className="text-xs text-[#8e8e93]">
-                  Upload bank statements (PDF or CSV) or map custom spreadsheets
-                </DialogDescription>
-              </div>
+      <DialogContent
+        className={cn(
+          "w-[calc(100vw-2rem)] obsidian-card rounded-3xl bg-[#0e0e13]/95 backdrop-blur-2xl border border-white/[0.09] text-white shadow-[0_32px_64px_rgba(0,0,0,0.85),inset_0_1px_0_rgba(255,255,255,0.12)] p-6 sm:p-7 max-h-[90vh] overflow-y-auto transition-all duration-300",
+          modalWidth
+        )}
+      >
+        <DialogHeader>
+          <div className="flex items-center gap-3 mb-1">
+            <div className="p-2.5 rounded-2xl bg-[#e5c158]/10 text-[#e5c158] border border-[#e5c158]/20">
+              <ImportIcon className="h-5 w-5" />
             </div>
-
-            {/* Segmented Tabs */}
-            <div className="flex items-center p-1 bg-white/[0.04] backdrop-blur-xl rounded-xl border border-white/[0.08] gap-1 self-start sm:self-auto select-none">
-              <button
-                type="button"
-                onClick={() => setActiveMode("statement")}
-                className={`h-8 px-3 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all duration-150 cursor-pointer active:scale-[0.98] ${
-                  activeMode === "statement"
-                    ? "bg-gradient-to-r from-[#e5c158] via-[#c1a063] to-[#b09055] text-black shadow-xs font-semibold"
-                    : "text-[#8e8e93] hover:text-white hover:bg-white/[0.06]"
-                }`}
-              >
-                <Building2 className="h-3.5 w-3.5" />
-                Bank Statement PDF / CSV
-              </button>
-              <button
-                type="button"
-                onClick={() => setActiveMode("csv")}
-                className={`h-8 px-3 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-all duration-150 cursor-pointer active:scale-[0.98] ${
-                  activeMode === "csv"
-                    ? "bg-gradient-to-r from-[#e5c158] via-[#c1a063] to-[#b09055] text-black shadow-xs font-semibold"
-                    : "text-[#8e8e93] hover:text-white hover:bg-white/[0.06]"
-                }`}
-              >
-                <TableProperties className="h-3.5 w-3.5" />
-                Manual CSV Mapper
-              </button>
+            <div>
+              <DialogTitle className="text-lg font-semibold tracking-tight text-white">
+                Import Transactions
+              </DialogTitle>
+              <DialogDescription className="text-[#8e8e93] text-xs font-normal">
+                Upload bank statements or map custom spreadsheets.
+              </DialogDescription>
             </div>
           </div>
         </DialogHeader>
 
-        <div className="pt-2">
-          {activeMode === "statement" ? (
-            <BankStatementTab onSuccess={() => handleClose()} />
-          ) : (
-            renderCsvStep()
+        <div className="space-y-4 py-2">
+          {/* Spacious Mode Switcher Pill */}
+          {statementStep !== "review" && (
+            <div className="p-1 rounded-2xl bg-white/[0.03] border border-white/[0.06] grid grid-cols-2 gap-1 select-none">
+              <button
+                type="button"
+                onClick={() => setActiveMode("statement")}
+                className={`h-9 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                  activeMode === "statement"
+                    ? "bg-[#181820] text-white border border-white/[0.12] shadow-sm"
+                    : "text-[#8e8e93] hover:text-white"
+                }`}
+              >
+                <Building2 className={`size-3.5 ${activeMode === "statement" ? "text-[#e5c158]" : "text-neutral-500"}`} />
+                <span>Bank Statement</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveMode("csv")}
+                className={`h-9 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                  activeMode === "csv"
+                    ? "bg-[#181820] text-white border border-white/[0.12] shadow-sm"
+                    : "text-[#8e8e93] hover:text-white"
+                }`}
+              >
+                <TableProperties className={`size-3.5 ${activeMode === "csv" ? "text-[#e5c158]" : "text-neutral-500"}`} />
+                <span>CSV Mapper</span>
+              </button>
+            </div>
           )}
+
+          {/* Stepper for CSV Mode (shown only when in step 2 or 3) */}
+          {activeMode === "csv" && step > 1 && (
+            <div className="flex items-center justify-center gap-2 py-1 text-xs">
+              <div
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-xl transition-all ${
+                  step === 2
+                    ? "bg-[#e5c158]/15 text-[#f5cf6d] font-semibold border border-[#e5c158]/30"
+                    : "text-neutral-300"
+                }`}
+              >
+                <span className="h-4.5 w-4.5 rounded-full flex items-center justify-center text-[10px] bg-white/[0.15] text-white">
+                  ✓
+                </span>
+                <span>Upload</span>
+              </div>
+              <div className="w-4 h-px bg-white/[0.10]" />
+              <div
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-xl transition-all ${
+                  step === 2
+                    ? "bg-[#e5c158]/15 text-[#f5cf6d] font-semibold border border-[#e5c158]/30"
+                    : step > 2
+                      ? "text-neutral-300"
+                      : "text-neutral-500"
+                }`}
+              >
+                <span
+                  className={`h-4.5 w-4.5 rounded-full flex items-center justify-center text-[10px] ${
+                    step === 2
+                      ? "bg-[#e5c158] text-black font-bold"
+                      : "bg-white/[0.15] text-white"
+                  }`}
+                >
+                  {step > 2 ? "✓" : "2"}
+                </span>
+                <span>Map Columns</span>
+              </div>
+              <div className="w-4 h-px bg-white/[0.10]" />
+              <div
+                className={`flex items-center gap-1.5 px-3 py-1 rounded-xl transition-all ${
+                  step === 3
+                    ? "bg-[#e5c158]/15 text-[#f5cf6d] font-semibold border border-[#e5c158]/30"
+                    : "text-neutral-500"
+                }`}
+              >
+                <span
+                  className={`h-4.5 w-4.5 rounded-full flex items-center justify-center text-[10px] ${
+                    step === 3
+                      ? "bg-[#e5c158] text-black font-bold"
+                      : "bg-white/[0.05] text-neutral-500"
+                  }`}
+                >
+                  3
+                </span>
+                <span>Confirm</span>
+              </div>
+            </div>
+          )}
+
+          <div>
+            {activeMode === "statement" ? (
+              <BankStatementTab
+                onSuccess={() => handleClose()}
+                onStepChange={setStatementStep}
+                onCancel={handleClose}
+              />
+            ) : (
+              renderCsvStep()
+            )}
+          </div>
         </div>
       </DialogContent>
     </Dialog>

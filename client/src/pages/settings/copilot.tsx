@@ -70,16 +70,16 @@ export default function TelegramCopilotSettings() {
         <div className="flex items-center gap-2">
           <h3 className="text-xl font-semibold tracking-tight text-white">Telegram Assistant</h3>
           {isConnected ? (
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-normal bg-white/[0.05] text-[#fcfcfc] border border-white/[0.08]">
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-medium bg-[#30d158]/10 text-[#30d158] border border-[#30d158]/20">
               Connected
             </span>
           ) : (
-            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-normal bg-white/5 text-[#a1a1aa] border border-white/10">
+            <span className="px-2.5 py-0.5 rounded-full text-[11px] font-normal bg-white/[0.04] text-[#8e8e93] border border-white/[0.08]">
               Disconnected
             </span>
           )}
         </div>
-        <p className="text-xs text-[#a1a1aa] mt-1 font-normal">
+        <p className="text-xs text-[#8e8e93] mt-1 font-normal">
           Quick expense logging, photo receipt scanning, and balance inquiries directly from Telegram.
         </p>
       </div>
@@ -87,15 +87,15 @@ export default function TelegramCopilotSettings() {
       <Separator className="bg-white/[0.06]" />
 
       {/* Connection Status Card */}
-      <div className="obsidian-card rounded-2xl bg-[#0e0e12]/95 backdrop-blur-2xl border border-white/[0.08] shadow-[0_15px_35px_rgba(0,0,0,0.5)] p-6 md:p-8 space-y-6">
+      <div className="obsidian-card rounded-2xl bg-[#0e0e13]/80 backdrop-blur-2xl border border-white/[0.08] shadow-[0_15px_35px_rgba(0,0,0,0.5)] p-6 md:p-8 space-y-6">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3.5">
-            <div className="h-11 w-11 rounded-2xl bg-[#e5c158]/10 border border-[#e5c158]/25 flex items-center justify-center text-[#e5c158]">
+            <div className="h-11 w-11 rounded-2xl bg-[#e5c158]/10 border border-[#e5c158]/20 flex items-center justify-center text-[#e5c158]">
               <Send className="h-5 w-5" />
             </div>
             <div>
               <h4 className="text-base font-semibold text-white tracking-tight">Telegram Sync Channel</h4>
-              <p className="text-xs text-[#a1a1aa] font-normal">
+              <p className="text-xs text-[#8e8e93] font-normal">
                 {isLoading
                   ? "Checking pairing status..."
                   : isConnected
@@ -109,11 +109,11 @@ export default function TelegramCopilotSettings() {
               <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
             ) : isConnected ? (
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-normal bg-white/[0.04] text-[#fcfcfc] border border-white/[0.08]">
-                <CheckCircle2 className="h-3.5 w-3.5 text-[#e5c158]" />
+                <CheckCircle2 className="h-3.5 w-3.5 text-[#30d158]" />
                 Connected
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-white/[0.04] text-[#a1a1aa] border border-white/[0.08]">
+              <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-white/[0.04] text-[#8e8e93] border border-white/[0.08]">
                 <AlertCircle className="h-3.5 w-3.5" />
                 Unlinked
               </span>
@@ -129,7 +129,7 @@ export default function TelegramCopilotSettings() {
                   <p className="text-xs font-semibold text-white">
                     Active Sync
                   </p>
-                  <p className="text-[11px] text-[#a1a1aa] mt-0.5 font-normal">
+                  <p className="text-[11px] text-[#8e8e93] mt-0.5 font-normal">
                     Messages and scanned receipts sent to @{botUsername} are automatically saved to your transactions.
                   </p>
                 </div>
@@ -138,7 +138,7 @@ export default function TelegramCopilotSettings() {
                   size="sm"
                   onClick={handleUnlink}
                   disabled={isUnlinking}
-                  className="rounded-xl text-[#f43f5e] hover:bg-[#f43f5e]/10 border-[#f43f5e]/30 text-xs active:scale-[0.98]"
+                  className="rounded-xl text-[#ff453a] hover:bg-[#ff453a]/10 border-[#ff453a]/30 text-xs active:scale-[0.98]"
                 >
                   {isUnlinking ? (
                     <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
@@ -155,14 +155,14 @@ export default function TelegramCopilotSettings() {
                 <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between p-4 rounded-2xl bg-white/[0.02] border border-white/[0.06]">
                   <div>
                     <p className="text-xs font-semibold text-white">Instant Pairing in 5 Seconds</p>
-                    <p className="text-[11px] text-[#a1a1aa] font-normal">
+                    <p className="text-[11px] text-[#8e8e93] font-normal">
                       Generate a secure one-time token and link directly to your Telegram client.
                     </p>
                   </div>
                   <Button
                     onClick={handleGenerateCode}
                     disabled={isGenerating}
-                    className="gap-2 shrink-0 rounded-xl bg-gradient-to-r from-[#e5c158] via-[#c1a063] to-[#b09055] text-black font-semibold active:scale-[0.98] transition-all shadow-[0_4px_16px_rgba(193,160,99,0.28)] hover:brightness-105 text-xs"
+                    className="gap-2 shrink-0 cursor-pointer font-semibold shadow-[0_2px_12px_rgba(193,160,99,0.3)] text-xs"
                   >
                     {isGenerating ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
@@ -179,11 +179,11 @@ export default function TelegramCopilotSettings() {
                       <p className="text-xs font-semibold text-white">
                         Pairing Code Ready
                       </p>
-                      <p className="text-[11px] text-[#a1a1aa] font-normal">
+                      <p className="text-[11px] text-[#8e8e93] font-normal">
                         Valid for 15 minutes. Send this code to @{pairingInfo.botUsername} or click below to connect.
                       </p>
                     </div>
-                    <span className="font-mono text-base px-3.5 py-1 font-bold text-[#e5c158] border border-[#e5c158]/30 rounded-xl bg-black/40 tabular-nums">
+                    <span className="tabular-nums font-semibold tracking-wider text-base px-3.5 py-1 text-[#e5c158] border border-[#e5c158]/30 rounded-xl bg-black/40">
                       {pairingInfo.code}
                     </span>
                   </div>
@@ -191,7 +191,7 @@ export default function TelegramCopilotSettings() {
                   <div className="flex flex-wrap gap-2.5">
                     <Button
                       size="sm"
-                      className="gap-2 rounded-xl bg-gradient-to-r from-[#e5c158] via-[#c1a063] to-[#b09055] text-black font-semibold active:scale-[0.98] shadow-[0_4px_16px_rgba(193,160,99,0.28)] hover:brightness-105"
+                      className="gap-2 cursor-pointer font-semibold shadow-[0_2px_12px_rgba(193,160,99,0.3)]"
                       asChild
                     >
                       <a href={pairingInfo.link} target="_blank" rel="noopener noreferrer">
@@ -212,7 +212,7 @@ export default function TelegramCopilotSettings() {
                       size="sm"
                       variant="ghost"
                       onClick={() => refetch()}
-                      className="rounded-xl text-xs text-[#a1a1aa] hover:text-white"
+                      className="rounded-xl text-xs text-[#8e8e93] hover:text-white active:scale-[0.98]"
                     >
                       Check Status
                     </Button>
@@ -231,7 +231,7 @@ export default function TelegramCopilotSettings() {
             <Camera className="h-4 w-4" />
             <span>Receipt Scanning</span>
           </div>
-          <p className="text-[11px] text-[#a1a1aa] font-normal leading-relaxed">
+          <p className="text-[11px] text-[#8e8e93] font-normal leading-relaxed">
             Upload photos of store receipts, bills, or invoices. The system automatically detects amounts, dates, and categories.
           </p>
         </div>
@@ -241,7 +241,7 @@ export default function TelegramCopilotSettings() {
             <MessageSquare className="h-4 w-4" />
             <span>Text Logging</span>
           </div>
-          <p className="text-[11px] text-[#a1a1aa] font-normal leading-relaxed">
+          <p className="text-[11px] text-[#8e8e93] font-normal leading-relaxed">
             Record expenses through natural messages like &ldquo;Spent ₹450 on lunch with card&rdquo; or &ldquo;Got ₹45,000 salary&rdquo;.
           </p>
         </div>
@@ -251,7 +251,7 @@ export default function TelegramCopilotSettings() {
             <Sparkles className="h-4 w-4" />
             <span>Account Inquiries</span>
           </div>
-          <p className="text-[11px] text-[#a1a1aa] font-normal leading-relaxed">
+          <p className="text-[11px] text-[#8e8e93] font-normal leading-relaxed">
             Quickly query your finances with &ldquo;What is my balance?&rdquo; or &ldquo;How much did I spend this week?&rdquo;.
           </p>
         </div>

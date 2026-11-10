@@ -237,7 +237,7 @@ const TransactionForm = (props: {
               name="type"
               render={({ field }) => (
                 <FormItem className="space-y-1.5">
-                  <FormLabel className="text-xs font-medium text-[#a1a1aa]">
+                  <FormLabel className="text-xs font-medium text-[#8e8e93]">
                     Transaction Type
                   </FormLabel>
                   <div className="flex p-1 rounded-xl bg-black/60 border border-white/[0.08] select-none">
@@ -246,10 +246,10 @@ const TransactionForm = (props: {
                       disabled={isScanning}
                       onClick={() => field.onChange(_TRANSACTION_TYPE.EXPENSE)}
                       className={cn(
-                        "flex-1 py-2 text-xs font-semibold rounded-lg transition-all duration-150 cursor-pointer flex items-center justify-center gap-1.5",
+                        "flex-1 py-2 text-xs font-semibold rounded-lg transition-all duration-150 cursor-pointer flex items-center justify-center gap-1.5 active:scale-[0.98]",
                         field.value === _TRANSACTION_TYPE.EXPENSE
-                          ? "bg-[#f43f5e] text-white shadow-[0_2px_10px_rgba(244,63,94,0.3)]"
-                          : "text-[#a1a1aa] hover:text-white hover:bg-white/5"
+                          ? "bg-[#ff453a] text-white shadow-[0_2px_10px_rgba(255,69,58,0.35)]"
+                          : "text-[#8e8e93] hover:text-white hover:bg-white/5"
                       )}
                     >
                       <span>- Expense</span>
@@ -259,10 +259,10 @@ const TransactionForm = (props: {
                       disabled={isScanning}
                       onClick={() => field.onChange(_TRANSACTION_TYPE.INCOME)}
                       className={cn(
-                        "flex-1 py-2 text-xs font-semibold rounded-lg transition-all duration-150 cursor-pointer flex items-center justify-center gap-1.5",
+                        "flex-1 py-2 text-xs font-semibold rounded-lg transition-all duration-150 cursor-pointer flex items-center justify-center gap-1.5 active:scale-[0.98]",
                         field.value === _TRANSACTION_TYPE.INCOME
-                          ? "bg-gradient-to-r from-[#e5c158] via-[#c1a063] to-[#b09055] text-black shadow-xs font-semibold"
-                          : "text-[#a1a1aa] hover:text-white hover:bg-white/5"
+                          ? "bg-[#30d158] text-black shadow-[0_2px_10px_rgba(48,209,88,0.35)] font-semibold"
+                          : "text-[#8e8e93] hover:text-white hover:bg-white/5"
                       )}
                     >
                       <span>+ Income</span>
@@ -538,16 +538,16 @@ const TransactionForm = (props: {
             />
           </div>
 
-          <div className="sticky bottom-0 bg-white dark:bg-background pb-2">
+          <div className="sticky bottom-0 bg-[#0e0e13]/95 backdrop-blur-xl pt-3 pb-2 border-t border-white/[0.06]">
             <Button
               type="submit"
-              className="w-full !text-white"
+              className="w-full h-10 cursor-pointer font-semibold shadow-[0_2px_12px_rgba(193,160,99,0.3)] text-sm"
               disabled={isScanning || isCreating || isUpdating}
             >
               {isCreating || isUpdating ? (
-                <Loader className="h-4 w-4 animate-spin" />
+                <Loader className="h-4 w-4 animate-spin mr-2" />
               ) : null}
-              {isEdit ? "Update" : "Save"}
+              {isEdit ? "Update Transaction" : "Save Transaction"}
             </Button>
           </div>
 

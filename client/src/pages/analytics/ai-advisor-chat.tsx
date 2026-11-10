@@ -392,14 +392,14 @@ export default function AiAdvisorChat({ dateRange }: AiAdvisorChatProps) {
   ];
 
   return (
-    <div className="w-full obsidian-card rounded-2xl mb-6 overflow-hidden">
+    <div className="w-full obsidian-card rounded-2xl mb-6 overflow-hidden bg-[#0e0e13]/80 backdrop-blur-2xl border border-white/[0.08]">
       {/* Header bar */}
       <div
         onClick={() => setIsOpen(!isOpen)}
         className="p-5 flex items-center justify-between cursor-pointer hover:bg-white/[0.02] transition-colors border-b border-white/[0.06]"
       >
         <div className="flex items-center gap-3">
-          <div className="bg-[#e5c158]/10 p-2.5 rounded-2xl border border-[#e5c158]/25">
+          <div className="bg-[#e5c158]/10 p-2.5 rounded-2xl border border-[#e5c158]/20">
             <Bot className="text-[#e5c158] size-5" />
           </div>
           <div>
@@ -407,12 +407,12 @@ export default function AiAdvisorChat({ dateRange }: AiAdvisorChatProps) {
               <h3 className="text-base font-semibold tracking-tight text-white">
                 Financial Assistant
               </h3>
-              <span className="hidden sm:inline-flex items-center gap-1 text-[11px] px-2.5 py-0.5 rounded-full bg-black/60 border border-white/10 text-neutral-300">
+              <span className="hidden sm:inline-flex items-center gap-1 text-[11px] px-2.5 py-0.5 rounded-full bg-black/60 border border-white/10 text-[#8e8e93]">
                 <Calendar className="size-3 text-[#e5c158]" />
                 {dateRange?.label || "All Time"}
               </span>
             </div>
-            <p className="text-xs text-[#a1a1aa] mt-0.5 font-normal">
+            <p className="text-xs text-[#8e8e93] mt-0.5 font-normal">
               Chat to analyze your spending or directly add expenses, income, edit dates, and manage budgets
             </p>
           </div>
@@ -429,7 +429,7 @@ export default function AiAdvisorChat({ dateRange }: AiAdvisorChatProps) {
                   e.stopPropagation();
                   handleExportTranscript();
                 }}
-                className="text-xs text-[#a1a1aa] hover:text-[#e5c158] hover:bg-white/5 h-8 px-2.5 cursor-pointer"
+                className="text-xs text-[#8e8e93] hover:text-[#e5c158] hover:bg-white/5 h-8 px-2.5 cursor-pointer rounded-xl active:scale-[0.98]"
                 title="Download chat transcript as markdown"
               >
                 <Download className="size-3.5 mr-1" />
@@ -443,7 +443,7 @@ export default function AiAdvisorChat({ dateRange }: AiAdvisorChatProps) {
                   e.stopPropagation();
                   handleResetChat();
                 }}
-                className="text-xs text-[#a1a1aa] hover:text-white hover:bg-white/5 h-8 px-2.5 cursor-pointer"
+                className="text-xs text-[#8e8e93] hover:text-white hover:bg-white/5 h-8 px-2.5 cursor-pointer rounded-xl active:scale-[0.98]"
               >
                 <RotateCcw className="size-3.5 mr-1" />
                 Clear Chat
@@ -453,7 +453,7 @@ export default function AiAdvisorChat({ dateRange }: AiAdvisorChatProps) {
           <Button
             variant="ghost"
             size="sm"
-            className="text-[#e5c158] hover:text-[#e5c158] hover:bg-white/[0.06]"
+            className="text-[#e5c158] hover:text-[#e5c158] hover:bg-white/[0.06] rounded-xl"
           >
             {isOpen ? (
               <ChevronUp className="h-4 w-4" />
@@ -469,7 +469,7 @@ export default function AiAdvisorChat({ dateRange }: AiAdvisorChatProps) {
         <div className="p-5 space-y-4">
           {/* Action chips */}
           <div className="flex flex-wrap gap-2 items-center text-xs">
-            <span className="text-[#a1a1aa] font-normal flex items-center gap-1 mr-1">
+            <span className="text-[#8e8e93] font-normal flex items-center gap-1 mr-1">
               <Sparkles className="size-3 text-[#e5c158]" /> Quick Commands:
             </span>
             {quickActionPrompts.map((item, idx) => {
@@ -480,7 +480,7 @@ export default function AiAdvisorChat({ dateRange }: AiAdvisorChatProps) {
                   type="button"
                   disabled={isLoading}
                   onClick={() => handleSend(item.prompt)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.04] border border-white/[0.08] text-[#fcfcfc] hover:text-[#e5c158] hover:border-[#c1a063]/50 hover:bg-[#c1a063]/10 transition-all duration-150 text-xs font-medium cursor-pointer disabled:opacity-50 select-none active:scale-95 shadow-xs"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.04] border border-white/[0.08] text-[#8e8e93] hover:text-white hover:bg-white/[0.08] hover:border-white/[0.16] transition-all duration-150 text-xs font-medium cursor-pointer disabled:opacity-50 select-none active:scale-[0.97]"
                 >
                   <Icon className="size-3 text-[#e5c158]" />
                   <span>{item.label}</span>
@@ -503,18 +503,18 @@ export default function AiAdvisorChat({ dateRange }: AiAdvisorChatProps) {
                   <div
                     className={`size-8 rounded-full flex items-center justify-center shrink-0 text-xs font-semibold ${
                       isUser
-                        ? "bg-gradient-to-r from-[#e5c158] to-[#c1a063] text-black shadow-md"
-                        : "bg-neutral-900 border border-[#e5c158]/40 text-[#e5c158]"
+                        ? "bg-[#e5c158] text-black shadow-md"
+                        : "bg-neutral-900 border border-[#e5c158]/30 text-[#e5c158]"
                     }`}
                   >
                     {isUser ? <User className="size-4" /> : <Bot className="size-4" />}
                   </div>
 
                   <div
-                    className={`max-w-[85%] rounded-xl p-4 text-sm leading-relaxed space-y-3 ${
+                    className={`max-w-[85%] rounded-2xl p-4 text-sm leading-relaxed space-y-3 ${
                       isUser
-                        ? "bg-[#e5c158]/15 border border-[#c1a063]/30 text-white font-normal"
-                        : "bg-[#0e0e12] border border-white/[0.08] text-[#fcfcfc] shadow-xl"
+                        ? "rounded-tr-sm bg-[#e5c158]/15 border border-[#e5c158]/25 text-white font-normal"
+                        : "rounded-tl-sm bg-[#0a0a0f]/90 border border-white/[0.08] text-[#fcfcfc] shadow-xl"
                     }`}
                   >
                     {isUser ? (
@@ -528,7 +528,7 @@ export default function AiAdvisorChat({ dateRange }: AiAdvisorChatProps) {
                             {msg.headline || "Assistant"}
                           </span>
                           {msg.actionTaken && (
-                            <span className="text-[10px] px-2 py-0.5 rounded font-medium bg-[#e5c158]/15 text-[#e5c158] border border-[#c1a063]/30 flex items-center gap-1">
+                            <span className="text-[10px] px-2 py-0.5 rounded-full font-medium bg-[#30d158]/15 text-[#30d158] border border-[#30d158]/30 flex items-center gap-1">
                               <CheckCircle2 className="size-3" />
                               Completed
                             </span>
@@ -537,8 +537,8 @@ export default function AiAdvisorChat({ dateRange }: AiAdvisorChatProps) {
 
                         {/* Action Confirmation Banner */}
                         {msg.actionTaken && (
-                          <div className="flex items-center gap-2.5 p-3 rounded-lg bg-[#e5c158]/10 border border-[#c1a063]/25 text-white text-xs">
-                            <CheckCircle2 className="size-4 text-[#e5c158] shrink-0" />
+                          <div className="flex items-center gap-2.5 p-3 rounded-xl bg-white/[0.03] border border-white/[0.08] text-white text-xs">
+                            <CheckCircle2 className="size-4 text-[#30d158] shrink-0" />
                             <div className="font-normal">
                               {msg.actionTaken.description}
                             </div>
@@ -564,7 +564,7 @@ export default function AiAdvisorChat({ dateRange }: AiAdvisorChatProps) {
                                 key={mIdx}
                                 className="bg-white/[0.02] border border-white/[0.06] rounded-xl p-2.5 text-center"
                               >
-                                <div className="text-[11px] text-[#a1a1aa] font-medium truncate">
+                                <div className="text-[11px] text-[#8e8e93] font-medium truncate">
                                   {metric.label}
                                 </div>
                                 <div className="text-sm font-semibold text-white tabular-nums mt-0.5">
@@ -591,7 +591,7 @@ export default function AiAdvisorChat({ dateRange }: AiAdvisorChatProps) {
 
                         {/* Recommendation */}
                         {msg.recommendation && (
-                          <div className="flex items-start gap-2 p-2.5 rounded-lg bg-[#e5c158]/5 border border-[#c1a063]/20 text-xs text-white font-normal mt-1">
+                          <div className="flex items-start gap-2 p-2.5 rounded-xl bg-[#e5c158]/5 border border-[#e5c158]/20 text-xs text-white font-normal mt-1">
                             <Lightbulb className="size-3.5 text-[#e5c158] mt-0.5 shrink-0" />
                             <span>
                               <strong className="font-medium text-[#e5c158]">
@@ -610,11 +610,11 @@ export default function AiAdvisorChat({ dateRange }: AiAdvisorChatProps) {
 
             {isLoading && (
               <div className="flex gap-3 items-start">
-                <div className="size-8 rounded-full bg-neutral-900 border border-[#c1a063]/40 text-[#c1a063] flex items-center justify-center shrink-0">
+                <div className="size-8 rounded-full bg-neutral-900 border border-[#e5c158]/30 text-[#e5c158] flex items-center justify-center shrink-0">
                   <Bot className="size-4" />
                 </div>
-                <div className="bg-[#141414] border border-neutral-800 rounded-xl p-3.5 text-sm text-[#c1a063] flex items-center gap-2.5 shadow-lg">
-                  <Loader2 className="size-4 animate-spin text-[#c1a063]" />
+                <div className="bg-[#141414] border border-neutral-800 rounded-2xl p-3.5 text-sm text-[#e5c158] flex items-center gap-2.5 shadow-lg">
+                  <Loader2 className="size-4 animate-spin text-[#e5c158]" />
                   <span className="font-light text-xs text-neutral-300">
                     Updating financial data...
                   </span>
@@ -636,7 +636,7 @@ export default function AiAdvisorChat({ dateRange }: AiAdvisorChatProps) {
                     : "E.g., 'Add expense of 450 for lunch' or 'Change coffee date to yesterday'"
                 }
                 disabled={isLoading}
-                className="bg-neutral-950 border-neutral-800 focus:border-[#c1a063] text-white placeholder:text-neutral-500 text-sm h-11 pr-11"
+                className="bg-black/40 border border-white/[0.10] focus-visible:ring-1 focus-visible:ring-[#e5c158] rounded-xl text-white placeholder:text-[#8e8e93] text-sm h-11 pr-11"
               />
               <button
                 type="button"
@@ -645,7 +645,7 @@ export default function AiAdvisorChat({ dateRange }: AiAdvisorChatProps) {
                   "absolute right-2.5 top-1/2 -translate-y-1/2 h-7 w-7 rounded-full flex items-center justify-center transition-colors cursor-pointer",
                   isListeningChat
                     ? "bg-rose-500/20 text-rose-400 border border-rose-500/40 animate-pulse"
-                    : "text-[#a1a1aa] hover:text-[#e5c158] hover:bg-white/5"
+                    : "text-[#8e8e93] hover:text-[#e5c158] hover:bg-white/5"
                 )}
                 title={isListeningChat ? "Stop listening" : "Speak to Financial Advisor"}
               >
@@ -655,7 +655,7 @@ export default function AiAdvisorChat({ dateRange }: AiAdvisorChatProps) {
             <Button
               type="submit"
               disabled={isLoading || !inputMessage.trim()}
-              className="bg-gradient-to-r from-[#e5c158] via-[#c1a063] to-[#b09055] hover:brightness-105 text-black h-11 px-5 cursor-pointer font-semibold shadow-[0_2px_12px_rgba(193,160,99,0.3)]"
+              className="h-11 px-5 cursor-pointer font-semibold shadow-[0_2px_12px_rgba(193,160,99,0.3)]"
             >
               {isLoading ? (
                 <Loader2 className="size-4 animate-spin" />

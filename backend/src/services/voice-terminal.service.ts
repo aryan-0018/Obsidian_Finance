@@ -32,6 +32,110 @@ import {
   parseIndianCurrencyExpression,
   detectIndianMerchantAndCategory,
 } from "../utils/nlp-parser";
+import { convertToUnit } from "../utils/format-currency";
+import {
+  startOfMonth,
+  endOfMonth,
+  subMonths,
+  startOfYear,
+  endOfYear,
+  subYears,
+  startOfQuarter,
+  endOfQuarter,
+  subQuarters,
+  subDays,
+  endOfDay,
+} from "date-fns";
+
+export function parseTimeframeFromUtterance(text: string): {
+  preset: DateRangeEnum;
+  label: string;
+  dateFilter?: any;
+} {
+  const lower = text.toLowerCase();
+  const now = new Date();
+
+  if (/\b(last month|pichhle mahine|previous month)\b/i.test(lower)) {
+    const prevM = subMonths(now, 1);
+    return {
+      preset: DateRangeEnum.LAST_MONTH,
+      label: "last month",
+      dateFilter: { $gte: startOfMonth(prevM), $lte: endOfMonth(prevM) },
+    };
+  }
+
+  if (/\b(this year|is saal|current year|ytd|year to date)\b/i.test(lower)) {
+    return {
+      preset: DateRangeEnum.THIS_YEAR,
+      label: "this year",
+      dateFilter: { $gte: startOfYear(now), $lte: endOfDay(now) },
+    };
+  }
+
+  if (/\b(last year|pichhle saal|previous year)\b/i.test(lower)) {
+    const prevY = subYears(now, 1);
+    return {
+      preset: DateRangeEnum.LAST_YEAR,
+      label: "last year",
+      dateFilter: { $gte: startOfYear(prevY), $lte: endOfYear(prevY) },
+    };
+  }
+
+  if (/\b(this quarter|current quarter)\b/i.test(lower)) {
+    return {
+      preset: DateRangeEnum.THIS_QUARTER,
+      label: "this quarter",
+      dateFilter: { $gte: startOfQuarter(now), $lte: endOfDay(now) },
+    };
+  }
+
+  if (/\b(last quarter|previous quarter)\b/i.test(lower)) {
+    const prevQ = subQuarters(now, 1);
+    return {
+      preset: DateRangeEnum.LAST_QUARTER,
+      label: "last quarter",
+      dateFilter: { $gte: startOfQuarter(prevQ), $lte: endOfQuarter(prevQ) },
+    };
+  }
+
+  if (/\b(last 30 days|past 30 days|30 days)\b/i.test(lower)) {
+    return {
+      preset: DateRangeEnum.LAST_30_DAYS,
+      label: "in the last 30 days",
+      dateFilter: { $gte: subDays(endOfDay(now), 29), $lte: endOfDay(now) },
+    };
+  }
+
+  if (/\b(last 3 months|past 3 months)\b/i.test(lower)) {
+    return {
+      preset: DateRangeEnum.LAST_3_MONTHS,
+      label: "in the last 3 months",
+      dateFilter: {
+        $gte: startOfMonth(subMonths(now, 3)),
+        $lte: endOfMonth(subMonths(now, 1)),
+      },
+    };
+  }
+
+  if (
+    /\b(all time|ever|overall|total.*ever|since the beginning|entire history)\b/i.test(
+      lower
+    )
+  ) {
+    return {
+      preset: DateRangeEnum.ALL_TIME,
+      label: "all time",
+      dateFilter: undefined,
+    };
+  }
+
+  // Default: this month
+  return {
+    preset: DateRangeEnum.THIS_MONTH,
+    label: "this month",
+    dateFilter: { $gte: startOfMonth(now), $lte: endOfDay(now) },
+  };
+}
 
 export {
   VALID_CATEGORIES,
@@ -378,24 +482,33 @@ export const processVoiceCommandService = async (
       lower
     ) ||
     lower === "balance" ||
-    lower === "what is my balance"
+    lower === "what is my balance" ||
+    lower === "portfolio balance"
   ) {
     try {
-      const summary = await summaryAnalyticsService(userId, DateRangeEnum.THIS_MONTH);
-      const avail = Math.round(summary.availableBalance).toLocaleString("en-IN");
-      const income = Math.round(summary.totalIncome).toLocaleString("en-IN");
-      const expenses = Math.round(summary.totalExpenses).toLocaleString("en-IN");
-      const rate = summary.savingRate?.percentage || 0;
+      const thisMonth = await summaryAnalyticsService(userId, DateRangeEnum.THIS_MONTH);
+      const allTime = await summaryAnalyticsService(userId, DateRangeEnum.ALL_TIME);
+      const userDoc = await UserModel.findById(userId).select("portfolioBalance");
+      const baseWealth = Number(userDoc?.portfolioBalance) || 0;
+      const totalPortfolioBalance = baseWealth + allTime.availableBalance;
+
+      const totalBalStr = Math.round(totalPortfolioBalance).toLocaleString("en-IN");
+      const incomeStr = Math.round(thisMonth.totalIncome).toLocaleString("en-IN");
+      const expensesStr = Math.round(thisMonth.totalExpenses).toLocaleString("en-IN");
+      const rate = thisMonth.savingRate?.percentage || 0;
+      const budgetLeftStr = thisMonth.budgetLimit > 0
+        ? ` You have ₹${Math.round(thisMonth.remainingBudget).toLocaleString("en-IN")} remaining in your monthly budget.`
+        : "";
 
       return {
         action: "FINANCIAL_QUERY",
-        speechReply: `You have ₹${avail} available right now. This month, you've earned ₹${income} and spent ₹${expenses}, saving ${rate} percent of your income.`,
-        displayHeadline: "Account Balance & Summary",
-        displayText: `Available: ₹${avail}. This month: ₹${income} earned, ₹${expenses} spent, savings rate: ${rate}%.`,
+        speechReply: `Your total portfolio balance is ₹${totalBalStr}. This month, you've earned ₹${incomeStr} and spent ₹${expensesStr}, saving ${rate} percent of your income.${budgetLeftStr}`,
+        displayHeadline: "Total Portfolio Balance",
+        displayText: `Total Portfolio Balance: ₹${totalBalStr}. This month: ₹${incomeStr} earned, ₹${expensesStr} spent (${rate}% savings rate).${budgetLeftStr}`,
         metrics: [
-          { label: "Available Money", value: `₹${avail}` },
-          { label: "Total Income", value: `₹${income}` },
-          { label: "Total Expenses", value: `₹${expenses}` },
+          { label: "Portfolio Balance", value: `₹${totalBalStr}` },
+          { label: "This Month Income", value: `₹${incomeStr}` },
+          { label: "This Month Spend", value: `₹${expensesStr}` },
           { label: "Savings Rate", value: `${rate}%` },
         ],
       };
@@ -412,27 +525,130 @@ export const processVoiceCommandService = async (
     !/\b(on\s+[a-z]+)\b/i.test(lower)
   ) {
     try {
-      const summary = await summaryAnalyticsService(userId, DateRangeEnum.THIS_MONTH);
+      const { preset, label: periodLabel } = parseTimeframeFromUtterance(lower);
+      const summary = await summaryAnalyticsService(userId, preset);
       const expenses = Math.round(summary.totalExpenses).toLocaleString("en-IN");
-      const remaining = summary.remainingBudget
-        ? ` You have ₹${Math.round(summary.remainingBudget).toLocaleString("en-IN")} left in your budget.`
-        : "";
+      const remaining =
+        preset === DateRangeEnum.THIS_MONTH && summary.budgetLimit > 0
+          ? ` You have ₹${Math.round(summary.remainingBudget).toLocaleString("en-IN")} left in your monthly budget.`
+          : "";
 
       return {
         action: "FINANCIAL_QUERY",
-        speechReply: `You have spent ₹${expenses} this month.${remaining}`,
-        displayHeadline: "Monthly Spending",
-        displayText: `Total expenses this month: ₹${expenses}.${remaining}`,
+        speechReply: `You have spent ₹${expenses} ${periodLabel}.${remaining}`,
+        displayHeadline: `Spending (${periodLabel})`,
+        displayText: `Total expenses ${periodLabel}: ₹${expenses}.${remaining}`,
         metrics: [
-          { label: "Total Spent", value: `₹${expenses}` },
+          { label: `Total Spent (${periodLabel})`, value: `₹${expenses}` },
           {
             label: "Remaining Budget",
-            value: summary.remainingBudget ? `₹${Math.round(summary.remainingBudget).toLocaleString("en-IN")}` : "N/A",
+            value:
+              summary.budgetLimit > 0
+                ? `₹${Math.round(summary.remainingBudget).toLocaleString("en-IN")}`
+                : "N/A",
           },
         ],
       };
     } catch (expErr) {
       console.warn("[Voice Terminal] Expense query error:", expErr);
+    }
+  }
+
+  // Total Income Query (e.g. "what is my income?", "how much did I earn this month?", "total earnings")
+  if (
+    /\b(how much did i earn|what did i earn|what is my income|my income|total income|total earnings|how much income|how much money came in|kitni income)\b/i.test(
+      lower
+    )
+  ) {
+    try {
+      const { preset, label: periodLabel } = parseTimeframeFromUtterance(lower);
+      const summary = await summaryAnalyticsService(userId, preset);
+      const income = Math.round(summary.totalIncome).toLocaleString("en-IN");
+
+      return {
+        action: "FINANCIAL_QUERY",
+        speechReply: `You have earned ₹${income} ${periodLabel}.`,
+        displayHeadline: `Income (${periodLabel})`,
+        displayText: `Total income ${periodLabel}: ₹${income}.`,
+        metrics: [
+          { label: `Total Income (${periodLabel})`, value: `₹${income}` },
+          {
+            label: `Savings Rate (${periodLabel})`,
+            value: `${summary.savingRate?.percentage || 0}%`,
+          },
+        ],
+      };
+    } catch (incErr) {
+      console.warn("[Voice Terminal] Income query error:", incErr);
+    }
+  }
+
+  // Budget Query (e.g. "what is my budget?", "how much budget is left?", "remaining budget")
+  if (
+    /\b(what is my budget|budget status|budget remaining|remaining budget|how much budget|budget limit|how much.*left in.*budget)\b/i.test(
+      lower
+    )
+  ) {
+    try {
+      const summary = await summaryAnalyticsService(userId, DateRangeEnum.THIS_MONTH);
+      if (!summary.budgetLimit || summary.budgetLimit <= 0) {
+        return {
+          action: "FINANCIAL_QUERY",
+          speechReply: "You haven't configured a monthly budget limit yet. You can set one by saying 'Set budget to 50,000'.",
+          displayHeadline: "Monthly Budget",
+          displayText: "No monthly budget limit configured. Try saying 'Set budget to 50,000'.",
+          metrics: [{ label: "Monthly Budget", value: "Not Set" }],
+        };
+      }
+
+      const limitStr = Math.round(summary.budgetLimit).toLocaleString("en-IN");
+      const remStr = Math.round(summary.remainingBudget).toLocaleString("en-IN");
+      const spentStr = Math.round(summary.totalExpenses).toLocaleString("en-IN");
+      const isOver = summary.remainingBudget < 0;
+
+      return {
+        action: "FINANCIAL_QUERY",
+        speechReply: isOver
+          ? `You have exceeded your monthly budget of ₹${limitStr} by ₹${Math.abs(Math.round(summary.remainingBudget)).toLocaleString("en-IN")}. You have spent ₹${spentStr} this month.`
+          : `You have ₹${remStr} remaining out of your ₹${limitStr} monthly budget. You have spent ₹${spentStr} so far.`,
+        displayHeadline: isOver ? "Budget Exceeded" : "Budget Remaining",
+        displayText: `Remaining: ₹${remStr} of ₹${limitStr} limit (Spent: ₹${spentStr}).`,
+        metrics: [
+          { label: "Remaining Budget", value: `₹${remStr}` },
+          { label: "Monthly Limit", value: `₹${limitStr}` },
+          { label: "Spent So Far", value: `₹${spentStr}` },
+        ],
+      };
+    } catch (bErr) {
+      console.warn("[Voice Terminal] Budget query error:", bErr);
+    }
+  }
+
+  // Savings Rate Query (e.g. "what is my savings rate?", "how much did I save this month?")
+  if (
+    /\b(what is my savings rate|my savings rate|how much did i save|savings this month|savings percentage)\b/i.test(
+      lower
+    )
+  ) {
+    try {
+      const { preset, label: periodLabel } = parseTimeframeFromUtterance(lower);
+      const summary = await summaryAnalyticsService(userId, preset);
+      const rate = summary.savingRate?.percentage || 0;
+      const savedAmount = Math.max(0, summary.totalIncome - summary.totalExpenses);
+      const savedStr = Math.round(savedAmount).toLocaleString("en-IN");
+
+      return {
+        action: "FINANCIAL_QUERY",
+        speechReply: `Your savings rate is ${rate} percent ${periodLabel}, with approximately ₹${savedStr} saved after expenses.`,
+        displayHeadline: `Savings Rate (${periodLabel})`,
+        displayText: `Savings Rate (${periodLabel}): ${rate}% (Net saved: ₹${savedStr}).`,
+        metrics: [
+          { label: `Savings Rate (${periodLabel})`, value: `${rate}%` },
+          { label: "Net Saved", value: `₹${savedStr}` },
+        ],
+      };
+    } catch (saveErr) {
+      console.warn("[Voice Terminal] Savings query error:", saveErr);
     }
   }
 
@@ -480,28 +696,34 @@ export const processVoiceCommandService = async (
     const queryCategoryWord = categoryQueryMatch[1].toLowerCase();
     const { category, title } = detectIndianMerchantAndCategory(queryCategoryWord);
     try {
-      const startOfCurrentMonth = new Date();
-      startOfCurrentMonth.setDate(1);
-      startOfCurrentMonth.setHours(0, 0, 0, 0);
+      const { label: timeLabel, dateFilter } = parseTimeframeFromUtterance(lower);
 
-      const categoryTxs = await TransactionModel.find({
+      const query: any = {
         userId: new mongoose.Types.ObjectId(userId),
         type: TransactionTypeEnum.EXPENSE,
-        date: { $gte: startOfCurrentMonth },
         $or: [
           { category: category !== "other" ? category : queryCategoryWord },
           { title: { $regex: queryCategoryWord, $options: "i" } },
         ],
-      }).lean();
+      };
+      if (dateFilter) {
+        query.date = dateFilter;
+      }
 
-      const totalSpentOnCategory = categoryTxs.reduce((sum, t) => sum + Number(t.amount), 0);
+      const categoryTxs = await TransactionModel.find(query).lean();
+
+      // Convert raw paise units from lean documents into INR
+      const totalSpentOnCategory = categoryTxs.reduce(
+        (sum, t) => sum + convertToUnit(Number(t.amount)),
+        0
+      );
       const cleanTotal = Math.round(totalSpentOnCategory).toLocaleString("en-IN");
 
       return {
         action: "FINANCIAL_QUERY",
-        speechReply: `You have spent ₹${cleanTotal} on ${title || queryCategoryWord} this month across ${categoryTxs.length} transactions.`,
+        speechReply: `You have spent ₹${cleanTotal} on ${title || queryCategoryWord} ${timeLabel} across ${categoryTxs.length} transactions.`,
         displayHeadline: `Spending: ${title || queryCategoryWord}`,
-        displayText: `Total spent on ${title || queryCategoryWord} this month: ₹${cleanTotal} (${categoryTxs.length} transactions).`,
+        displayText: `Total spent on ${title || queryCategoryWord} ${timeLabel}: ₹${cleanTotal} (${categoryTxs.length} transactions).`,
         metrics: [
           { label: "Total Spent", value: `₹${cleanTotal}` },
           { label: "Transactions", value: `${categoryTxs.length}` },
@@ -589,14 +811,26 @@ export const processVoiceCommandService = async (
   try {
     let financialContext = "";
     try {
-      const summary = await summaryAnalyticsService(userId, DateRangeEnum.THIS_MONTH);
-      financialContext = `User Financial Standing (This Month):
-- Available Balance: ₹${Math.round(summary.availableBalance).toLocaleString("en-IN")}
-- Total Income: ₹${Math.round(summary.totalIncome).toLocaleString("en-IN")}
-- Total Expenses: ₹${Math.round(summary.totalExpenses).toLocaleString("en-IN")}
-- Savings Rate: ${summary.savingRate?.percentage || 0}%
-- Budget Limit: ₹${summary.budgetLimit ? Math.round(summary.budgetLimit).toLocaleString("en-IN") : "Not set"}
-- Remaining Budget: ₹${summary.remainingBudget ? Math.round(summary.remainingBudget).toLocaleString("en-IN") : "N/A"}`;
+      const [summary, allTime, lastMonth, thisYear] = await Promise.all([
+        summaryAnalyticsService(userId, DateRangeEnum.THIS_MONTH),
+        summaryAnalyticsService(userId, DateRangeEnum.ALL_TIME),
+        summaryAnalyticsService(userId, DateRangeEnum.LAST_MONTH),
+        summaryAnalyticsService(userId, DateRangeEnum.THIS_YEAR),
+      ]);
+      const userDoc = await UserModel.findById(userId).select("portfolioBalance");
+      const baseWealth = Number(userDoc?.portfolioBalance) || 0;
+      const totalPortfolioBalance = baseWealth + allTime.availableBalance;
+
+      financialContext = `User Financial Standing:
+- TRUE TOTAL PORTFOLIO BALANCE: ₹${Math.round(totalPortfolioBalance).toLocaleString("en-IN")} (Base: ₹${Math.round(baseWealth).toLocaleString("en-IN")}, All-time net cash flow: ${allTime.availableBalance >= 0 ? "+" : ""}₹${Math.round(allTime.availableBalance).toLocaleString("en-IN")})
+- This Month's Income: ₹${Math.round(summary.totalIncome).toLocaleString("en-IN")}
+- This Month's Expenses: ₹${Math.round(summary.totalExpenses).toLocaleString("en-IN")}
+- This Month's Net Cash Flow: ${summary.availableBalance >= 0 ? "+" : ""}₹${Math.round(summary.availableBalance).toLocaleString("en-IN")}
+- This Month's Savings Rate: ${summary.savingRate?.percentage || 0}%
+- Last Month's Income: ₹${Math.round(lastMonth.totalIncome).toLocaleString("en-IN")}, Expenses: ₹${Math.round(lastMonth.totalExpenses).toLocaleString("en-IN")}, Savings Rate: ${lastMonth.savingRate?.percentage || 0}%
+- This Year's Income: ₹${Math.round(thisYear.totalIncome).toLocaleString("en-IN")}, Expenses: ₹${Math.round(thisYear.totalExpenses).toLocaleString("en-IN")}, Savings Rate: ${thisYear.savingRate?.percentage || 0}%
+- Monthly Budget Limit: ₹${summary.budgetLimit ? Math.round(summary.budgetLimit).toLocaleString("en-IN") : "Not configured"}
+- Remaining Monthly Budget: ₹${summary.budgetLimit > 0 ? Math.round(summary.remainingBudget).toLocaleString("en-IN") : "N/A"}`;
     } catch {
       // ignore
     }
@@ -618,7 +852,7 @@ Classify into ONE action:
 7. "EXPORT_ACTION": User wants to export or email report.
 8. "TELEGRAM_ACTION": User asks about Telegram.
 9. "FINANCIAL_QUERY": User asks a question about their finances.
-   conversationalReply: 1-2 natural sentences in simple plain English answering directly with exact numbers in ₹ from the context. Avoid financial jargon.
+   conversationalReply: 1-2 natural sentences in simple plain English answering directly with exact numbers in ₹ from the context. Avoid financial jargon. If asked "Can I afford X?", evaluate against Remaining Monthly Budget and Total Portfolio Balance: if X is under the remaining budget, approve it; if it exceeds the remaining budget but is within total portfolio balance, state that it exceeds monthly budget but is covered by portfolio reserves; if it exceeds total portfolio balance, state clearly that it is not affordable.
 
 Output strictly valid JSON:
 {
@@ -800,18 +1034,21 @@ Output strictly valid JSON:
   // =========================================================================
   try {
     const summary = await summaryAnalyticsService(userId, DateRangeEnum.THIS_MONTH);
-    const avail = Math.round(summary.availableBalance).toLocaleString("en-IN");
+    const totalBal = Math.round(
+      summary.totalPortfolioBalance ??
+      ((summary.basePortfolioBalance ?? 0) + summary.availableBalance)
+    ).toLocaleString("en-IN");
     const income = Math.round(summary.totalIncome).toLocaleString("en-IN");
     const expenses = Math.round(summary.totalExpenses).toLocaleString("en-IN");
     const rate = summary.savingRate?.percentage || 0;
 
     return {
       action: "FINANCIAL_QUERY",
-      speechReply: `You currently have ₹${avail} available. You've earned ₹${income} and spent ₹${expenses} this month with a ${rate} percent savings rate.`,
+      speechReply: `Your total portfolio balance is ₹${totalBal}. You've earned ₹${income} and spent ₹${expenses} this month with a ${rate} percent savings rate.`,
       displayHeadline: "Financial Overview",
-      displayText: `Available: ₹${avail} | Income: ₹${income} | Expenses: ₹${expenses} | Savings Rate: ${rate}%.`,
+      displayText: `Portfolio: ₹${totalBal} | Income: ₹${income} | Expenses: ₹${expenses} | Savings Rate: ${rate}%.`,
       metrics: [
-        { label: "Available Money", value: `₹${avail}` },
+        { label: "Portfolio Balance", value: `₹${totalBal}` },
         { label: "Total Income", value: `₹${income}` },
         { label: "Total Expenses", value: `₹${expenses}` },
         { label: "Savings Rate", value: `${rate}%` },

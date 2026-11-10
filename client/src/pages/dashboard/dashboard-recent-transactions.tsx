@@ -15,12 +15,12 @@ import { ArrowRight } from "lucide-react";
 
 const DashboardRecentTransactions = () => {
   return (
-    <Card className="obsidian-card rounded-2xl overflow-hidden">
+    <Card className="obsidian-card rounded-2xl overflow-hidden bg-[#0e0e13]/80 backdrop-blur-2xl border border-white/[0.08]">
       <CardHeader className="!pb-3 pt-5 px-4 sm:px-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 w-full">
           <div>
             <CardTitle className="text-base sm:text-lg font-semibold text-white tracking-tight">Recent Transactions</CardTitle>
-            <CardDescription className="text-xs text-[#a1a1aa] font-normal">Latest verified inflows, outflows, and transfers</CardDescription>
+            <CardDescription className="text-xs text-[#8e8e93] font-normal">Latest verified inflows, outflows, and transfers</CardDescription>
           </div>
           <CardAction>
             <Button

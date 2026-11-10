@@ -75,15 +75,15 @@ export const reportColumns: ColumnDef<ReportType>[] = [
     cell: ({ row }) => {
       const status = row.getValue("status") as string;
       const statusStyles = {
-        [_REPORT_STATUS.SENT]: "bg-white/[0.06] text-[#fcfcfc] border border-white/[0.12]",
-        [_REPORT_STATUS.FAILED]: "bg-[#f43f5e]/15 text-[#f43f5e] border border-[#f43f5e]/30",
-        [_REPORT_STATUS.PENDING]: "bg-[#e5c158]/15 text-[#e5c158] border border-[#e5c158]/30",
+        [_REPORT_STATUS.SENT]: "bg-[#30d158]/10 text-[#30d158] border border-[#30d158]/20",
+        [_REPORT_STATUS.FAILED]: "bg-[#ff453a]/10 text-[#ff453a] border border-[#ff453a]/20",
+        [_REPORT_STATUS.PENDING]: "bg-[#e5c158]/10 text-[#e5c158] border border-[#e5c158]/20",
         [_REPORT_STATUS.PROCESSING]: "bg-white/[0.08] text-white border border-white/[0.15]",
-        [_REPORT_STATUS.NO_ACTIVITY]: "bg-white/[0.03] text-[#a1a1aa] border border-white/[0.06]",
+        [_REPORT_STATUS.NO_ACTIVITY]: "bg-white/[0.04] text-[#8e8e93] border border-white/[0.08]",
       };
 
       const style =
-        statusStyles[status as ReportStatusType] || "bg-white/[0.04] text-[#a1a1aa] border border-white/[0.08]";
+        statusStyles[status as ReportStatusType] || "bg-white/[0.04] text-[#8e8e93] border border-white/[0.08]";
 
       return (
         <span

@@ -448,7 +448,7 @@ export function VoiceTerminalModal({
                 <DialogTitle className="text-base font-semibold tracking-tight text-white flex items-center gap-2">
                   Voice Assistant
                 </DialogTitle>
-                <DialogDescription className="text-xs text-[#a1a1aa] mt-0.5">
+                <DialogDescription className="text-xs text-[#8e8e93] mt-0.5">
                   Speak naturally to log expenses, check balances, or navigate
                 </DialogDescription>
               </div>
@@ -458,7 +458,7 @@ export function VoiceTerminalModal({
               variant="ghost"
               size="icon"
               onClick={() => setIsAudioMuted(!isAudioMuted)}
-              className="h-8 w-8 rounded-full bg-white/5 hover:bg-white/10 text-[#a1a1aa] hover:text-white transition-all cursor-pointer"
+              className="h-8 w-8 rounded-full bg-white/5 hover:bg-white/10 text-[#8e8e93] hover:text-white transition-all cursor-pointer"
               title={isAudioMuted ? "Unmute Voice Feedback" : "Mute Voice Feedback"}
             >
               {isAudioMuted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4 text-[#e5c158]" />}
@@ -513,7 +513,7 @@ export function VoiceTerminalModal({
                   <span>Speaking response...</span>
                 </div>
               ) : (
-                <p className="text-xs font-normal text-[#a1a1aa]">
+                <p className="text-xs font-normal text-[#8e8e93]">
                   {isListening
                     ? "Listening... Speak naturally in English or Hinglish"
                     : "Tap microphone to begin speaking"}
@@ -524,10 +524,10 @@ export function VoiceTerminalModal({
 
           {/* Real-time Transcription Stream */}
           <div className="min-h-14 rounded-2xl border border-white/[0.08] bg-white/[0.03] p-3.5 text-left shadow-[inset_0_1px_2px_rgba(0,0,0,0.6)]">
-            <p className="text-[11px] text-[#a1a1aa] font-medium">Spoken Query</p>
+            <p className="text-[11px] text-[#8e8e93] font-medium">Spoken Query</p>
             <p className="text-xs text-white mt-1 font-medium min-h-5 leading-relaxed">
               {transcript || (
-                <span className="text-[#a1a1aa]/60 italic">
+                <span className="text-[#8e8e93]/60 italic">
                   Say &quot;Spent 450 on lunch&quot;, &quot;What is my balance?&quot;, or &quot;Delete last transaction&quot;...
                 </span>
               )}
@@ -546,15 +546,15 @@ export function VoiceTerminalModal({
             <div className="rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 text-left space-y-2.5">
               <div className="flex items-center justify-between">
                 <span className="text-xs font-medium text-white flex items-center gap-1.5">
-                  <CheckCircle2 className="h-3.5 w-3.5 text-[#e5c158]" />
+                  <CheckCircle2 className="h-3.5 w-3.5 text-[#30d158]" />
                   {activeVoiceReply.displayHeadline || "Command Processed"}
                 </span>
-                <Badge className="bg-white/[0.06] text-[#a1a1aa] border-none text-[10px] font-normal">
+                <Badge className="bg-white/[0.06] text-[#8e8e93] border-none text-[10px] font-normal">
                   {activeVoiceReply.action}
                 </Badge>
               </div>
 
-              <p className="text-xs text-[#a1a1aa] leading-relaxed">
+              <p className="text-xs text-[#8e8e93] leading-relaxed">
                 {activeVoiceReply.displayText || activeVoiceReply.speechReply}
               </p>
 
@@ -562,7 +562,7 @@ export function VoiceTerminalModal({
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-white/[0.06]">
                   {activeVoiceReply.metrics.map((m, idx) => (
                     <div key={idx} className="bg-white/[0.02] border border-white/[0.06] rounded-lg p-2 text-center">
-                      <p className="text-[10px] text-[#a1a1aa]">{m.label}</p>
+                      <p className="text-[10px] text-[#8e8e93]">{m.label}</p>
                       <p className="text-xs font-medium text-white tabular-nums mt-0.5">
                         {m.value}
                       </p>
@@ -575,7 +575,7 @@ export function VoiceTerminalModal({
 
           {/* Quick Suggestion Chips */}
           <div className="space-y-2 text-left pt-1">
-            <p className="text-[11px] font-medium text-[#a1a1aa] flex items-center gap-1.5">
+            <p className="text-[11px] font-medium text-[#8e8e93] flex items-center gap-1.5">
               <Sparkles className="h-3.5 w-3.5 text-[#e5c158]" /> Suggested Commands (Tap to execute):
             </p>
             <div className="flex flex-wrap gap-2">
@@ -598,7 +598,7 @@ export function VoiceTerminalModal({
                     setTranscript(cmd);
                     handleExecute(cmd);
                   }}
-                  className="text-xs px-3 py-1.5 rounded-full bg-white/[0.03] hover:bg-white/[0.07] border border-white/[0.08] hover:border-[#e5c158]/50 text-[#fcfcfc] transition-all duration-150 cursor-pointer select-none active:scale-95 shadow-xs"
+                  className="text-xs px-3 py-1.5 rounded-full bg-white/[0.03] hover:bg-white/[0.07] border border-white/[0.08] hover:border-[#e5c158]/50 text-[#8e8e93] hover:text-white transition-all duration-150 cursor-pointer select-none active:scale-[0.97] shadow-xs"
                 >
                   &quot;{cmd}&quot;
                 </button>
@@ -618,7 +618,7 @@ export function VoiceTerminalModal({
                   setManualInput("");
                 }
               }}
-              className="bg-white/[0.03] border-white/[0.10] text-xs h-9 text-white placeholder:text-[#71717a]"
+              className="bg-white/[0.03] border-white/[0.10] text-xs h-9 text-white placeholder:text-[#71717a] rounded-xl"
             />
             <Button
               onClick={() => {
@@ -628,7 +628,7 @@ export function VoiceTerminalModal({
                 }
               }}
               size="sm"
-              className="h-9 bg-gradient-to-r from-[#e5c158] via-[#c1a063] to-[#b09055] hover:opacity-95 text-black font-semibold text-xs shadow-[inset_0_1px_0_rgba(255,255,255,0.35)] cursor-pointer"
+              className="h-9 cursor-pointer font-semibold shadow-[0_2px_12px_rgba(193,160,99,0.3)] text-xs"
             >
               <Send className="h-3.5 w-3.5" />
             </Button>
@@ -658,11 +658,11 @@ export function VoiceTerminalTriggerButton({
         variant="outline"
         size="sm"
         onClick={() => setIsOpen(true)}
-        className={`flex items-center gap-1.5 rounded-xl border-white/[0.10] bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/[0.16] text-white active:scale-[0.98] transition-all cursor-pointer ${className}`}
+        className={`flex items-center gap-2 px-3.5 py-1.5 h-9 rounded-full border-white/[0.10] bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/[0.18] text-white active:scale-[0.97] transition-all cursor-pointer shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] ${className}`}
         title="Voice Assistant (Alt+V)"
       >
         <Mic className="h-3.5 w-3.5 text-[#e5c158]" />
-        <span className="text-xs font-medium hidden sm:inline">Voice Assistant</span>
+        <span className="text-xs font-medium hidden sm:inline tracking-tight">Voice Assistant</span>
       </Button>
 
       <VoiceTerminalModal isOpen={isOpen} onClose={() => setIsOpen(false)} />

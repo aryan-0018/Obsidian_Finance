@@ -144,8 +144,8 @@ export const initTelegramBot = async () => {
       );
     });
 
-    // --- /balance or /stats Command ---
-    bot.command(["balance", "stats", "summary"], async (ctx) => {
+    // --- /balance, /portfolio, /stats, /summary, /budget, /spending Command ---
+    bot.command(["balance", "stats", "summary", "budget", "portfolio", "spending", "networth"], async (ctx) => {
       const chatId = ctx.chat.id.toString();
       const user = await UserModel.findOne({ telegramChatId: chatId });
       if (!user) {
@@ -155,18 +155,50 @@ export const initTelegramBot = async () => {
       }
 
       try {
-        const summary = await summaryAnalyticsService(
+        const text = (ctx.message.text || "").toLowerCase();
+        let targetPreset = DateRangeEnum.THIS_MONTH;
+        let periodName = "This Month";
+
+        if (text.includes("last month") || text.includes("last_month")) {
+          targetPreset = DateRangeEnum.LAST_MONTH;
+          periodName = "Last Month";
+        } else if (text.includes("this year") || text.includes("this_year") || text.includes("ytd")) {
+          targetPreset = DateRangeEnum.THIS_YEAR;
+          periodName = "This Year";
+        } else if (text.includes("last year") || text.includes("last_year")) {
+          targetPreset = DateRangeEnum.LAST_YEAR;
+          periodName = "Last Year";
+        } else if (text.includes("all time") || text.includes("all_time") || text.includes("overall")) {
+          targetPreset = DateRangeEnum.ALL_TIME;
+          periodName = "All Time";
+        } else if (text.includes("30 days") || text.includes("last 30")) {
+          targetPreset = DateRangeEnum.LAST_30_DAYS;
+          periodName = "Last 30 Days";
+        }
+
+        const periodSummary = await summaryAnalyticsService(
           user._id.toString(),
-          DateRangeEnum.THIS_MONTH
+          targetPreset
         );
+        const allTime = await summaryAnalyticsService(
+          user._id.toString(),
+          DateRangeEnum.ALL_TIME
+        );
+        const baseWealth = Number(user.portfolioBalance) || 0;
+        const totalPortfolioBalance = baseWealth + allTime.availableBalance;
+        const accrualSign = allTime.availableBalance >= 0 ? "+" : "";
 
         return ctx.reply(
-          `📊 *This Month's Financial Snapshot*\n\n` +
-            `💰 *Net Available:* ₹${summary.availableBalance.toLocaleString("en-IN")}\n` +
-            `📈 *Total Income:* ₹${summary.totalIncome.toLocaleString("en-IN")}\n` +
-            `📉 *Total Expenses:* ₹${summary.totalExpenses.toLocaleString("en-IN")}\n` +
-            `🎯 *Savings Rate:* ${summary.savingRate?.percentage || 0}%\n` +
-            `🧾 *Entries This Month:* ${summary.transactionCount}\n\n` +
+          `📊 *Obsidian Portfolio Snapshot*\n\n` +
+            `💼 *Total Portfolio Balance:* ₹${Math.round(totalPortfolioBalance).toLocaleString("en-IN")}\n` +
+            `_(Base: ₹${Math.round(baseWealth).toLocaleString("en-IN")} • Accrual: ${accrualSign}₹${Math.round(allTime.availableBalance).toLocaleString("en-IN")})_\n\n` +
+            `📅 *${periodName}'s Activity:*\n` +
+            `• 📈 *Income:* ₹${Math.round(periodSummary.totalIncome).toLocaleString("en-IN")}\n` +
+            `• 📉 *Expenses:* ₹${Math.round(periodSummary.totalExpenses).toLocaleString("en-IN")}\n` +
+            `• 💵 *Net Cash Flow:* ${periodSummary.availableBalance >= 0 ? "+" : ""}₹${Math.round(periodSummary.availableBalance).toLocaleString("en-IN")}\n` +
+            `• 🎯 *Savings Rate:* ${periodSummary.savingRate?.percentage || 0}%\n` +
+            `• 💳 *Budget Remaining:* ${periodSummary.budgetLimit > 0 ? `₹${Math.round(periodSummary.remainingBudget).toLocaleString("en-IN")} / ₹${Math.round(periodSummary.budgetLimit).toLocaleString("en-IN")}` : "No limit set"}\n` +
+            `• 🧾 *Transactions:* ${periodSummary.transactionCount}\n\n` +
             `_Synced with your Obsidian Portfolio._`,
           { parse_mode: "Markdown" }
         );

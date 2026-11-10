@@ -59,6 +59,7 @@ export const processReportJob = async () => {
                 savingsRate: report.summary.savingsRate,
                 topSpendingCategories: report.summary.topCategories,
                 insights: report.insights,
+                recentTransactions: report.recentTransactions,
               },
               frequency: setting.frequency!,
             });

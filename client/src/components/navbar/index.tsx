@@ -9,7 +9,6 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription } from "
 import { UserNav } from "./user-nav";
 import LogoutDialog from "./logout-dialog";
 import { useTypedSelector } from "@/app/hook";
-import { TelegramCopilotButton } from "../telegram-copilot-modal";
 import { VoiceTerminalTriggerButton } from "../voice-terminal";
 
 const Navbar = () => {
@@ -129,9 +128,8 @@ const Navbar = () => {
 
             {/* {} */}
             {/* Right side - User actions */}
-            <div className="flex items-center space-x-2 md:space-x-3">
+            <div className="flex items-center gap-6 sm:gap-8">
               <VoiceTerminalTriggerButton />
-              <TelegramCopilotButton />
               <UserNav
                 userName={user?.name || ""}
                 profilePicture={user?.profilePicture || ""}

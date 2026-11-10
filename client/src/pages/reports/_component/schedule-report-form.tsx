@@ -99,11 +99,11 @@ const ScheduleReportForm = ({
               render={({ field }) => (
                 <FormItem
                   className="flex flex-row items-center justify-between 
-                rounded-lg border p-4"
+                rounded-xl border border-white/[0.08] bg-white/[0.03] p-4"
                 >
                   <div className="space-y-0.5">
-                    <FormLabel className="text-base">Monthly Reports</FormLabel>
-                    <p className="text-sm text-muted-foreground">
+                    <FormLabel className="text-sm font-semibold text-white">Monthly Reports</FormLabel>
+                    <p className="text-xs text-[#8e8e93]">
                       {form.watch("isEnabled")
                         ? "Reports activated"
                         : "Reports deactivated"}
@@ -176,19 +176,19 @@ const ScheduleReportForm = ({
             </div>
 
             {/* Schedule Summary */}
-            <div className="bg-muted p-4 rounded-lg">
-              <h3 className="font-medium mb-2">Schedule Summary</h3>
-              <p className="text-sm text-muted-foreground">
+            <div className="bg-white/[0.03] border border-white/[0.06] p-4 rounded-xl">
+              <h3 className="text-xs font-semibold text-white mb-1">Schedule Summary</h3>
+              <p className="text-xs text-[#8e8e93]">
                 {getScheduleSummary()}
               </p>
             </div>
 
             {/* Submit Button */}
-            <div className="sticky bottom-0 py-2 z-50">
+            <div className="sticky bottom-0 py-3 z-50 bg-[#0e0e13]/90 backdrop-blur-md">
               <Button
                 type="submit"
                 disabled={isLoading}
-                className="w-full text-white"
+                className="w-full"
               >
                 {isLoading && <Loader className="h-4 w-4 animate-spin" />}
                 Save changes

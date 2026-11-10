@@ -36,6 +36,9 @@ const envConfig = () => ({
 
   // Telegram Bot Token
   TELEGRAM_BOT_TOKEN: getEnv("TELEGRAM_BOT_TOKEN", ""),
+
+  // Self-Ping Keep-Alive URL (e.g., https://your-backend.onrender.com)
+  SERVER_URL: getEnv("SERVER_URL", ""),
 });
 
 export const Env = envConfig();

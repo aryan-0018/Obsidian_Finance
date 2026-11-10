@@ -99,17 +99,17 @@ export function AccountForm() {
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         <div className="flex flex-col items-start space-y-3">
-          <FormLabel className="text-xs font-medium text-[#a1a1aa]">Profile Avatar</FormLabel>
+          <FormLabel className="text-xs font-medium text-[#8e8e93]">Profile Avatar</FormLabel>
           <div className="flex items-center gap-5">
             <Dialog>
               <DialogTrigger asChild>
                 <div className="relative group cursor-pointer">
-                  <Avatar className="h-20 w-20 rounded-2xl border border-[#e5c158]/40 shadow-md">
+                  <Avatar className="h-20 w-20 rounded-2xl border border-white/[0.12] shadow-md">
                     <AvatarImage
                       src={avatarUrl || user?.profilePicture || ""}
                       className="!object-cover !object-center rounded-2xl"
                     />
-                    <AvatarFallback className="text-xl font-light bg-[#161616] text-[#e5c158] rounded-2xl">
+                    <AvatarFallback className="text-xl font-medium bg-[#161616] text-[#e5c158] rounded-2xl">
                       {form.watch("name")?.charAt(0)?.toUpperCase() || "U"}
                     </AvatarFallback>
                   </Avatar>
@@ -135,7 +135,7 @@ export function AccountForm() {
             <div className="flex flex-col gap-2 relative">
               <label
                 htmlFor="profile-upload"
-                className="inline-flex items-center justify-center whitespace-nowrap rounded-xl text-xs font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e5c158] border border-white/[0.12] bg-white/[0.03] hover:bg-white/[0.08] hover:border-[#c1a063]/50 text-white h-9 px-4 cursor-pointer max-w-[200px] active:scale-[0.98]"
+                className="inline-flex items-center justify-center whitespace-nowrap rounded-xl text-xs font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e5c158] border border-white/[0.10] bg-white/[0.04] hover:bg-white/[0.08] hover:border-white/[0.20] text-white h-9 px-4 cursor-pointer max-w-[200px] active:scale-[0.98]"
               >
                 Choose Photo
               </label>
@@ -146,7 +146,7 @@ export function AccountForm() {
                 onChange={handleAvatarChange}
                 className="hidden"
               />
-              <p className="text-[11px] text-[#a1a1aa] font-normal">
+              <p className="text-[11px] text-[#8e8e93] font-normal">
                 Recommended: Square JPG or PNG, at least 300x300px.
               </p>
             </div>
@@ -157,12 +157,12 @@ export function AccountForm() {
           name="name"
           render={({ field }) => (
             <FormItem>
-              <FormLabel className="text-xs font-medium text-[#a1a1aa]">Full Name</FormLabel>
+              <FormLabel className="text-xs font-medium text-[#8e8e93]">Full Name</FormLabel>
               <FormControl>
                 <Input
                   placeholder="Your preferred name"
                   {...field}
-                  className="rounded-xl bg-white/[0.03] border-white/[0.10] text-white focus-visible:ring-[#e5c158]"
+                  className="rounded-xl bg-white/[0.03] border-white/[0.08] text-white focus-visible:ring-[#e5c158]"
                 />
               </FormControl>
               <FormMessage />
@@ -172,7 +172,7 @@ export function AccountForm() {
         <Button
           disabled={isLoading}
           type="submit"
-          className="rounded-xl bg-gradient-to-r from-[#e5c158] via-[#c1a063] to-[#b09055] text-black font-semibold shadow-[0_4px_16px_rgba(193,160,99,0.28)] hover:brightness-105 active:scale-[0.98] transition-all px-8"
+          className="cursor-pointer font-semibold shadow-[0_2px_12px_rgba(193,160,99,0.3)] active:scale-[0.98] transition-all px-8"
         >
           {isLoading && <Loader className="h-4 w-4 animate-spin mr-2" />}
           Save Changes

@@ -16,6 +16,13 @@ import {
   subMonths,
   startOfDay,
   endOfDay,
+  startOfYear,
+  endOfYear,
+  subYears,
+  startOfQuarter,
+  endOfQuarter,
+  subQuarters,
+  subDays,
 } from "date-fns";
 import { genAI, genAIModel, generateContentWithRetry } from "../config/google-ai.config";
 import { createUserContent } from "@google/genai";
@@ -93,22 +100,51 @@ export function parseReportPeriod(
   period: string,
   fallbackDate: Date = new Date()
 ): { from: Date; to: Date } {
-  const p = (period || "").trim();
-  if (/^all\s*time$/i.test(p)) {
-    return { from: new Date(0), to: endOfDay(new Date()) };
+  const p = (period || "").trim().toLowerCase();
+  const now = new Date();
+
+  if (/^(all\s*time|all_time|alltime)$/i.test(p)) {
+    return { from: new Date(0), to: endOfDay(now) };
+  }
+  if (/^(this\s*month|this_month|thismonth)$/i.test(p)) {
+    return { from: startOfMonth(now), to: endOfDay(now) };
+  }
+  if (/^(last\s*month|last_month|lastmonth)$/i.test(p)) {
+    const prevM = subMonths(now, 1);
+    return { from: startOfMonth(prevM), to: endOfMonth(prevM) };
+  }
+  if (/^(this\s*year|this_year|thisyear)$/i.test(p)) {
+    return { from: startOfYear(now), to: endOfDay(now) };
+  }
+  if (/^(last\s*year|last_year|lastyear)$/i.test(p)) {
+    const prevY = subYears(now, 1);
+    return { from: startOfYear(prevY), to: endOfYear(prevY) };
+  }
+  if (/^(this\s*quarter|this_quarter|thisquarter)$/i.test(p)) {
+    return { from: startOfQuarter(now), to: endOfDay(now) };
+  }
+  if (/^(last\s*quarter|last_quarter|lastquarter)$/i.test(p)) {
+    const prevQ = subQuarters(now, 1);
+    return { from: startOfQuarter(prevQ), to: endOfQuarter(prevQ) };
+  }
+  if (/^(last\s*30\s*days|30days|last_30_days|30_days)$/i.test(p)) {
+    return { from: subDays(endOfDay(now), 29), to: endOfDay(now) };
+  }
+  if (/^(last\s*3\s*months|last_3_months|last3months)$/i.test(p)) {
+    return { from: startOfMonth(subMonths(now, 3)), to: endOfMonth(subMonths(now, 1)) };
   }
 
-  // Single month pattern: e.g. "March 2026"
+  // Single month pattern: e.g. "March 2026" or "Nov 2026"
   const singleMonthMatch = p.match(/^([a-zA-Z]+)\s+(\d{4})$/);
   if (singleMonthMatch) {
-    const d = new Date(`${p} 1`);
+    const d = new Date(`${singleMonthMatch[1]} 1, ${singleMonthMatch[2]}`);
     if (!isNaN(d.getTime())) {
       return { from: startOfMonth(d), to: endOfMonth(d) };
     }
   }
 
   // Dash pattern: e.g. "Jan 1, 2020 - Nov 6, 2026" or "November 1 - 6, 2026"
-  const dashParts = p.split(/\s*-\s*/);
+  const dashParts = (period || "").split(/\s*-\s*/);
   if (dashParts.length === 2) {
     const p1 = dashParts[0].trim();
     const p2 = dashParts[1].trim();

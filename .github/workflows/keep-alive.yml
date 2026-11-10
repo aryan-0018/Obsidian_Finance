@@ -1,0 +1,29 @@
+name: Backend Keep-Alive Ping
+
+on:
+  schedule:
+    # Runs every 14 minutes to prevent Render/Railway/Fly free-tier servers from sleeping (15 min inactivity timeout)
+    - cron: '*/14 * * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub Actions tab
+
+jobs:
+  ping:
+    name: Ping Backend Health Endpoint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Server
+        run: |
+          TARGET_URL="${{ secrets.BACKEND_HEALTH_URL }}"
+          if [ -z "$TARGET_URL" ]; then
+            echo "::notice ::No BACKEND_HEALTH_URL secret configured. You can set BACKEND_HEALTH_URL in Repository Secrets (e.g. https://your-backend.onrender.com/health)."
+            exit 0
+          fi
+          echo "Pinging $TARGET_URL..."
+          HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" --max-time 20 "$TARGET_URL")
+          echo "Response HTTP Status: $HTTP_STATUS"
+          if [ "$HTTP_STATUS" -ge 200 ] && [ "$HTTP_STATUS" -lt 400 ]; then
+            echo "Backend is alive and responsive."
+          else
+            echo "::warning ::Backend returned non-2xx status: $HTTP_STATUS"
+          fi
+

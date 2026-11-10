@@ -3,7 +3,6 @@ import AddTransactionDrawer from "@/components/transaction/add-transaction-drawe
 import TransactionTable from "@/components/transaction/transaction-table";
 import ImportTransactionModal from "@/components/transaction/import-transaction-modal";
 import ExportTransactionModal from "@/components/transaction/export-transaction-modal";
-import LedgerAuditModal from "@/components/transaction/ledger-audit-modal";
 
 export default function Transactions() {
   return (
@@ -12,7 +11,6 @@ export default function Transactions() {
       subtitle="View, search, and manage your financial records."
       rightAction={
         <>
-          <LedgerAuditModal />
           <ExportTransactionModal />
           <ImportTransactionModal />
           <AddTransactionDrawer />

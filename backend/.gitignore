@@ -4,4 +4,14 @@ dist/
 .env.*
 !.env.example
 .DS_Store
+Thumbs.db
 *.log
+*.log.*
+coverage/
+test-dist/
+test-*.js
+test-*.ts
+run-all-tests.js
+temp/
+tmp/
+uploads/

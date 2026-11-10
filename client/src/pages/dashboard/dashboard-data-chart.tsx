@@ -29,7 +29,7 @@ interface PropsType {
   dateRange?: DateRangeType;
 }
 
-const COLORS = ["#e5c158", "#f43f5e"];
+const COLORS = ["#e5c158", "#ff453a"];
 const TRANSACTION_TYPES = ["income", "expenses"];
 
 const chartConfig = {
@@ -63,13 +63,13 @@ const DashboardDataChart: React.FC<PropsType> = (props) => {
   }
 
   return (
-    <Card className="obsidian-card rounded-2xl !pt-0 overflow-hidden">
+    <Card className="obsidian-card rounded-2xl !pt-0 overflow-hidden bg-[#0e0e13]/80 backdrop-blur-2xl border border-white/[0.08]">
       <CardHeader
         className="flex flex-col items-stretch !space-y-0 border-b border-white/[0.06] !p-0 pr-1 sm:flex-row"
       >
         <div className="flex flex-1 flex-col justify-center gap-1 px-5 py-4 sm:py-0">
           <CardTitle className="text-base sm:text-lg font-semibold text-white tracking-tight">Cash Flow Trajectory</CardTitle>
-          <CardDescription className="text-xs text-[#a1a1aa] font-normal">
+          <CardDescription className="text-xs text-[#8e8e93] font-normal">
             <span>Inflows vs expenditures for {dateRange?.label}</span>
           </CardDescription>
         </div>
@@ -82,14 +82,14 @@ const DashboardDataChart: React.FC<PropsType> = (props) => {
                 className="flex flex-1 flex-col justify-center gap-1 px-3 py-3 text-center even:border-l 
                 sm:border-l border-white/[0.06] sm:px-5 sm:py-5 min-w-[90px] sm:min-w-36"
               >
-                <span className="w-full block text-[11px] text-[#a1a1aa] font-medium tracking-wide uppercase">
+                <span className="w-full block text-[11px] text-[#8e8e93] font-medium tracking-wide uppercase">
                   {chartConfig[chart].label} Entries
                 </span>
-                <span className="flex items-center justify-center gap-1.5 text-base sm:text-xl font-bold leading-none text-white">
+                <span className="flex items-center justify-center gap-1.5 text-base sm:text-xl font-semibold leading-none text-white tabular-nums">
                   {key === TRANSACTION_TYPES[0] ? (
                     <TrendingUpIcon className="size-3 text-[#e5c158]" />
                   ) : (
-                    <TrendingDownIcon className="size-3 text-[#f43f5e]" />
+                    <TrendingDownIcon className="size-3 text-[#ff453a]" />
                   )}
                   {key === TRANSACTION_TYPES[0]
                     ? totalIncomeCount

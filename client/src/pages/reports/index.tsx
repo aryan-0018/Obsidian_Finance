@@ -15,7 +15,7 @@ export default function Reports() {
         </>
       }
     >
-      <div className="obsidian-card rounded-2xl w-full p-4 sm:p-6">
+      <div className="obsidian-card rounded-2xl w-full p-4 sm:p-6 bg-[#0e0e13]/80 backdrop-blur-2xl border border-white/[0.08]">
         <ReportTable />
       </div>
     </PageLayout>

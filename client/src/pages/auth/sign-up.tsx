@@ -11,20 +11,20 @@ const SignUp = () => {
           <Logo url="/" />
         </div>
         <div className="flex flex-1 items-center justify-center my-auto">
-          <div className="w-full max-w-[390px]">
-            <div className="obsidian-card rounded-2xl sm:rounded-3xl p-5 sm:p-7 bg-[#0e0e12] border border-white/[0.10] shadow-[0_20px_50px_-15px_rgba(0,0,0,0.9)]">
+          <div className="w-full max-w-[400px]">
+            <div className="obsidian-card rounded-2xl sm:rounded-3xl p-6 sm:p-8 bg-[#0e0e13]/85 backdrop-blur-2xl border border-white/[0.08] shadow-[0_25px_60px_-15px_rgba(0,0,0,0.9)]">
               <SignUpForm />
             </div>
           </div>
         </div>
-        <div className="text-center md:text-left text-[11px] text-[#a1a1aa]/60 shrink-0">
+        <div className="text-center md:text-left text-[11px] text-[#8e8e93] shrink-0">
           Encrypted & secure financial environment.
         </div>
       </div>
 
       {/* Right Editorial Hero Panel */}
       <div className="relative hidden lg:block h-full overflow-hidden">
-        <div className="absolute inset-0 flex flex-col items-center justify-center p-8 xl:p-12 bg-gradient-to-br from-[#0e0e12] via-[#09090b] to-[#070709] text-center border-l border-white/[0.08] overflow-hidden">
+        <div className="absolute inset-0 flex flex-col items-center justify-center p-8 xl:p-12 bg-gradient-to-br from-[#0e0e13] via-[#09090b] to-[#050507] text-center border-l border-white/[0.08] overflow-hidden">
           <div className="absolute -top-32 -right-32 w-80 h-80 bg-[#e5c158]/10 rounded-full blur-3xl pointer-events-none" />
           <div className="absolute -bottom-32 -left-32 w-80 h-80 bg-[#e5c158]/10 rounded-full blur-3xl pointer-events-none" />
 
@@ -34,28 +34,28 @@ const SignUp = () => {
               <span>Private Wealth Management</span>
             </div>
 
-            <h1 className="text-3xl xl:text-4xl font-light text-white tracking-tight leading-tight">
-              Curate your <span className="text-[#e5c158] font-semibold italic">financial legacy</span>.
+            <h1 className="text-3xl xl:text-4xl font-semibold text-white tracking-tight leading-tight">
+              Curate your <span className="text-[#e5c158] italic font-semibold">financial legacy</span>.
             </h1>
-            <p className="text-xs sm:text-sm text-[#a1a1aa] font-normal max-w-md leading-relaxed">
+            <p className="text-xs sm:text-sm text-[#8e8e93] font-normal max-w-md leading-relaxed">
               Personal wealth management with complete clarity, privacy, and full control over your finances.
             </p>
 
             <div className="grid grid-cols-2 gap-3 mt-4 w-full text-left">
-              <div className="obsidian-card rounded-xl p-3.5 bg-white/[0.02] border border-white/[0.06]">
+              <div className="obsidian-card rounded-2xl p-4 bg-white/[0.02] border border-white/[0.06]">
                 <div className="flex items-center gap-1.5 text-[#e5c158] mb-1">
                   <BarChart3 className="h-3.5 w-3.5" />
                   <h3 className="text-xs font-semibold text-white">Automated Reports</h3>
                 </div>
-                <p className="text-[11px] text-[#a1a1aa] font-normal leading-relaxed">Scheduled monthly dispatches & verified balance tracking.</p>
+                <p className="text-[11px] text-[#8e8e93] font-normal leading-relaxed">Scheduled monthly dispatches & verified balance tracking.</p>
               </div>
 
-              <div className="obsidian-card rounded-xl p-3.5 bg-white/[0.02] border border-white/[0.06]">
+              <div className="obsidian-card rounded-2xl p-4 bg-white/[0.02] border border-white/[0.06]">
                 <div className="flex items-center gap-1.5 text-[#e5c158] mb-1">
                   <Lock className="h-3.5 w-3.5" />
                   <h3 className="text-xs font-semibold text-white">Private Infrastructure</h3>
                 </div>
-                <p className="text-[11px] text-[#a1a1aa] font-normal leading-relaxed">Independent, self-contained cloud deployment.</p>
+                <p className="text-[11px] text-[#8e8e93] font-normal leading-relaxed">Independent, self-contained cloud deployment.</p>
               </div>
             </div>
           </div>

@@ -14,19 +14,19 @@ export const EmptyState: React.FC<EmptyStateProps> = ({
   description,
   className = "",
 }) => {
-  const Icon = icon || FileSearch
+  const Icon = icon || FileSearch;
   return (
-    <div className={`flex flex-col items-center justify-center min-h-[300px] w-full ${className}`}>
+    <div className={`flex flex-col items-center justify-center min-h-[260px] w-full py-8 text-center ${className}`}>
       {Icon && (
-        <div className="bg-[#111] border border-[#c1a063]/20 p-5 rounded-full mb-6">
-          <Icon className="w-10 h-10 text-[#c1a063]" />
+        <div className="bg-white/[0.03] border border-white/[0.08] p-4 rounded-2xl mb-4 text-[#e5c158] shadow-[0_8px_20px_rgba(0,0,0,0.3)]">
+          <Icon className="w-8 h-8 text-[#e5c158]" />
         </div>
       )}
-      <h3 className="text-xl font-light tracking-wide text-white mb-2">{title}</h3>
-      <p className="text-sm text-neutral-400 max-w-sm text-center mb-6">
+      <h3 className="text-base font-semibold tracking-tight text-white mb-1.5">{title}</h3>
+      <p className="text-xs text-[#8e8e93] max-w-sm text-center leading-relaxed font-normal">
         {description}
       </p>
-      <div className="h-[1px] w-16 bg-gradient-to-r from-transparent via-[#c1a063]/50 to-transparent rounded-full" />
     </div>
   );
 };
+

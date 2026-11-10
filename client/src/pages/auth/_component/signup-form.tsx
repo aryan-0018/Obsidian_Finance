@@ -64,7 +64,7 @@ const SignUpForm = () => {
       >
         <div className="flex flex-col items-center gap-1 text-center">
           <h1 className="text-xl sm:text-2xl font-semibold tracking-tight text-white">Join Obsidian Finance</h1>
-          <p className="text-balance text-xs text-[#a1a1aa] font-normal">
+          <p className="text-balance text-xs text-[#8e8e93] font-normal">
             Create your secure profile below
           </p>
         </div>
@@ -74,11 +74,11 @@ const SignUpForm = () => {
             name="name"
             render={({ field }) => (
               <FormItem className="space-y-0.5">
-                <FormLabel className="text-xs font-medium text-[#a1a1aa]">Full Name</FormLabel>
+                <FormLabel className="text-xs font-medium text-[#8e8e93]">Full Name</FormLabel>
                 <FormControl>
                   <Input
                     placeholder="Aryan Sharma"
-                    className="h-9 sm:h-10 text-sm rounded-xl bg-white/[0.04] border-white/[0.10] text-white focus-visible:ring-[#e5c158]"
+                    className="h-10 text-sm rounded-xl bg-white/[0.04] border-white/[0.08] text-[#e5b83b] caret-[#e5b83b] focus-visible:ring-[#e5b83b]/30 focus-visible:border-[#e5b83b]/60 auth-input"
                     {...field}
                   />
                 </FormControl>
@@ -91,11 +91,12 @@ const SignUpForm = () => {
             name="email"
             render={({ field }) => (
               <FormItem className="space-y-0.5">
-                <FormLabel className="text-xs font-medium text-[#a1a1aa]">Email Address</FormLabel>
+                <FormLabel className="text-xs font-medium text-[#8e8e93]">Email Address</FormLabel>
                 <FormControl>
                   <Input
                     placeholder="you@example.com"
-                    className="h-9 sm:h-10 text-sm rounded-xl bg-white/[0.04] border-white/[0.10] text-white focus-visible:ring-[#e5c158]"
+                    autoComplete="email"
+                    className="h-10 text-sm rounded-xl bg-white/[0.04] border-white/[0.08] text-[#e5b83b] caret-[#e5b83b] focus-visible:ring-[#e5b83b]/30 focus-visible:border-[#e5b83b]/60 auth-input"
                     {...field}
                   />
                 </FormControl>
@@ -108,12 +109,13 @@ const SignUpForm = () => {
             name="password"
             render={({ field }) => (
               <FormItem className="space-y-0.5">
-                <FormLabel className="text-xs font-medium text-[#a1a1aa]">Password</FormLabel>
+                <FormLabel className="text-xs font-medium text-[#8e8e93]">Password</FormLabel>
                 <FormControl>
                   <Input
                     type="password"
                     placeholder="Min. 6 characters"
-                    className="h-9 sm:h-10 text-sm rounded-xl bg-white/[0.04] border-white/[0.10] text-white focus-visible:ring-[#e5c158]"
+                    autoComplete="new-password"
+                    className="h-10 text-sm rounded-xl bg-white/[0.04] border-white/[0.08] text-[#e5b83b] caret-[#e5b83b] focus-visible:ring-[#e5b83b]/30 focus-visible:border-[#e5b83b]/60 auth-input"
                     {...field}
                   />
                 </FormControl>
@@ -125,14 +127,14 @@ const SignUpForm = () => {
             <Button
               disabled={isLoading || isGoogleLoading}
               type="submit"
-              className="w-full h-9 sm:h-10 rounded-xl bg-gradient-to-r from-[#e5c158] via-[#c1a063] to-[#b09055] text-black font-semibold text-sm shadow-[0_4px_16px_rgba(193,160,99,0.28)] hover:brightness-105 active:scale-[0.98] transition-all duration-150 cursor-pointer"
+              className="w-full h-10 rounded-xl font-semibold text-sm shadow-[0_2px_12px_rgba(193,160,99,0.3)] hover:brightness-105 active:scale-[0.97] transition-all cursor-pointer"
             >
               {isLoading && <Loader className="h-4 w-4 animate-spin mr-2" />}
               Create Account
             </Button>
 
-            <div className="relative border-b border-white/10 my-1">
-              <span className="absolute bg-[#0b0b0e] px-2 text-[10px] text-[#a1a1aa] uppercase tracking-widest top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+            <div className="relative border-b border-white/[0.08] my-1">
+              <span className="absolute bg-[#0e0e13] px-2 text-[10px] text-[#8e8e93] uppercase tracking-widest top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
                 OR
               </span>
             </div>
@@ -162,11 +164,11 @@ const SignUpForm = () => {
             </div>
           </div>
         </div>
-        <div className="text-center text-xs text-[#a1a1aa] pt-0.5">
+        <div className="text-center text-xs text-[#8e8e93] pt-0.5">
           Already have an account?{" "}
           <Link
             to={AUTH_ROUTES.SIGN_IN}
-            className="text-[#e5c158] hover:underline underline-offset-4 font-semibold"
+            className="text-[#e5b83b] hover:text-[#f5cf6d] hover:underline underline-offset-4 font-semibold transition-colors"
           >
             Sign in
           </Link>

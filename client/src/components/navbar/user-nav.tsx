@@ -29,20 +29,21 @@ export function UserNav({
       <DropdownMenuTrigger asChild>
         <Button
           variant="ghost"
-          className="relative !bg-transparent h-8 w-8 rounded-full !gap-0"
+          size="sm"
+          className="relative flex items-center gap-1.5 h-10 px-1 rounded-full hover:bg-white/[0.06] transition-all cursor-pointer select-none active:scale-[0.97]"
         >
-          <Avatar className="h-10 w-10 !cursor-pointer ">
+          <Avatar className="h-9 w-9 shrink-0 rounded-full border border-white/[0.15] shadow-sm">
             <AvatarImage
               src={profilePicture || ""}
-              className="!cursor-pointer "
+              className="object-cover rounded-full"
             />
             <AvatarFallback
-              className="!bg-white/[0.08] border !border-white/[0.12] !text-white font-medium"
+              className="bg-white/[0.08] text-white font-medium text-xs rounded-full"
             >
               {userName.charAt(0).toUpperCase()}
             </AvatarFallback>
           </Avatar>
-          <ChevronDown className="!w-3 !h-3 ml-1 text-[#8e8e93]" />
+          <ChevronDown className="w-3.5 h-3.5 text-[#8e8e93] shrink-0" />
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent

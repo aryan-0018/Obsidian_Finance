@@ -16,7 +16,11 @@ import { sendEmail } from "../mailers/mailer";
 import { receiptPrompt } from "../utils/prompt";
 import UserModel from "../models/user.model";
 import { convertToSmallestUnit } from "../utils/format-currency";
-import { computeTransactionBlockHash, getGenesisHash } from "./ledger-audit.service";
+import {
+  computeTransactionBlockHash,
+  getGenesisHash,
+  recomputeUserLedgerChain,
+} from "./ledger-audit.service";
 import { PDFParse } from "pdf-parse";
 import {
   parseBankDate,
@@ -248,6 +252,7 @@ export const updateTransactionService = async (
   });
 
   await existingTransaction.save();
+  await recomputeUserLedgerChain(userId);
 
   return;
 };
@@ -261,6 +266,8 @@ export const deleteTransactionService = async (
     userId,
   });
   if (!deleted) throw new NotFoundException("Transaction not found");
+
+  await recomputeUserLedgerChain(userId);
 
   return;
 };
@@ -276,6 +283,8 @@ export const bulkDeleteTransactionService = async (
 
   if (result.deletedCount === 0)
     throw new NotFoundException("No transations found");
+
+  await recomputeUserLedgerChain(userId);
 
   return {
     sucess: true,

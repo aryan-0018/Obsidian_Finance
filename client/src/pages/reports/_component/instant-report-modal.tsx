@@ -111,17 +111,17 @@ export default function InstantReportModal() {
           <span>Instant Report</span>
         </Button>
       </DialogTrigger>
-      <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md obsidian-card rounded-3xl bg-[#0e0e12] border border-white/[0.10] text-white shadow-[0_25px_60px_-15px_rgba(0,0,0,0.9)] p-6">
+      <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md obsidian-card rounded-3xl bg-[#0e0e13]/95 backdrop-blur-2xl border border-white/[0.08] text-white shadow-[0_25px_60px_-15px_rgba(0,0,0,0.9)] p-6">
         <DialogHeader>
           <div className="flex items-center gap-3 mb-1">
-            <div className="p-2.5 rounded-2xl bg-[#e5c158]/10 text-[#e5c158] border border-[#e5c158]/25">
+            <div className="p-2.5 rounded-2xl bg-[#e5c158]/10 text-[#e5c158] border border-[#e5c158]/20">
               <FileText className="h-5 w-5" />
             </div>
             <div>
               <DialogTitle className="text-lg font-semibold tracking-tight text-white">
                 Generate Instant Report
               </DialogTitle>
-              <DialogDescription className="text-[#a1a1aa] text-xs font-normal">
+              <DialogDescription className="text-[#8e8e93] text-xs font-normal">
                 Summary of your income, expenses, savings rate, and spending habits.
               </DialogDescription>
             </div>
@@ -130,12 +130,12 @@ export default function InstantReportModal() {
 
         <div className="space-y-4 py-3">
           <div className="space-y-2">
-            <Label className="text-xs font-medium text-[#a1a1aa]">Select Time Period</Label>
+            <Label className="text-xs font-medium text-[#8e8e93]">Select Time Period</Label>
             <Select value={preset} onValueChange={setPreset}>
-              <SelectTrigger className="w-full rounded-xl bg-white/[0.04] border-white/[0.10] text-white focus:ring-[#e5c158]">
+              <SelectTrigger className="w-full rounded-xl bg-white/[0.04] border-white/[0.08] text-white focus:ring-[#e5c158]">
                 <SelectValue placeholder="Select period" />
               </SelectTrigger>
-              <SelectContent className="rounded-2xl obsidian-card bg-[#0e0e12] border border-white/[0.10] text-white">
+              <SelectContent className="rounded-2xl obsidian-card bg-[#0e0e13] border border-white/[0.08] text-white">
                 <SelectItem value="THIS_MONTH">This Month</SelectItem>
                 <SelectItem value="LAST_30_DAYS">Last 30 Days</SelectItem>
                 <SelectItem value="LAST_MONTH">Last Month</SelectItem>
@@ -152,7 +152,7 @@ export default function InstantReportModal() {
               <Label className="text-white text-xs font-medium cursor-pointer">
                 Send a copy to my email
               </Label>
-              <p className="text-[11px] text-[#a1a1aa] font-normal">
+              <p className="text-[11px] text-[#8e8e93] font-normal">
                 Receive your full transaction summary and insights in your inbox
               </p>
             </div>
@@ -168,14 +168,14 @@ export default function InstantReportModal() {
             variant="ghost"
             onClick={() => setOpen(false)}
             disabled={isLoading}
-            className="rounded-xl text-[#a1a1aa] hover:text-white"
+            className="rounded-xl text-[#8e8e93] hover:text-white active:scale-[0.98]"
           >
             Cancel
           </Button>
           <Button
             onClick={handleGenerate}
             disabled={isLoading}
-            className="rounded-xl bg-gradient-to-r from-[#e5c158] via-[#c1a063] to-[#b09055] text-black font-semibold active:scale-[0.98] transition-all shadow-[0_4px_16px_rgba(193,160,99,0.28)] hover:brightness-105"
+            className="cursor-pointer font-semibold shadow-[0_2px_12px_rgba(193,160,99,0.3)] active:scale-[0.98] transition-all"
           >
             {isLoading ? (
               <>
