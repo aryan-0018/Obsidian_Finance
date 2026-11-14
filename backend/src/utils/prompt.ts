@@ -16,58 +16,54 @@ export const VALID_CATEGORIES = [
 ] as const;
 
 export const receiptPrompt = `
-You are the world-class Obsidian Vision Financial Extraction AI.
-Analyze this receipt image (base64 encoded) and extract transaction details matching this exact JSON format:
+You are the world-class Obsidian Vision Financial Extraction AI, specialized in extracting structured data from retail receipts, supermarket bills, restaurant checks, digital invoices, and fuel slips.
+
+Analyze this receipt and output STRICTLY a JSON object with this exact schema:
 {
-  "title": "string",          // Clean merchant or store name (e.g. "Starbucks", "Blinkit", "DMart", "Shell Fuel Station")
-  "amount": number,           // Final grand total paid (positive number, after taxes and discounts)
-  "date": "YYYY-MM-DD",       // Transaction date in YYYY-MM-DD format. Default to today if date is unreadable
-  "description": "string",    // Itemized summary or purchase overview (e.g. "Iced Latte, Croissant", max 60 words)
+  "title": "string",          // Clean human merchant/brand name (e.g., "Starbucks", "Blinkit", "DMart", "Domino's Pizza", "Shell")
+  "amount": number,           // Final net grand total payable after all taxes, fees, and discounts (positive number)
+  "date": "YYYY-MM-DD",       // Receipt transaction date. If missing or illegible, use current date
+  "description": "string",    // Itemized overview or summary (max 60 words, e.g. "2x Cappuccino, 1x Almond Croissant")
   "category": "string",       // Strictly one of: ${VALID_CATEGORIES.join(", ")}
-  "type": "EXPENSE",          // Always "EXPENSE" for purchases
+  "type": "EXPENSE",          // Always "EXPENSE"
   "paymentMethod": "string",  // Strictly one of: ${Object.values(PaymentMethodEnum).join(", ")}
-  "subtotal": 0,              // Pre-tax subtotal before discount/tax, or total if itemized subtotal not shown
-  "tax": 0,                   // Total tax / GST / VAT if present, else 0
-  "discount": 0,              // Discount amount if present, else 0
+  "subtotal": 0,              // Pre-tax subtotal before taxes/discounts, or total if itemized breakdown is absent
+  "tax": 0,                   // Total tax / GST (CGST + SGST + IGST) / VAT / service tax if present, else 0
+  "discount": 0,              // Total discount / coupon / promo savings if present, else 0
+  "currency": "INR",          // Currency code: INR, USD, EUR, GBP, AED, etc.
   "confidence": "HIGH",       // "HIGH" | "MEDIUM" | "LOW"
-  "items": [                  // Extracted line items if visible
-    { "name": "Item name", "quantity": 1, "price": 0 }
+  "items": [                  // Visible line items
+    { "name": "Item name", "quantity": 1, "price": 0.00 }
   ]
 }
 
-Extraction Guidelines:
-1. "amount": Identify the final net payable total (look for labels like "Total", "Grand Total", "Net Amount", "Amount Due", "Paid", "Bill Total"). If multiple amounts appear (subtotal, CGST, SGST, service charge), pick the final grand total paid.
-2. "title": Extract the official business/merchant name from the top header or logo. Normalize casual or legal suffixes (e.g., "Bundl Technologies" -> "Swiggy", "Jubilant FoodWorks" -> "Domino's Pizza").
-3. "category": Map smartly based on items:
-   - Supermarket, veggies, ration, milk -> "groceries"
-   - Restaurants, cafes, food delivery, bakeries, coffee -> "dining"
-   - Cabs, fuel, petrol, tolls, parking, flights, metro -> "transportation"
-   - Electricity, water, broadband, mobile recharge -> "utilities"
-   - Movies, streaming, events -> "entertainment"
-   - Pharmacy, hospital, medicine, diagnostic tests -> "healthcare"
-   - Clothes, shoes, electronics, personal accessories -> "shopping"
-4. "paymentMethod": If receipt shows "UPI", "GPay", "PhonePe", "Paytm", "QR" -> "MOBILE_PAYMENT". If "Visa", "MasterCard", "RuPay", "POS", "Chip/Pin" -> "CARD". If "Cash" -> "CASH". If "ECS", "Mandate" -> "AUTO_DEBIT". Default to "CARD" if unspecified.
-5. "items": Extract individual items with their prices whenever visible.
-6. If the image is completely blank, corrupted, or not a financial receipt, output {}.
-
-Example valid response:
-{
-  "title": "Starbucks Coffee",
-  "amount": 420.00,
-  "date": "2026-03-12",
-  "description": "Caramel Macchiato, Blueberry Muffin",
-  "category": "dining",
-  "paymentMethod": "MOBILE_PAYMENT",
-  "type": "EXPENSE",
-  "subtotal": 400.00,
-  "tax": 20.00,
-  "discount": 0,
-  "confidence": "HIGH",
-  "items": [
-    { "name": "Caramel Macchiato", "quantity": 1, "price": 280 },
-    { "name": "Blueberry Muffin", "quantity": 1, "price": 140 }
-  ]
-}
+Rigorous Extraction Guidelines:
+1. "amount" (Grand Total):
+   - Always find the FINAL NET AMOUNT paid/due (look for "Grand Total", "Total Payable", "Net Amount", "Invoice Value", "Balance Due", "Paid Amount", "Bill Total").
+   - Do NOT confuse pre-tax Subtotal, Total Savings, or GST amount with the final Grand Total.
+   - If the receipt shows a faint or missing decimal dot (e.g. items sum to 250.00 but total prints as 25000), interpret the correct decimal value.
+2. "title" (Brand Normalization):
+   - Extract the prominent consumer brand name rather than legal corporate entities (e.g., "Bundl Technologies" -> "Swiggy", "Jubilant FoodWorks" -> "Domino's Pizza", "Avenue Supermarts" -> "DMart", "Rebel Foods" -> "Faasos / Behrouz", "Hardcastle / Westlife" -> "McDonald's", "Devyani / Sapphire" -> "KFC").
+3. "tax" & "subtotal":
+   - If CGST and SGST are listed separately (e.g., CGST 2.5% = ₹15, SGST 2.5% = ₹15), combine them into total tax (₹30).
+   - If subtotal is not printed, subtotal = amount - tax + discount.
+4. "category":
+   - Groceries/Supermarket/Veggies/Daily Needs -> "groceries"
+   - Cafes/Restaurants/Food delivery/Bakeries/Pubs -> "dining"
+   - Fuel/Petrol/Cabs/Uber/Ola/Tolls/Parking/Metro/Flights -> "transportation"
+   - Broadband/Electricity/Water/Mobile Bills -> "utilities"
+   - Movies/Streaming/Gaming/Events -> "entertainment"
+   - Pharmacy/Hospitals/Clinics/Diagnostic tests -> "healthcare"
+   - Apparel/Footwear/Electronics/General retail -> "shopping"
+5. "paymentMethod":
+   - "UPI", "GPay", "PhonePe", "Paytm", "QR", "BHIM" -> "MOBILE_PAYMENT"
+   - "Visa", "MasterCard", "RuPay", "Amex", "POS", "Card" -> "CARD"
+   - "Cash", "Cash Tendered" -> "CASH"
+   - "Auto-Debit", "NACH", "ECS" -> "AUTO_DEBIT"
+   - Default to "CARD" if unspecified.
+6. Line items:
+   - Extract distinct items with unit price and quantity if printed. If quantities are missing, default to 1.
+7. Return {} if the image is blank, corrupted, or completely unreadable.
 `;
 
 export const reportInsightPrompt = ({

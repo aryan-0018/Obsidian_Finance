@@ -26,7 +26,9 @@ import {
   parseBankDate,
   detectIndianMerchantAndCategory,
   parseIndianCurrencyExpression,
+  normalizeMerchantBrand,
 } from "../utils/nlp-parser";
+import { uploadBufferToCloudinary } from "../config/cloudinary.config";
 
 export const createTransactionService = async (
   body: CreateTransactionType,
@@ -481,6 +483,16 @@ ${extractedPdfText.slice(0, 15000)}
       throw new BadRequestException("Could not extract readable details from this receipt. Please enter manually.");
     }
 
+    // Upload receipt to Cloudinary asynchronously for permanent viewing
+    let permanentReceiptUrl = file.path || "";
+    if (file.buffer && file.buffer.length > 0) {
+      try {
+        permanentReceiptUrl = await uploadBufferToCloudinary(file.buffer, "receipts");
+      } catch (uploadErr) {
+        console.warn("[Receipt Scanner] Cloudinary upload notice:", uploadErr);
+      }
+    }
+
     // Sanitize amount
     let rawAmount = parsedData.amount;
     if (typeof rawAmount === "string") {
@@ -488,25 +500,70 @@ ${extractedPdfText.slice(0, 15000)}
     }
     let amount = !isNaN(Number(rawAmount)) && Number(rawAmount) > 0 ? Math.abs(Number(rawAmount)) : 0;
 
-    // Fallback: If amount is missing, calculate sum of line items if present
-    if (!amount && Array.isArray(parsedData.items) && parsedData.items.length > 0) {
-      const itemsSum = parsedData.items.reduce((acc: number, item: any) => acc + (Number(item.price) || 0), 0);
-      if (itemsSum > 0) amount = itemsSum;
+    const items = Array.isArray(parsedData.items)
+      ? parsedData.items
+          .filter((i: any) => i && i.name)
+          .map((i: any) => ({
+            name: String(i.name).trim(),
+            quantity: Number(i.quantity) || 1,
+            price: Number(i.price) || 0,
+          }))
+      : [];
+
+    let itemsSum = 0;
+    if (items.length > 0) {
+      itemsSum = items.reduce(
+        (acc: number, item: any) =>
+          acc + (Number(item.price) || 0) * (Number(item.quantity) || 1),
+        0
+      );
+    }
+
+    let subtotal = Number(parsedData.subtotal) > 0 ? Number(parsedData.subtotal) : 0;
+    const tax = Number(parsedData.tax) >= 0 ? Number(parsedData.tax) : 0;
+    const discount = Number(parsedData.discount) >= 0 ? Number(parsedData.discount) : 0;
+
+    // Mathematical reconciliation: Missing decimal dot in OCR (e.g. read 24500 when items sum to 245.00)
+    if (itemsSum > 0 && Math.abs(amount - itemsSum * 100) < 5) {
+      amount = itemsSum;
+    }
+
+    // Mathematical reconciliation: If amount is missing or zero, derive from subtotal + tax - discount
+    if (!amount && subtotal > 0) {
+      amount = subtotal + tax - discount;
+    }
+
+    // Mathematical reconciliation: If amount is still missing, derive from sum of line items
+    if (!amount && itemsSum > 0) {
+      amount = itemsSum;
     }
 
     if (!amount) {
       throw new BadRequestException("Could not detect total amount on this receipt. Please enter manually.");
     }
 
-    // Sanitize date using robust multi-format parseBankDate
-    const parsedDateObj = parseBankDate(parsedData.date);
+    if (!subtotal) {
+      subtotal = itemsSum > 0 ? itemsSum : amount;
+    }
+
+    // Sanitize date using robust multi-format parseBankDate & clamp future dates caused by OCR misreads
+    let parsedDateObj = parseBankDate(parsedData.date);
+    const now = new Date();
+    const futureLimit = new Date();
+    futureLimit.setDate(now.getDate() + 1);
+    if (parsedDateObj > futureLimit || isNaN(parsedDateObj.getTime())) {
+      parsedDateObj = now;
+    }
     const dateStr = parsedDateObj.toISOString().split("T")[0];
 
-    // Refine category & merchant normalization
-    const detectedMerchant = detectIndianMerchantAndCategory(parsedData.title || "");
-    const finalTitle = parsedData.title && parsedData.title.trim() && parsedData.title !== "Scanned Receipt"
-      ? parsedData.title.trim()
-      : (detectedMerchant.title || "Scanned Receipt");
+    // Refine category & merchant normalization using legal-to-brand dictionary
+    const normalizedBrand = normalizeMerchantBrand(parsedData.title || "");
+    const detectedMerchant = detectIndianMerchantAndCategory(normalizedBrand || parsedData.title || "");
+    const finalTitle =
+      normalizedBrand ||
+      (parsedData.title && parsedData.title.trim() && parsedData.title !== "Scanned Receipt"
+        ? parsedData.title.trim()
+        : detectedMerchant.title || "Scanned Receipt");
 
     const validCategories = [
       "groceries",
@@ -537,19 +594,7 @@ ${extractedPdfText.slice(0, 15000)}
       ? parsedData.paymentMethod
       : (detectedMerchant.paymentMethod || PaymentMethodEnum.CARD);
 
-    const subtotal = Number(parsedData.subtotal) > 0 ? Number(parsedData.subtotal) : amount;
-    const tax = Number(parsedData.tax) >= 0 ? Number(parsedData.tax) : 0;
-    const discount = Number(parsedData.discount) >= 0 ? Number(parsedData.discount) : 0;
     const confidence = ["HIGH", "MEDIUM", "LOW"].includes(parsedData.confidence) ? parsedData.confidence : "HIGH";
-    const items = Array.isArray(parsedData.items)
-      ? parsedData.items
-          .filter((i: any) => i && i.name)
-          .map((i: any) => ({
-            name: String(i.name).trim(),
-            quantity: Number(i.quantity) || 1,
-            price: Number(i.price) || 0,
-          }))
-      : [];
 
     return {
       title: finalTitle,
@@ -559,10 +604,11 @@ ${extractedPdfText.slice(0, 15000)}
       category,
       paymentMethod,
       type: "EXPENSE",
-      receiptUrl: file.path || "",
+      receiptUrl: permanentReceiptUrl || file.path || "",
       subtotal,
       tax,
       discount,
+      currency: parsedData.currency || "INR",
       confidence,
       items,
     };

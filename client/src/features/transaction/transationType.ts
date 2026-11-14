@@ -76,6 +76,7 @@ export interface AIScanReceiptData {
   tax?: number;
   discount?: number;
   subtotal?: number;
+  currency?: string;
   confidence?: "HIGH" | "MEDIUM" | "LOW";
   items?: Array<{ name: string; quantity?: number; price?: number }>;
 }

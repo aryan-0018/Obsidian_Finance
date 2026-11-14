@@ -18,7 +18,8 @@ import {
   parseIndianCurrencyExpression,
   detectIndianMerchantAndCategory,
 } from "./voice-terminal.service";
-import { parseBankDate } from "../utils/nlp-parser";
+import { parseBankDate, normalizeMerchantBrand } from "../utils/nlp-parser";
+import { uploadBufferToCloudinary } from "../config/cloudinary.config";
 
 let bot: Telegraf | null = null;
 let botUsername: string = "";
@@ -225,35 +226,33 @@ export const initTelegramBot = async () => {
       );
     });
 
-    // --- Photo / Bill Receipt Handler ---
-    bot.on("photo", async (ctx) => {
-      const chatId = ctx.chat.id.toString();
-      const user = await UserModel.findOne({ telegramChatId: chatId });
-      if (!user) {
-        return ctx.reply(
-          `⚠️ Please link your Obsidian account first by getting a pairing code from the web dashboard!`
-        );
-      }
-
-      await ctx.reply("🔍 *Analyzing receipt image with Gemini Vision...*", {
+    // --- Photo & Document / Bill Receipt Handler ---
+    const processReceiptBuffer = async (
+      ctx: any,
+      buffer: Buffer,
+      mimeType: string,
+      user: any
+    ) => {
+      await ctx.reply("🔍 *Analyzing receipt with Gemini Vision...*", {
         parse_mode: "Markdown",
       });
 
       try {
-        const photos = ctx.message.photo;
-        const highestResPhoto = photos[photos.length - 1];
-        const fileLink = await ctx.telegram.getFileLink(highestResPhoto.file_id);
+        const base64Image = buffer.toString("base64");
 
-        const response = await axios.get(fileLink.href, {
-          responseType: "arraybuffer",
-        });
-        const base64Image = Buffer.from(response.data).toString("base64");
+        // Upload to Cloudinary in parallel if configured
+        let receiptUrl = "";
+        try {
+          receiptUrl = await uploadBufferToCloudinary(buffer, "receipts");
+        } catch {
+          // ignore
+        }
 
         const aiResponse = await generateContentWithRetry({
           contents: [
             createUserContent([
               receiptPrompt,
-              createPartFromBase64(base64Image, "image/jpeg"),
+              createPartFromBase64(base64Image, mimeType),
             ]),
           ],
         });
@@ -262,9 +261,33 @@ export const initTelegramBot = async () => {
         const cleaned = rawText.replace(/```(?:json)?\n?/g, "").trim();
         const parsed = JSON.parse(cleaned);
 
-        if (!parsed.amount || isNaN(Number(parsed.amount))) {
+        let amount =
+          typeof parsed.amount === "string"
+            ? parseFloat(parsed.amount.replace(/[^0-9.]/g, ""))
+            : Number(parsed.amount);
+
+        const items = Array.isArray(parsed.items)
+          ? parsed.items.filter((i: any) => i && i.name)
+          : [];
+
+        // Mathematical reconciliation: Missing decimal dot in OCR (e.g. read 24500 when items sum to 245.00)
+        if (items.length > 0) {
+          const itemsSum = items.reduce(
+            (acc: number, it: any) =>
+              acc + (Number(it.price) || 0) * (Number(it.quantity) || 1),
+            0
+          );
+          if (itemsSum > 0 && Math.abs(amount - itemsSum * 100) < 5) {
+            amount = itemsSum;
+          }
+          if ((!amount || isNaN(amount)) && itemsSum > 0) {
+            amount = itemsSum;
+          }
+        }
+
+        if (!amount || isNaN(amount) || amount <= 0) {
           return ctx.reply(
-            "⚠️ Could not clearly extract total amount or merchant from this image. Please ensure the receipt is well-lit and legible."
+            "⚠️ Could not clearly extract total amount from this receipt. Please ensure the bill is well-lit and legible."
           );
         }
 
@@ -273,16 +296,35 @@ export const initTelegramBot = async () => {
           ? parsed.paymentMethod
           : PaymentMethodEnum.CARD;
 
+        const normalizedTitle = normalizeMerchantBrand(parsed.title || "");
+        const detected = detectIndianMerchantAndCategory(
+          normalizedTitle || parsed.title || ""
+        );
+
         const category = VALID_CATEGORIES.includes(parsed.category?.toLowerCase())
           ? parsed.category.toLowerCase()
-          : "shopping";
+          : detected.category || "shopping";
 
         let date = parseBankDate(parsed.date);
+        const now = new Date();
+        const futureLimit = new Date();
+        futureLimit.setDate(now.getDate() + 1);
+        if (date > futureLimit || isNaN(date.getTime())) {
+          date = now;
+        }
+
+        const finalTitle =
+          normalizedTitle ||
+          (parsed.title &&
+          parsed.title.trim() &&
+          parsed.title !== "Scanned Receipt"
+            ? parsed.title.trim()
+            : detected.title || "Scanned Receipt");
 
         const tx = await createTransactionService(
           {
-            title: parsed.title || "Scanned Receipt",
-            amount: Math.abs(Number(parsed.amount)),
+            title: finalTitle,
+            amount: Math.abs(amount),
             type: TransactionTypeEnum.EXPENSE,
             category,
             paymentMethod,
@@ -293,21 +335,111 @@ export const initTelegramBot = async () => {
           user._id.toString()
         );
 
-        return ctx.reply(
+        let replyMsg =
           `🧾 *Receipt Processed & Logged!*\n\n` +
-            `📌 *Merchant:* ${tx.title}\n` +
-            `💸 *Amount:* ₹${Number(tx.amount).toLocaleString("en-IN")}\n` +
-            `🏷 *Category:* ${category.charAt(0).toUpperCase() + category.slice(1)}\n` +
-            `💳 *Payment Method:* ${paymentMethod}\n` +
-            `📅 *Date:* ${tx.date.toISOString().split("T")[0]}\n\n` +
-            `⚡ _Saved to your transactions & dashboard updated!_`,
-          { parse_mode: "Markdown" }
-        );
+          `📌 *Merchant:* ${tx.title}\n` +
+          `💸 *Amount:* ₹${Number(tx.amount).toLocaleString("en-IN")}\n` +
+          `🏷 *Category:* ${category.charAt(0).toUpperCase() + category.slice(1)}\n` +
+          `💳 *Payment Method:* ${paymentMethod}\n` +
+          `📅 *Date:* ${tx.date.toISOString().split("T")[0]}`;
+
+        if (Number(parsed.tax) > 0) {
+          replyMsg += `\n🏛 *Tax/GST:* ₹${Number(parsed.tax).toLocaleString("en-IN")}`;
+        }
+        if (Number(parsed.discount) > 0) {
+          replyMsg += `\n🎉 *Discount:* ₹${Number(parsed.discount).toLocaleString("en-IN")}`;
+        }
+
+        if (items.length > 0) {
+          replyMsg += `\n\n🛒 *Items Extracted:*`;
+          for (const it of items.slice(0, 5)) {
+            replyMsg += `\n• ${it.quantity && it.quantity > 1 ? `${it.quantity}x ` : ""}${it.name}: ₹${it.price}`;
+          }
+          if (items.length > 5) {
+            replyMsg += `\n_...and ${items.length - 5} more items_`;
+          }
+        }
+
+        if (receiptUrl) {
+          replyMsg += `\n\n🔗 [View Scanned Receipt](${receiptUrl})`;
+        }
+
+        replyMsg += `\n\n⚡ _Live in your Obsidian dashboard!_`;
+
+        return ctx.reply(replyMsg, { parse_mode: "Markdown" });
       } catch (err: any) {
         console.error("[Telegram Copilot] Receipt processing error:", err);
         return ctx.reply(
           `❌ Failed to parse receipt: ${err.message || "Unknown error"}`
         );
+      }
+    };
+
+    bot.on("photo", async (ctx) => {
+      const chatId = ctx.chat.id.toString();
+      const user = await UserModel.findOne({ telegramChatId: chatId });
+      if (!user) {
+        return ctx.reply(
+          `⚠️ Please link your Obsidian account first by getting a pairing code from the web dashboard!`
+        );
+      }
+
+      try {
+        const photos = ctx.message.photo;
+        const highestResPhoto = photos[photos.length - 1];
+        const fileLink = await ctx.telegram.getFileLink(highestResPhoto.file_id);
+
+        const response = await axios.get(fileLink.href, {
+          responseType: "arraybuffer",
+        });
+        await processReceiptBuffer(
+          ctx,
+          Buffer.from(response.data),
+          "image/jpeg",
+          user
+        );
+      } catch (err: any) {
+        console.error("[Telegram Copilot] Photo download error:", err);
+        return ctx.reply(`⚠️ Could not process receipt photo: ${err.message || err}`);
+      }
+    });
+
+    bot.on("document", async (ctx) => {
+      const chatId = ctx.chat.id.toString();
+      const user = await UserModel.findOne({ telegramChatId: chatId });
+      if (!user) {
+        return ctx.reply(
+          `⚠️ Please link your Obsidian account first by getting a pairing code from the web dashboard!`
+        );
+      }
+
+      const doc = ctx.message.document;
+      const mime = doc.mime_type || "";
+      const fileName = doc.file_name || "";
+      if (
+        /^image\//i.test(mime) ||
+        mime === "application/pdf" ||
+        /\.(pdf|png|jpe?g|webp)$/i.test(fileName)
+      ) {
+        try {
+          const fileLink = await ctx.telegram.getFileLink(doc.file_id);
+          const response = await axios.get(fileLink.href, {
+            responseType: "arraybuffer",
+          });
+          const mimeType =
+            mime === "application/pdf" || fileName.endsWith(".pdf")
+              ? "application/pdf"
+              : "image/jpeg";
+          await processReceiptBuffer(
+            ctx,
+            Buffer.from(response.data),
+            mimeType,
+            user
+          );
+        } catch (err: any) {
+          console.error("[Telegram Copilot] Document receipt error:", err);
+          return ctx.reply(`⚠️ Could not process receipt document: ${err.message || err}`);
+        }
       }
     });
 

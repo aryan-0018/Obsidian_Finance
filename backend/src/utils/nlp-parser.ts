@@ -330,6 +330,7 @@ export const detectIndianMerchantAndCategory = (
     let title = "Dining";
     if (/\bswiggy\b/i.test(lower)) title = "Swiggy";
     else if (/\bzomato\b/i.test(lower)) title = "Zomato";
+    else if (/\bdomino'?s|jubilant\b/i.test(lower)) title = "Domino's Pizza";
     else if (/\bbehrouz\b/i.test(lower)) title = "Behrouz Biryani";
     else if (/\bstarbucks\b/i.test(lower)) title = "Starbucks";
     else if (/\bchai|tea\b/i.test(lower)) title = "Chai / Tea";
@@ -349,9 +350,38 @@ export const detectIndianMerchantAndCategory = (
     };
   }
 
+  // Transportation, Fuel & Flights
+  if (
+    /\b(uber|ola|rapido|auto|rickshaw|metro|petrol|diesel|fuel|shell|hpcl|bpcl|indianoil|indian oil|jio-?bp|nayara|fastag|toll|parking|train|irctc|flight|cab|taxi|bus|blusmart|commute|cng|indigo|air india|vistara|akasa|spicejet|airline|airlines|airport)\b/i.test(
+      lower
+    )
+  ) {
+    let title = "Transportation";
+    if (/\buber\b/i.test(lower)) title = "Uber";
+    else if (/\bola\b/i.test(lower)) title = "Ola";
+    else if (/\brapido\b/i.test(lower)) title = "Rapido";
+    else if (/\bindian oil|indianoil\b/i.test(lower)) title = "Indian Oil Fuel Station";
+    else if (/\bbpcl|bharat petroleum\b/i.test(lower)) title = "Bharat Petroleum Fuel Station";
+    else if (/\bhpcl|hindustan petroleum\b/i.test(lower)) title = "Hindustan Petroleum Fuel Station";
+    else if (/\bshell\b/i.test(lower)) title = "Shell Fuel Station";
+    else if (/\bpetrol|diesel|fuel|cng\b/i.test(lower)) title = "Fuel Station";
+    else if (/\bmetro\b/i.test(lower)) title = "Metro Rail";
+    else if (/\bauto|rickshaw\b/i.test(lower)) title = "Auto Rickshaw";
+    else if (/\bindigo\b/i.test(lower)) title = "IndiGo Airlines";
+    else if (/\bair india\b/i.test(lower)) title = "Air India";
+    else if (/\bflight|vistara|akasa|airline|airlines\b/i.test(lower)) title = "Flight Ticket";
+    else if (/\btrain|irctc\b/i.test(lower)) title = "Train Ticket";
+    return {
+      title,
+      category: "transportation",
+      paymentMethod: PaymentMethodEnum.CARD,
+      type: TransactionTypeEnum.EXPENSE,
+    };
+  }
+
   // Groceries & Essentials
   if (
-    /\b(zepto|blinkit|instamart|bigbasket|dmart|kirana|ration|milk|amul|mother dairy|groceries|grocery|supermarket|vegetables|sabzi|fruits|bread|eggs?|meat|chicken|fish|dal|rice|oil)\b/i.test(
+    /\b(zepto|blinkit|instamart|bigbasket|dmart|kirana|ration|milk|amul|mother dairy|groceries|grocery|supermarket|vegetables|sabzi|fruits|bread|eggs?|meat|chicken|fish|dal|rice|ghee|cooking oil|mustard oil|olive oil|refined oil)\b/i.test(
       lower
     )
   ) {
@@ -379,29 +409,6 @@ export const detectIndianMerchantAndCategory = (
       title,
       category: "housing",
       paymentMethod: PaymentMethodEnum.BANK_TRANSFER,
-      type: TransactionTypeEnum.EXPENSE,
-    };
-  }
-
-  // Transportation & Fuel
-  if (
-    /\b(uber|ola|rapido|auto|rickshaw|metro|petrol|diesel|fuel|shell|hpcl|bpcl|indianoil|fastag|toll|parking|train|irctc|flight|cab|taxi|bus|blusmart|commute|cng)\b/i.test(
-      lower
-    )
-  ) {
-    let title = "Transportation";
-    if (/\buber\b/i.test(lower)) title = "Uber";
-    else if (/\bola\b/i.test(lower)) title = "Ola";
-    else if (/\brapido\b/i.test(lower)) title = "Rapido";
-    else if (/\bpetrol|diesel|fuel|shell|hpcl|bpcl|cng\b/i.test(lower)) title = "Fuel Station";
-    else if (/\bmetro\b/i.test(lower)) title = "Metro Rail";
-    else if (/\bauto|rickshaw\b/i.test(lower)) title = "Auto Rickshaw";
-    else if (/\bflight|indigo|air india|vistara\b/i.test(lower)) title = "Flight Ticket";
-    else if (/\btrain|irctc\b/i.test(lower)) title = "Train Ticket";
-    return {
-      title,
-      category: "transportation",
-      paymentMethod: PaymentMethodEnum.CARD,
       type: TransactionTypeEnum.EXPENSE,
     };
   }
@@ -456,7 +463,10 @@ export const detectIndianMerchantAndCategory = (
   // Healthcare
   if (/\b(apollo|pharmacy|medicine|dawai|1mg|pharmeasy|hospital|doctor|clinic|dentist|test|lab)\b/i.test(lower)) {
     let title = "Healthcare";
-    if (/\bmedicine|dawai|pharmacy\b/i.test(lower)) title = "Pharmacy / Medicines";
+    if (/\bapollo\b/i.test(lower)) title = "Apollo Pharmacy";
+    else if (/\btata 1mg|1mg\b/i.test(lower)) title = "Tata 1mg";
+    else if (/\bpharmeasy\b/i.test(lower)) title = "PharmEasy";
+    else if (/\bmedicine|dawai|pharmacy\b/i.test(lower)) title = "Pharmacy / Medicines";
     else if (/\bdoctor|clinic\b/i.test(lower)) title = "Doctor Consultation";
     return {
       title,
@@ -512,4 +522,94 @@ export const detectIndianMerchantAndCategory = (
     type: TransactionTypeEnum.EXPENSE,
   };
 };
+
+/**
+ * Normalizes corporate legal entities, payment gateways, and invoice headers
+ * into clean, universally recognized consumer brand names.
+ */
+export const normalizeMerchantBrand = (raw: string): string => {
+  if (!raw || typeof raw !== "string") return "";
+  const cleaned = raw.trim();
+  const lower = cleaned.toLowerCase();
+
+  // Food, Dining & Delivery
+  if (/bundl technologies|swiggy/i.test(lower)) return "Swiggy";
+  if (/zomato (limited|media|hyperpure)|eternal limited/i.test(lower)) return "Zomato";
+  if (/jubilant foodworks|domino'?s/i.test(lower)) return "Domino's Pizza";
+  if (/hardcastle restaurants|westlife development|mcdonald'?s/i.test(lower)) return "McDonald's";
+  if (/devyani international|sapphire foods|kfc/i.test(lower)) return "KFC";
+  if (/restaurant brands asia|qsr brands|burger king/i.test(lower)) return "Burger King";
+  if (/rebel foods|faasos|behrouz/i.test(lower)) return "Faasos / Behrouz";
+  if (/tata starbucks|starbucks/i.test(lower)) return "Starbucks Coffee";
+  if (/haldiram/i.test(lower)) return "Haldiram's";
+  if (/chaayos|sunshine teahouse/i.test(lower)) return "Chaayos";
+  if (/third wave coffee/i.test(lower)) return "Third Wave Coffee";
+  if (/blue tokai/i.test(lower)) return "Blue Tokai Coffee";
+
+  // Quick Commerce, Grocery & Retail
+  if (/blink commerce|blinkit/i.test(lower)) return "Blinkit";
+  if (/kiranakart technologies|zepto/i.test(lower)) return "Zepto";
+  if (/avenue supermarts|d-?mart/i.test(lower)) return "DMart";
+  if (/reliance (retail|smart|fresh|digital)|jiomart/i.test(lower)) return "Reliance Smart";
+  if (/nature'?s basket|spencer'?s/i.test(lower)) return "Nature's Basket";
+  if (/more retail|more supermarket/i.test(lower)) return "More Supermarket";
+
+  // Pharmacy & Healthcare
+  if (/apollo (hospitals|pharmacy|health)/i.test(lower)) return "Apollo Pharmacy";
+  if (/tata 1mg|1mg technologies/i.test(lower)) return "Tata 1mg";
+  if (/api holdings|pharmeasy/i.test(lower)) return "PharmEasy";
+  if (/medplus health|medplus/i.test(lower)) return "MedPlus";
+  if (/dr\.? lal pathlabs|lal path/i.test(lower)) return "Dr. Lal PathLabs";
+  if (/metropolis healthcare/i.test(lower)) return "Metropolis Healthcare";
+
+  // Fuel & Transportation
+  if (/indian oil|iocl/i.test(lower)) return "Indian Oil Fuel Station";
+  if (/bharat petroleum|bpcl/i.test(lower)) return "Bharat Petroleum Fuel Station";
+  if (/hindustan petroleum|hpcl/i.test(lower)) return "Hindustan Petroleum Fuel Station";
+  if (/shell (india|markets)/i.test(lower)) return "Shell Fuel Station";
+  if (/interglobe aviation|indigo/i.test(lower)) return "IndiGo Airlines";
+  if (/air india/i.test(lower)) return "Air India";
+  if (/indian railways|irctc/i.test(lower)) return "IRCTC";
+  if (/uber india/i.test(lower)) return "Uber";
+  if (/ani technologies|ola cabs/i.test(lower)) return "Ola";
+  if (/roppen transportation|rapido/i.test(lower)) return "Rapido";
+
+  // E-Commerce & Shopping
+  if (/amazon (seller|pay|retail|web)/i.test(lower)) return "Amazon";
+  if (/flipkart (india|internet)/i.test(lower)) return "Flipkart";
+  if (/myntra designs|myntra/i.test(lower)) return "Myntra";
+  if (/fsn e-commerce|nykaa/i.test(lower)) return "Nykaa";
+  if (/tata cliq/i.test(lower)) return "Tata CLiQ";
+  if (/decathlon sports/i.test(lower)) return "Decathlon";
+  if (/ikea india/i.test(lower)) return "IKEA";
+  if (/zara retail|inditex/i.test(lower)) return "Zara";
+  if (/h&m hennes|h&m/i.test(lower)) return "H&M";
+  if (/uniqlo india/i.test(lower)) return "Uniqlo";
+
+  // Entertainment & Streaming
+  if (/pvr (inox|cinemas)|inox leisure/i.test(lower)) return "PVR INOX Cinemas";
+  if (/bigtree entertainment|bookmyshow/i.test(lower)) return "BookMyShow";
+  if (/netflix india/i.test(lower)) return "Netflix";
+  if (/spotify india/i.test(lower)) return "Spotify";
+
+  // Utilities & Telecom
+  if (/bharti airtel|airtel/i.test(lower)) return "Airtel";
+  if (/reliance jio|jio infocomm/i.test(lower)) return "Jio";
+  if (/vodafone idea|vi\b/i.test(lower)) return "Vi (Vodafone Idea)";
+  if (/tata power/i.test(lower)) return "Tata Power";
+  if (/adani electricity/i.test(lower)) return "Adani Electricity";
+  if (/bescom/i.test(lower)) return "BESCOM";
+  if (/bses (rajdhani|yamuna)/i.test(lower)) return "BSES Electricity";
+
+  // Investments & Fintech
+  if (/zerodha broking|zerodha/i.test(lower)) return "Zerodha";
+  if (/nextbillion technology|groww/i.test(lower)) return "Groww";
+  if (/rksv securities|upstox/i.test(lower)) return "Upstox";
+  if (/one97 communications|paytm/i.test(lower)) return "Paytm";
+  if (/resilient innovations|bharatpe/i.test(lower)) return "BharatPe";
+  if (/dreamplug technologies|cred/i.test(lower)) return "CRED";
+
+  return cleaned;
+};
+
 

@@ -36,3 +36,33 @@ export const upload = multer({
     cb(null, true);
   },
 });
+
+export const uploadBufferToCloudinary = async (
+  buffer: Buffer,
+  folder: string = "receipts"
+): Promise<string> => {
+  if (
+    !Env.CLOUDINARY_CLOUD_NAME ||
+    !Env.CLOUDINARY_API_KEY ||
+    !Env.CLOUDINARY_API_SECRET
+  ) {
+    return "";
+  }
+  return new Promise((resolve) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        folder,
+        resource_type: "auto",
+      },
+      (error, result) => {
+        if (error || !result) {
+          console.warn("[Cloudinary] Upload notice:", error?.message || error);
+          resolve("");
+        } else {
+          resolve(result.secure_url || "");
+        }
+      }
+    );
+    uploadStream.end(buffer);
+  });
+};
