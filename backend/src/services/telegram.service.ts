@@ -2,6 +2,7 @@ import { Telegraf } from "telegraf";
 import { Env } from "../config/env.config";
 import UserModel from "../models/user.model";
 import { createTransactionService } from "./transaction.service";
+import { parseBankStatementService } from "./bank-statement.service";
 import { summaryAnalyticsService, chatWithAiFinancialAdvisorService } from "./analytics.service";
 import { DateRangeEnum } from "../enums/date-range.enum";
 import {
@@ -414,33 +415,222 @@ export const initTelegramBot = async () => {
       }
 
       const doc = ctx.message.document;
-      const mime = doc.mime_type || "";
-      const fileName = doc.file_name || "";
+      const mime = (doc.mime_type || "").toLowerCase();
+      const fileName = doc.file_name || "document";
+      const fileExt = fileName.toLowerCase().split(".").pop() || "";
+
+      // 1. Check if it's a CSV or text bank statement
+      if (
+        mime === "text/csv" ||
+        mime === "application/vnd.ms-excel" ||
+        fileExt === "csv" ||
+        fileExt === "txt"
+      ) {
+        await ctx.reply("📊 *Ingesting bank statement CSV...*", {
+          parse_mode: "Markdown",
+        });
+
+        try {
+          const fileLink = await ctx.telegram.getFileLink(doc.file_id);
+          const response = await axios.get(fileLink.href, {
+            responseType: "arraybuffer",
+          });
+          const fakeFile: any = {
+            buffer: Buffer.from(response.data),
+            originalname: fileName,
+            mimetype: mime || "text/csv",
+          };
+
+          const parseResult = await parseBankStatementService(
+            fakeFile,
+            undefined,
+            user._id.toString()
+          );
+
+          if (parseResult.transactions && parseResult.transactions.length > 0) {
+            const newTx = parseResult.transactions.filter((t) => !t.isDuplicate);
+            let committedCount = 0;
+            for (const item of newTx) {
+              try {
+                await createTransactionService(
+                  {
+                    title: item.title,
+                    amount: item.amount,
+                    type: item.type,
+                    category: item.category,
+                    paymentMethod: item.paymentMethod,
+                    date: new Date(item.date),
+                    description:
+                      item.rawNarration || `Imported via Telegram (${fileName})`,
+                    isRecurring: false,
+                  },
+                  user._id.toString()
+                );
+                committedCount++;
+              } catch {
+                // skip individual item errors
+              }
+            }
+
+            return ctx.reply(
+              `📄 *Bank Statement Ingested!*\n\n` +
+                `📁 *File:* ${fileName}\n` +
+                `📥 *Transactions Found:* ${parseResult.totalTransactions}\n` +
+                `✅ *Added to Ledger:* ${committedCount}\n` +
+                `🔁 *Duplicates Skipped:* ${parseResult.duplicateCount}\n` +
+                `📈 *Total Income:* ₹${Number(
+                  parseResult.totalIncome
+                ).toLocaleString("en-IN")}\n` +
+                `📉 *Total Expense:* ₹${Number(
+                  parseResult.totalExpense
+                ).toLocaleString("en-IN")}\n\n` +
+                `⚡ _Your transactions and dashboard are live and updated!_`,
+              { parse_mode: "Markdown" }
+            );
+          } else {
+            return ctx.reply(
+              `⚠️ No valid transactions found in ${fileName}. Please check the file formatting.`
+            );
+          }
+        } catch (err: any) {
+          console.error("[Telegram Copilot] Statement ingestion error:", err);
+          return ctx.reply(
+            `❌ Failed to parse bank statement: ${err.message || "Unknown error"}`
+          );
+        }
+      }
+
+      // 2. Check if it's a PDF (could be a multi-transaction Bank Statement OR a single Receipt)
+      if (mime === "application/pdf" || fileExt === "pdf") {
+        await ctx.reply("🔍 *Analyzing PDF document...*", {
+          parse_mode: "Markdown",
+        });
+
+        try {
+          const fileLink = await ctx.telegram.getFileLink(doc.file_id);
+          const response = await axios.get(fileLink.href, {
+            responseType: "arraybuffer",
+          });
+          const pdfBuffer = Buffer.from(response.data);
+
+          // Test if this PDF is a tabular bank statement with multiple transactions
+          try {
+            const fakeFile: any = {
+              buffer: pdfBuffer,
+              originalname: fileName,
+              mimetype: "application/pdf",
+            };
+            const statementResult = await parseBankStatementService(
+              fakeFile,
+              undefined,
+              user._id.toString()
+            );
+
+            if (
+              statementResult.transactions &&
+              statementResult.transactions.length >= 2
+            ) {
+              const newTx = statementResult.transactions.filter(
+                (t) => !t.isDuplicate
+              );
+              let committedCount = 0;
+              for (const item of newTx) {
+                try {
+                  await createTransactionService(
+                    {
+                      title: item.title,
+                      amount: item.amount,
+                      type: item.type,
+                      category: item.category,
+                      paymentMethod: item.paymentMethod,
+                      date: new Date(item.date),
+                      description:
+                        item.rawNarration ||
+                        `Imported via Telegram (${fileName})`,
+                      isRecurring: false,
+                    },
+                    user._id.toString()
+                  );
+                  committedCount++;
+                } catch {
+                  // ignore individual
+                }
+              }
+
+              return ctx.reply(
+                `📄 *Bank Statement Ingested!*\n\n` +
+                  `📁 *File:* ${fileName}\n` +
+                  `📥 *Transactions Found:* ${statementResult.totalTransactions}\n` +
+                  `✅ *Added to Ledger:* ${committedCount}\n` +
+                  `🔁 *Duplicates Skipped:* ${statementResult.duplicateCount}\n` +
+                  `📈 *Total Income:* ₹${Number(
+                    statementResult.totalIncome
+                  ).toLocaleString("en-IN")}\n` +
+                  `📉 *Total Expense:* ₹${Number(
+                    statementResult.totalExpense
+                  ).toLocaleString("en-IN")}\n\n` +
+                  `⚡ _Your transactions and dashboard are live and updated!_`,
+                { parse_mode: "Markdown" }
+              );
+            }
+          } catch {
+            // Not a multi-line bank statement; fallback to single receipt invoice extraction
+          }
+
+          return await processReceiptBuffer(
+            ctx,
+            pdfBuffer,
+            "application/pdf",
+            user
+          );
+        } catch (err: any) {
+          console.error("[Telegram Copilot] PDF document error:", err);
+          return ctx.reply(
+            `❌ Failed to process PDF: ${err.message || "Unknown error"}`
+          );
+        }
+      }
+
+      // 3. Check if it's an Image sent as document (PNG, JPG, WEBP, HEIC)
       if (
         /^image\//i.test(mime) ||
-        mime === "application/pdf" ||
-        /\.(pdf|png|jpe?g|webp)$/i.test(fileName)
+        ["png", "jpg", "jpeg", "webp", "heic"].includes(fileExt)
       ) {
         try {
           const fileLink = await ctx.telegram.getFileLink(doc.file_id);
           const response = await axios.get(fileLink.href, {
             responseType: "arraybuffer",
           });
-          const mimeType =
-            mime === "application/pdf" || fileName.endsWith(".pdf")
-              ? "application/pdf"
-              : "image/jpeg";
-          await processReceiptBuffer(
+          const mimeType = mime.startsWith("image/")
+            ? mime
+            : fileExt === "png"
+            ? "image/png"
+            : fileExt === "webp"
+            ? "image/webp"
+            : fileExt === "heic"
+            ? "image/heic"
+            : "image/jpeg";
+
+          return await processReceiptBuffer(
             ctx,
             Buffer.from(response.data),
             mimeType,
             user
           );
         } catch (err: any) {
-          console.error("[Telegram Copilot] Document receipt error:", err);
-          return ctx.reply(`⚠️ Could not process receipt document: ${err.message || err}`);
+          console.error("[Telegram Copilot] Image document error:", err);
+          return ctx.reply(
+            `⚠️ Could not process image document: ${err.message || err}`
+          );
         }
       }
+
+      // 4. Fallback for unsupported document types
+      return ctx.reply(
+        `⚠️ Unsupported document format: *${fileName}*\n\n` +
+          `Please send receipts or bank statements as a *PDF*, *CSV*, or *Image (JPG, PNG, WEBP)*.`,
+        { parse_mode: "Markdown" }
+      );
     });
 
     // --- Audio and Voice Note Handler (Transcribes audio with Gemini & logs or answers) ---

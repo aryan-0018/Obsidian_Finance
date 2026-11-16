@@ -63,8 +63,13 @@ const ReceiptScanner = ({
   const processFile = async (file: File) => {
     if (!file) return;
 
-    const isImage = file.type.startsWith("image/");
-    const isPdf = file.type === "application/pdf" || file.name.endsWith(".pdf");
+    const fileName = file.name.toLowerCase();
+    const isImage =
+      file.type.startsWith("image/") ||
+      /\.(jpe?g|png|webp|heic|bmp|tiff)$/i.test(fileName);
+    const isPdf =
+      file.type === "application/pdf" ||
+      fileName.endsWith(".pdf");
 
     if (!isImage && !isPdf) {
       toast.error("Please upload an image (JPG, PNG, WEBP) or PDF receipt.");
@@ -237,7 +242,8 @@ const ReceiptScanner = ({
         <div
           onDragOver={handleDragOver}
           onDrop={handleDrop}
-          className="group relative flex flex-col items-center justify-center p-5 border border-dashed border-white/[0.12] hover:border-[#e5c158]/70 rounded-xl bg-white/[0.02] hover:bg-white/[0.04] transition-all duration-200 text-center select-none"
+          onClick={() => fileInputRef.current?.click()}
+          className="group relative flex flex-col items-center justify-center p-5 border border-dashed border-white/[0.12] hover:border-[#e5c158]/70 rounded-xl bg-white/[0.02] hover:bg-white/[0.04] transition-all duration-200 text-center select-none cursor-pointer"
         >
           <input
             ref={fileInputRef}
@@ -260,7 +266,7 @@ const ReceiptScanner = ({
           </div>
 
           <p className="text-xs font-semibold text-white">
-            Drag & drop receipt photo or use options below
+            Drag & drop receipt photo or click to browse
           </p>
           <p className="text-[10px] text-[#8e8e93] mt-0.5 font-normal">
             JPG, PNG, WEBP, PDF up to 15MB • Auto-detects store, amount, items & date
@@ -269,7 +275,10 @@ const ReceiptScanner = ({
           <div className="flex items-center gap-2 mt-3.5">
             <button
               type="button"
-              onClick={() => fileInputRef.current?.click()}
+              onClick={(e) => {
+                e.stopPropagation();
+                fileInputRef.current?.click();
+              }}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.10] border border-white/[0.10] text-xs font-medium text-white transition-all cursor-pointer active:scale-95"
             >
               <Upload className="h-3.5 w-3.5 text-[#e5c158]" />
@@ -277,7 +286,10 @@ const ReceiptScanner = ({
             </button>
             <button
               type="button"
-              onClick={() => cameraInputRef.current?.click()}
+              onClick={(e) => {
+                e.stopPropagation();
+                cameraInputRef.current?.click();
+              }}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#e5c158]/15 hover:bg-[#e5c158]/25 border border-[#e5c158]/35 text-xs font-medium text-[#e5c158] transition-all cursor-pointer active:scale-95"
             >
               <Camera className="h-3.5 w-3.5" />

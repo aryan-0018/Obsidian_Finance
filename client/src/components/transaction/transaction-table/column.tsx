@@ -12,6 +12,7 @@ import {
   //StopCircleIcon,
   Trash2,
   Send,
+  FileText,
 } from "lucide-react";
 import { format } from "date-fns";
 import { Button } from "@/components/ui/button";
@@ -192,6 +193,18 @@ export const transactionColumns: ColumnDef<TransactionType>[] = [
               >
                 <Send className="h-2.5 w-2.5 text-[#e5c158]" /> Telegram
               </span>
+            )}
+            {row.original.receiptUrl && (
+              <a
+                href={row.original.receiptUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                title="View attached receipt"
+                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] bg-[#c1a063]/10 text-[#c1a063] border border-[#c1a063]/25 hover:bg-[#c1a063]/20 shrink-0 font-normal transition-colors"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <FileText className="h-2.5 w-2.5" /> Receipt
+              </a>
             )}
           </div>
           <div className="flex items-center gap-1.5 md:hidden text-[11px] text-[#a1a1aa]">
@@ -422,6 +435,19 @@ const ActionsCell = ({ row }: { row: any }) => {
           <Pencil className="mr-2 h-3.5 w-3.5 text-[#c1a063]" />
           Edit
         </DropdownMenuItem>
+        {row.original.receiptUrl && (
+          <DropdownMenuItem asChild className="rounded-xl cursor-pointer hover:bg-white/5 focus:bg-white/10 text-xs">
+            <a
+              href={row.original.receiptUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center"
+            >
+              <FileText className="mr-2 h-3.5 w-3.5 text-[#c1a063]" />
+              View Receipt
+            </a>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem
           className="relative rounded-xl cursor-pointer hover:bg-white/5 focus:bg-white/10 text-xs"
           disabled={isDuplicating}

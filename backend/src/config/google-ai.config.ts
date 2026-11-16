@@ -2,14 +2,14 @@ import { GoogleGenAI } from "@google/genai";
 import { Env } from "./env.config";
 
 export const genAI = new GoogleGenAI({ apiKey: Env.GEMINI_API_KEY });
-export const genAIModel = "gemini-3.5-flash-lite";
+export const genAIModel = "gemini-2.5-flash";
 
 const MODELS_PRIORITY = [
-  "gemini-3.5-flash-lite",
-  "gemini-3.6-flash",
-  "gemini-flash-lite-latest",
-  "gemini-3.1-flash-lite",
-  "gemini-3.8-flash",
+  "gemini-2.5-flash",
+  "gemini-2.0-flash",
+  "gemini-1.5-flash",
+  "gemini-2.5-pro",
+  "gemini-1.5-pro",
 ];
 
 export async function generateContentWithRetry(params: {
@@ -17,7 +17,7 @@ export async function generateContentWithRetry(params: {
   config?: any;
   timeoutMs?: number;
 }) {
-  const timeoutMs = params.timeoutMs || 8000;
+  const timeoutMs = params.timeoutMs || 25000;
   let lastError: any = null;
 
   for (const model of MODELS_PRIORITY) {

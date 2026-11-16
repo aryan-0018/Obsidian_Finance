@@ -121,6 +121,7 @@ const TransactionForm = (props: {
         isRecurring: editData.isRecurring,
         frequency: editData.recurringInterval,
         description: editData.description,
+        receiptUrl: editData.receiptUrl || "",
       });
     }
   }, [editData, form, isEdit, transactionId]);
@@ -192,6 +193,7 @@ const TransactionForm = (props: {
       })(),
       isRecurring: values.isRecurring || false,
       recurringInterval: values.frequency || null,
+      receiptUrl: values.receiptUrl || undefined,
     };
     if (isEdit && transactionId) {
       updateTransaction({ id: transactionId, transaction: payload })

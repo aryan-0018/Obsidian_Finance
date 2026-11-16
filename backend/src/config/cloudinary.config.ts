@@ -49,12 +49,18 @@ export const uploadBufferToCloudinary = async (
     return "";
   }
   return new Promise((resolve) => {
+    const timer = setTimeout(() => {
+      console.warn("[Cloudinary] Upload timed out after 6000ms");
+      resolve("");
+    }, 6000);
+
     const uploadStream = cloudinary.uploader.upload_stream(
       {
         folder,
         resource_type: "auto",
       },
       (error, result) => {
+        clearTimeout(timer);
         if (error || !result) {
           console.warn("[Cloudinary] Upload notice:", error?.message || error);
           resolve("");

@@ -181,19 +181,48 @@ export const duplicateTransactionService = async (
   });
   if (!transaction) throw new NotFoundException("Transaction not found");
 
+  const lastTx = await TransactionModel.findOne({ userId })
+    .sort({ createdAt: -1, _id: -1 })
+    .select("ledgerHash");
+
+  const prevLedgerHash = lastTx?.ledgerHash || getGenesisHash();
+  const newTxId = new mongoose.Types.ObjectId();
+  const title = `Duplicate - ${transaction.title}`;
+  const now = new Date();
+  const rawAmt = Number(transaction.amount);
+
+  const blockHash = computeTransactionBlockHash(prevLedgerHash, {
+    _id: newTxId,
+    date: now,
+    amount: convertToSmallestUnit(rawAmt),
+    type: transaction.type,
+    title,
+  });
+
+  const txObj = transaction.toObject();
+  delete (txObj as any)._id;
+  delete (txObj as any).id;
+  delete (txObj as any).ledgerHash;
+  delete (txObj as any).prevLedgerHash;
+  delete (txObj as any).createdAt;
+  delete (txObj as any).updatedAt;
+
   const duplicated = await TransactionModel.create({
-    ...transaction.toObject(),
-    _id: undefined,
-    title: `Duplicate - ${transaction.title}`,
+    ...txObj,
+    _id: newTxId,
+    title,
+    date: now,
     description: transaction.description
       ? `${transaction.description} (Duplicate)`
       : "Duplicated transaction",
     isRecurring: false,
-    recurringInterval: undefined,
-    nextRecurringDate: undefined,
-    createdAt: undefined,
-    updatedAt: undefined,
+    recurringInterval: null,
+    nextRecurringDate: null,
+    prevLedgerHash,
+    ledgerHash: blockHash,
   });
+
+  await recomputeUserLedgerChain(userId);
 
   return duplicated;
 };
@@ -237,6 +266,7 @@ export const updateTransactionService = async (
     ...(body.type && { type: body.type }),
     ...(body.paymentMethod && { paymentMethod: body.paymentMethod }),
     ...(body.amount !== undefined && { amount: Number(body.amount) }),
+    ...(body.receiptUrl !== undefined && { receiptUrl: body.receiptUrl }),
     date,
     isRecurring,
     recurringInterval,
@@ -431,7 +461,14 @@ ${extractedPdfText.slice(0, 15000)}
           },
         });
         const cleaned = result.text?.replace(/```(?:json)?\n?/g, "").trim();
-        if (cleaned) parsedData = JSON.parse(cleaned);
+        if (cleaned) {
+          try {
+            const json = JSON.parse(cleaned);
+            parsedData = Array.isArray(json) ? json[0] : json;
+          } catch (jsonErr) {
+            console.warn("[Receipt Scanner] Text JSON parse notice:", jsonErr);
+          }
+        }
       } catch (textErr) {
         console.warn("[Receipt Scanner] Text prompt fallback to vision multimodal:", textErr);
       }
@@ -439,25 +476,51 @@ ${extractedPdfText.slice(0, 15000)}
 
     // Strategy B: Multimodal Vision OCR (primary for image photos, or fallback for PDFs)
     if (!parsedData || !parsedData.amount) {
-      const mimeType = isPdf ? "application/pdf" : (file.mimetype || "image/jpeg");
-      const result = await generateContentWithRetry({
-        contents: [
-          createUserContent([
-            receiptPrompt,
-            createPartFromBase64(base64String, mimeType),
-          ]),
-        ],
-        config: {
-          temperature: 0.1,
-          topP: 0.95,
-          responseMimeType: "application/json",
-        },
-      });
+      let mimeType = "image/jpeg";
+      if (isPdf) {
+        mimeType = "application/pdf";
+      } else if (file.mimetype && file.mimetype.startsWith("image/")) {
+        mimeType = file.mimetype;
+      } else if (file.originalname.match(/\.png$/i)) {
+        mimeType = "image/png";
+      } else if (file.originalname.match(/\.webp$/i)) {
+        mimeType = "image/webp";
+      } else if (file.originalname.match(/\.heic$/i)) {
+        mimeType = "image/heic";
+      }
 
-      const response = result.text;
-      const cleanedText = response?.replace(/```(?:json)?\n?/g, "").trim();
-      if (cleanedText) {
-        parsedData = JSON.parse(cleanedText);
+      try {
+        const result = await generateContentWithRetry({
+          contents: [
+            createUserContent([
+              receiptPrompt,
+              createPartFromBase64(base64String, mimeType),
+            ]),
+          ],
+          config: {
+            temperature: 0.1,
+            topP: 0.95,
+            responseMimeType: "application/json",
+          },
+        });
+
+        const response = result.text;
+        const cleanedText = response?.replace(/```(?:json)?\n?/g, "").trim();
+        if (cleanedText) {
+          try {
+            const json = JSON.parse(cleanedText);
+            parsedData = Array.isArray(json) ? json[0] : json;
+          } catch (jsonErr) {
+            console.warn("[Receipt Scanner] Vision JSON parse notice:", jsonErr);
+          }
+        }
+      } catch (geminiErr: any) {
+        console.error("[Receipt Scanner] Gemini Vision error:", geminiErr?.message || geminiErr);
+        if (!extractedPdfText) {
+          throw new BadRequestException(
+            geminiErr?.message || "Could not analyze receipt image. Please ensure image is clear and try again."
+          );
+        }
       }
     }
 
@@ -496,6 +559,9 @@ ${extractedPdfText.slice(0, 15000)}
     // Sanitize amount
     let rawAmount = parsedData.amount;
     if (typeof rawAmount === "string") {
+      if (/^\s*[₹$€£]?\s*\d+,\d{2}\s*$/.test(rawAmount)) {
+        rawAmount = rawAmount.replace(",", ".");
+      }
       rawAmount = Number(rawAmount.replace(/[^0-9.-]+/g, ""));
     }
     let amount = !isNaN(Number(rawAmount)) && Number(rawAmount) > 0 ? Math.abs(Number(rawAmount)) : 0;
@@ -519,9 +585,23 @@ ${extractedPdfText.slice(0, 15000)}
       );
     }
 
-    let subtotal = Number(parsedData.subtotal) > 0 ? Number(parsedData.subtotal) : 0;
-    const tax = Number(parsedData.tax) >= 0 ? Number(parsedData.tax) : 0;
-    const discount = Number(parsedData.discount) >= 0 ? Number(parsedData.discount) : 0;
+    let rawSubtotal = parsedData.subtotal;
+    if (typeof rawSubtotal === "string") {
+      rawSubtotal = Number(rawSubtotal.replace(/[^0-9.-]+/g, ""));
+    }
+    let subtotal = !isNaN(Number(rawSubtotal)) && Number(rawSubtotal) > 0 ? Math.abs(Number(rawSubtotal)) : 0;
+
+    let rawTax = parsedData.tax;
+    if (typeof rawTax === "string") {
+      rawTax = Number(rawTax.replace(/[^0-9.-]+/g, ""));
+    }
+    const tax = !isNaN(Number(rawTax)) && Number(rawTax) >= 0 ? Math.abs(Number(rawTax)) : 0;
+
+    let rawDiscount = parsedData.discount;
+    if (typeof rawDiscount === "string") {
+      rawDiscount = Number(rawDiscount.replace(/[^0-9.-]+/g, ""));
+    }
+    const discount = !isNaN(Number(rawDiscount)) && Number(rawDiscount) >= 0 ? Math.abs(Number(rawDiscount)) : 0;
 
     // Mathematical reconciliation: Missing decimal dot in OCR (e.g. read 24500 when items sum to 245.00)
     if (itemsSum > 0 && Math.abs(amount - itemsSum * 100) < 5) {

@@ -5,6 +5,15 @@ export interface User {
   name: string;
   email: string;
   profilePicture: string;
+  portfolioBalance?: number;
+  currency?: string;
+  telegramChatId?: string | null;
+  telegramUsername?: string | null;
+}
+
+export interface GetCurrentUserResponse {
+  message: string;
+  user: User;
 }
 
 export interface UpdateUserResponse {

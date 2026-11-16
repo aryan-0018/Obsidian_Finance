@@ -19,6 +19,7 @@ export interface CreateTransactionBody {
   isRecurring: boolean;
   recurringInterval?: RecurringIntervalType | null;
   paymentMethod: string;
+  receiptUrl?: string;
 }
 
 export interface GetAllTransactionParams {
@@ -47,6 +48,7 @@ export interface TransactionType {
   lastProcessed: string | null;
   status: string;
   paymentMethod: string;
+  receiptUrl?: string;
   createdAt: string;
   updatedAt: string;
   id?: string;
