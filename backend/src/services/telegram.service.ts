@@ -3,7 +3,12 @@ import { Env } from "../config/env.config";
 import UserModel from "../models/user.model";
 import { createTransactionService } from "./transaction.service";
 import { parseBankStatementService } from "./bank-statement.service";
-import { summaryAnalyticsService, chatWithAiFinancialAdvisorService } from "./analytics.service";
+import {
+  summaryAnalyticsService,
+  chatWithAiFinancialAdvisorService,
+  getFreedomMetricsService,
+  simulatePurchaseService,
+} from "./analytics.service";
 import { DateRangeEnum } from "../enums/date-range.enum";
 import {
   TransactionTypeEnum,
@@ -114,8 +119,11 @@ export const initTelegramBot = async () => {
               `• *Quick Expenses:* Text _"Spent 450 on lunch with card"_ or _"Paid 15000 rent via bank transfer"_\n` +
               `• *Quick Income:* Text _"Got 45000 salary"_ or _"Received 5000 dividend"_\n` +
               `• *Instant Receipt OCR:* Snap & send any bill or receipt photo 🧾\n` +
-              `• *Live Stats:* Type /balance or /stats\n` +
-              `• *AI Queries:* Ask _"How much did I spend this month?"_ or _"Can I afford dinner tonight?"_\n\n` +
+              `• *Bank Statements:* Send CSV or PDF statements for auto-import 📊\n` +
+              `• *Voice Logging:* Hold the mic and speak any expense or question 🎙️\n` +
+              `• *Anti-Regret Simulator:* /afford <amount> <item> _(e.g. /afford 45000 iPhone)_\n` +
+              `• *Freedom Clock:* /freedom _(check your exact time-to-independence)_\n` +
+              `• *Live Stats:* /balance or /stats\n\n` +
               `Your Obsidian web dashboard will synchronize in real time! ⚡`,
             { parse_mode: "Markdown" }
           );
@@ -227,6 +235,89 @@ export const initTelegramBot = async () => {
       );
     });
 
+    // --- /afford Command (Purchase Affordability Check) ---
+    bot.command(["afford", "caniafford", "buy"], async (ctx) => {
+      const chatId = ctx.chat.id.toString();
+      const user = await UserModel.findOne({ telegramChatId: chatId });
+      if (!user) {
+        return ctx.reply("Please link your account first using /start with your code from Settings.");
+      }
+
+      const text = (ctx.message.text || "").replace(/^\/(?:afford|caniafford|buy)\s*/i, "").trim();
+      if (!text) {
+        return ctx.reply(
+          "Usage: `/afford <amount> <item>`\nExample: `/afford 25000 Laptop` or `/afford 2500 Dinner`",
+          { parse_mode: "Markdown" }
+        );
+      }
+
+      const amtMatch = text.match(/(?:₹|rs\.?|inr)?\s*(\d+(?:,\d+)*(?:\.\d+)?)/i);
+      if (!amtMatch) {
+        return ctx.reply("Please provide a valid amount. Example: `/afford 25000 Laptop`", {
+          parse_mode: "Markdown",
+        });
+      }
+
+      const rawNum = parseFloat(amtMatch[1].replace(/,/g, ""));
+      const title = text.replace(amtMatch[0], "").trim() || "Item";
+
+      try {
+        await ctx.sendChatAction("typing");
+        const sim = await simulatePurchaseService(user._id.toString(), {
+          amount: rawNum,
+          title,
+        });
+
+        const statusLabel =
+          sim.verdict === "SAFE"
+            ? "Affordable"
+            : sim.verdict === "CONDITIONAL"
+            ? "Caution"
+            : "Not Recommended";
+
+        let replyMsg =
+          `*Purchase Affordability Check*\n\n` +
+          `• *Item:* ${sim.purchaseTitle}\n` +
+          `• *Cost:* ₹${sim.purchaseAmount.toLocaleString("en-IN")}\n` +
+          `• *Assessment:* ${statusLabel}\n\n` +
+          `*Details:*\n` +
+          `• Buffer after purchase: ${sim.liquidBufferAfterBills < 0 ? `-₹${Math.abs(sim.liquidBufferAfterBills).toLocaleString("en-IN")} (Deficit)` : `₹${sim.liquidBufferAfterBills.toLocaleString("en-IN")}`}\n` +
+          `• Upcoming bills (30d): ₹${sim.upcomingRecurringBills.toLocaleString("en-IN")}\n` +
+          `• Coverage: ${sim.postPurchaseFreedomDays} days of expenses\n\n` +
+          `*Summary:* ${sim.recommendation}`;
+
+        return ctx.reply(replyMsg, { parse_mode: "Markdown" });
+      } catch (err: any) {
+        return ctx.reply(`Error checking purchase: ${err.message}`);
+      }
+    });
+
+    // --- /runway Command (Financial Runway) ---
+    bot.command(["runway", "freedom", "clock"], async (ctx) => {
+      const chatId = ctx.chat.id.toString();
+      const user = await UserModel.findOne({ telegramChatId: chatId });
+      if (!user) {
+        return ctx.reply("Please link your account first using /start with your code from Settings.");
+      }
+
+      try {
+        await ctx.sendChatAction("typing");
+        const data = await getFreedomMetricsService(user._id.toString());
+        const monthlySpend = Math.round(data.dailyBurnRate * 30);
+
+        let msg =
+          `*Financial Runway*\n\n` +
+          `• *Estimated Runway:* ${data.formattedRunway} (${data.totalFreedomDays.toLocaleString("en-IN")} days)\n` +
+          `• *Average Spend:* ₹${monthlySpend.toLocaleString("en-IN")}/month (~₹${data.costPerDay.toLocaleString("en-IN")}/day)\n` +
+          `• *Available Balance:* ₹${Math.round(data.currentNetWealth).toLocaleString("en-IN")}\n` +
+          `• *6-Month Buffer Progress:* ${data.milestones[1]?.progress || 0}%\n`;
+
+        return ctx.reply(msg, { parse_mode: "Markdown" });
+      } catch (err: any) {
+        return ctx.reply(`Error fetching runway: ${err.message}`);
+      }
+    });
+
     // --- Photo & Document / Bill Receipt Handler ---
     const processReceiptBuffer = async (
       ctx: any,
@@ -332,6 +423,7 @@ export const initTelegramBot = async () => {
             date,
             description: parsed.description || "Scanned via Telegram Copilot",
             isRecurring: false,
+            receiptUrl: receiptUrl || undefined,
           },
           user._id.toString()
         );
@@ -435,14 +527,14 @@ export const initTelegramBot = async () => {
           const response = await axios.get(fileLink.href, {
             responseType: "arraybuffer",
           });
-          const fakeFile: any = {
+          const statementFile: any = {
             buffer: Buffer.from(response.data),
             originalname: fileName,
             mimetype: mime || "text/csv",
           };
 
           const parseResult = await parseBankStatementService(
-            fakeFile,
+            statementFile,
             undefined,
             user._id.toString()
           );
@@ -515,13 +607,13 @@ export const initTelegramBot = async () => {
 
           // Test if this PDF is a tabular bank statement with multiple transactions
           try {
-            const fakeFile: any = {
+            const statementFile: any = {
               buffer: pdfBuffer,
               originalname: fileName,
               mimetype: "application/pdf",
             };
             const statementResult = await parseBankStatementService(
-              fakeFile,
+              statementFile,
               undefined,
               user._id.toString()
             );
@@ -573,7 +665,18 @@ export const initTelegramBot = async () => {
                 { parse_mode: "Markdown" }
               );
             }
-          } catch {
+          } catch (statementErr: any) {
+            const isPassword =
+              statementErr?.message?.toLowerCase().includes("password") ||
+              statementErr?.message?.toLowerCase().includes("encrypted") ||
+              statementErr?.name === "PasswordException";
+            if (isPassword) {
+              return ctx.reply(
+                `🔒 *Password-Protected PDF Detected*\n\n` +
+                  `This bank statement is encrypted with a password. Please open your Obsidian web dashboard, go to *Import Transactions*, and upload it with your statement password to decrypt and import it.`,
+                { parse_mode: "Markdown" }
+              );
+            }
             // Not a multi-line bank statement; fallback to single receipt invoice extraction
           }
 
@@ -724,10 +827,18 @@ If the message is an analytical or advisory question (e.g., "what's my balance?"
           );
 
           const icon = type === TransactionTypeEnum.INCOME ? "📈" : "📉";
+          let freedomImpactStr = "";
+          try {
+            const freedom = await getFreedomMetricsService(user._id.toString());
+            const burn = freedom.dailyBurnRate || 1000;
+            const daysImpact = parseFloat((cleanAmt / burn).toFixed(1));
+            freedomImpactStr = `\n⏳ *Freedom Impact:* ${type === TransactionTypeEnum.INCOME ? "+" : "-"}${daysImpact} Days`;
+          } catch {}
+
           return ctx.reply(
             `🎙️ *Voice Note Transcribed:*\n_${parsed.transcript || "Spoken command"}_\n\n` +
               `✅ *Transaction Logged!*\n` +
-              `${icon} *${type}:* ₹${Number(created.amount).toLocaleString("en-IN")}\n` +
+              `${icon} *${type}:* ₹${Number(created.amount).toLocaleString("en-IN")}${freedomImpactStr}\n` +
               `📌 *Title:* ${created.title}\n` +
               `🏷 *Category:* ${category.charAt(0).toUpperCase() + category.slice(1)}\n` +
               `💳 *Method:* ${paymentMethod}\n` +

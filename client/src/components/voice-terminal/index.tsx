@@ -84,6 +84,7 @@ export function VoiceTerminalModal({
   const transcriptRef = useRef<string>("");
   const isProcessingRef = useRef<boolean>(false);
   const silenceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const handleExecuteRef = useRef<(commandText: string) => Promise<void>>(async () => {});
   const [processCommand, { isLoading }] = useProcessVoiceCommandMutation();
 
   // Preload speech synthesis voices
@@ -137,7 +138,7 @@ export function VoiceTerminalModal({
             } catch {
               // ignore
             }
-            handleExecute(trimmed);
+            handleExecuteRef.current(trimmed);
           }, 1400);
         }
       };
@@ -170,7 +171,7 @@ export function VoiceTerminalModal({
           !isProcessingRef.current &&
           finalTranscript !== executedRef.current
         ) {
-          handleExecute(finalTranscript);
+          handleExecuteRef.current(finalTranscript);
         }
       };
 
@@ -232,7 +233,9 @@ export function VoiceTerminalModal({
   const playChime = (type: "start" | "success") => {
     if (isAudioMuted || typeof window === "undefined") return;
     try {
-      const AudioCtx = window.AudioContext || (window as any).webkitAudioContext;
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
       if (!AudioCtx) return;
       const ctx = new AudioCtx();
       const osc = ctx.createOscillator();
@@ -395,6 +398,10 @@ export function VoiceTerminalModal({
       }, 500);
     }
   };
+
+  useEffect(() => {
+    handleExecuteRef.current = handleExecute;
+  });
 
   // Auto-start listening on open
   useEffect(() => {

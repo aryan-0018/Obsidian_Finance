@@ -32,7 +32,17 @@ export const getReportEmailTemplate = (
     reportTitle = `Financial Summary`;
   }
 
-  const categoryList = (topSpendingCategories || [])
+  const rawCategories = Array.isArray(topSpendingCategories)
+    ? topSpendingCategories
+    : topSpendingCategories && typeof topSpendingCategories === "object"
+    ? Object.entries(topSpendingCategories).map(([name, cat]: [string, any]) => ({
+        name,
+        amount: cat?.amount,
+        percent: cat?.percentage ?? cat?.percent ?? 0,
+      }))
+    : [];
+
+  const categoryList = rawCategories
     .map(
       (cat: any) => `<li>
       <strong>${capitalizeFirstLetter(cat.name || "Other")}</strong>: ${cat.amount !== undefined ? formatCurrency(cat.amount) : ""} (${cat.percent || 0}%)
@@ -70,7 +80,7 @@ export const getReportEmailTemplate = (
                 <td style="padding: 8px 10px; font-weight: 500;">${t.title}</td>
                 <td style="padding: 8px 10px; color: #4b5563;">${capitalizeFirstLetter(t.category)}</td>
                 <td style="padding: 8px 10px; text-align: right; font-weight: 600; color: ${isIncome ? "#16a34a" : "#dc2626"};">
-                  ${isIncome ? "+" : "-"}${formatCurrency(t.amount)}
+                  ${isIncome ? "+" : "-"}${formatCurrency(Math.abs(Number(t.amount) || 0))}
                 </td>
               </tr>
             `;

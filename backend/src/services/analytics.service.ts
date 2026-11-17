@@ -20,7 +20,9 @@ import {
   endOfDay,
   endOfMonth,
   format,
+  addDays,
 } from "date-fns";
+import { BadRequestException } from "../utils/app-error";
 import { convertToUnit } from "../utils/format-currency";
 import {
   genAI,
@@ -1737,5 +1739,380 @@ Output strictly valid JSON matching this schema:
       reply: `Your total portfolio balance is ₹${totalBal}. This period, earnings are ₹${inc} and spending is ₹${exp}, with a ${rate}% savings rate and ₹${remBudget} remaining in your monthly budget.\n\n• Top spending category: ${topCat}\n• Remaining budget: ₹${remBudget}\n\nTip: ${rate >= 20 ? "Great job maintaining a healthy savings rate!" : "Try to save at least 20% of your monthly income."}`,
     };
   }
+};
+
+export const getFreedomMetricsService = async (userId: string) => {
+  const user = await UserModel.findById(userId).lean();
+  const baseWealth = Number(user?.portfolioBalance) || 0;
+
+  const now = new Date();
+  const thirtyDaysAgo = subDays(now, 30);
+  const startOfThisMonth = startOfMonth(now);
+  const startOfLastMonth = startOfMonth(subMonths(now, 1));
+  const endOfLastMonth = endOfMonth(subMonths(now, 1));
+
+  const [allTimeData, last30DaysData, thisMonthData, lastMonthData] = await Promise.all([
+    TransactionModel.aggregate([
+      { $match: { userId: new mongoose.Types.ObjectId(userId) } },
+      {
+        $group: {
+          _id: null,
+          totalIncome: {
+            $sum: { $cond: [{ $eq: ["$type", TransactionTypeEnum.INCOME] }, { $abs: "$amount" }, 0] },
+          },
+          totalExpenses: {
+            $sum: { $cond: [{ $eq: ["$type", TransactionTypeEnum.EXPENSE] }, { $abs: "$amount" }, 0] },
+          },
+        },
+      },
+    ]),
+    TransactionModel.aggregate([
+      {
+        $match: {
+          userId: new mongoose.Types.ObjectId(userId),
+          type: TransactionTypeEnum.EXPENSE,
+          date: { $gte: thirtyDaysAgo, $lte: now },
+        },
+      },
+      { $group: { _id: null, totalExpenses: { $sum: { $abs: "$amount" } } } },
+    ]),
+    TransactionModel.aggregate([
+      {
+        $match: {
+          userId: new mongoose.Types.ObjectId(userId),
+          date: { $gte: startOfThisMonth, $lte: now },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          income: { $sum: { $cond: [{ $eq: ["$type", TransactionTypeEnum.INCOME] }, { $abs: "$amount" }, 0] } },
+          expenses: { $sum: { $cond: [{ $eq: ["$type", TransactionTypeEnum.EXPENSE] }, { $abs: "$amount" }, 0] } },
+        },
+      },
+    ]),
+    TransactionModel.aggregate([
+      {
+        $match: {
+          userId: new mongoose.Types.ObjectId(userId),
+          date: { $gte: startOfLastMonth, $lte: endOfLastMonth },
+        },
+      },
+      {
+        $group: {
+          _id: null,
+          income: { $sum: { $cond: [{ $eq: ["$type", TransactionTypeEnum.INCOME] }, { $abs: "$amount" }, 0] } },
+          expenses: { $sum: { $cond: [{ $eq: ["$type", TransactionTypeEnum.EXPENSE] }, { $abs: "$amount" }, 0] } },
+        },
+      },
+    ]),
+  ]);
+
+  const allInc = convertToUnit(allTimeData[0]?.totalIncome || 0);
+  const allExp = convertToUnit(allTimeData[0]?.totalExpenses || 0);
+  const allTimeCashFlow = allInc - allExp;
+  const currentNetWealth = Math.max(0, baseWealth + allTimeCashFlow);
+
+  const last30Expenses = convertToUnit(last30DaysData[0]?.totalExpenses || 0);
+  let dailyBurnRate = last30Expenses > 0 ? last30Expenses / 30 : 0;
+  if (dailyBurnRate === 0 && allExp > 0) {
+    dailyBurnRate = Math.max(1, allExp / 90);
+  }
+
+  const costPerDay = Math.round(dailyBurnRate);
+  let totalDays = 0;
+  if (dailyBurnRate > 0) {
+    totalDays = Math.floor(currentNetWealth / dailyBurnRate);
+  } else if (currentNetWealth > 0) {
+    totalDays = 9125; // 25+ years if user has wealth with zero expenses logged
+  }
+
+  const years = Math.floor(totalDays / 365);
+  const months = Math.floor((totalDays % 365) / 30);
+  const days = (totalDays % 365) % 30;
+
+  let formattedRunway = "";
+  if (totalDays >= 9125) {
+    formattedRunway = "25+ Years (Full Financial Independence)";
+  } else if (years > 0) {
+    formattedRunway = `${years}y ${months}m ${days}d`;
+  } else if (months > 0) {
+    formattedRunway = `${months}m ${days}d`;
+  } else {
+    formattedRunway = `${days} Days`;
+  }
+
+  const thisMonthInc = convertToUnit(thisMonthData[0]?.income || 0);
+  const thisMonthExp = convertToUnit(thisMonthData[0]?.expenses || 0);
+  const thisMonthNet = thisMonthInc - thisMonthExp;
+  const freedomVelocityDays = dailyBurnRate > 0 ? parseFloat((thisMonthNet / dailyBurnRate).toFixed(1)) : 0;
+
+  const calcProgress = (target: number) => {
+    if (target <= 0) return currentNetWealth > 0 ? 100 : 0;
+    return Math.min(100, Math.max(0, Math.round((currentNetWealth / target) * 100)));
+  };
+
+  const milestones = [
+    {
+      id: "survival_90",
+      label: "90-Day Iron Fortress",
+      description: "Baseline liquidity to survive sudden income disruption without debt",
+      targetDays: 90,
+      targetAmount: Math.round(dailyBurnRate * 90),
+      isAchieved: totalDays >= 90,
+      progress: calcProgress(dailyBurnRate * 90),
+      daysRemaining: Math.max(0, 90 - totalDays),
+    },
+    {
+      id: "deep_breath_180",
+      label: "6-Month Deep Breath",
+      description: "Half-year autonomy allowing deliberate career and investment decisions",
+      targetDays: 180,
+      targetAmount: Math.round(dailyBurnRate * 180),
+      isAchieved: totalDays >= 180,
+      progress: calcProgress(dailyBurnRate * 180),
+      daysRemaining: Math.max(0, 180 - totalDays),
+    },
+    {
+      id: "leap_year_365",
+      label: "1-Year Independence Leap",
+      description: "Full 365 days of self-sovereign living without paycheck reliance",
+      targetDays: 365,
+      targetAmount: Math.round(dailyBurnRate * 365),
+      isAchieved: totalDays >= 365,
+      progress: calcProgress(dailyBurnRate * 365),
+      daysRemaining: Math.max(0, 365 - totalDays),
+    },
+    {
+      id: "sabbatical_730",
+      label: "2-Year Sabbatical Vault",
+      description: "Multi-year freedom cushion to build ventures or take extended sabbaticals",
+      targetDays: 730,
+      targetAmount: Math.round(dailyBurnRate * 730),
+      isAchieved: totalDays >= 730,
+      progress: calcProgress(dailyBurnRate * 730),
+      daysRemaining: Math.max(0, 730 - totalDays),
+    },
+    {
+      id: "fire_perpetual",
+      label: "Full Financial Independence (25x FIRE)",
+      description: "Perpetual wealth generation under the classic 4% safe withdrawal rule",
+      targetDays: 9125,
+      targetAmount: Math.round(dailyBurnRate * 365 * 25),
+      isAchieved: totalDays >= 9125,
+      progress: calcProgress(dailyBurnRate * 365 * 25),
+      daysRemaining: Math.max(0, 9125 - totalDays),
+    },
+  ];
+
+  return {
+    currentNetWealth,
+    dailyBurnRate: Math.round(dailyBurnRate),
+    costPerDay,
+    totalFreedomDays: totalDays,
+    formattedRunway,
+    years,
+    months,
+    days,
+    freedomVelocityDays,
+    thisMonthNetCashFlow: Math.round(thisMonthNet),
+    milestones,
+    currency: user?.currency || "INR",
+  };
+};
+
+export const simulatePurchaseService = async (
+  userId: string,
+  input: { amount: number; title: string; category?: string }
+) => {
+  const purchaseAmount = Math.abs(Number(input.amount));
+  if (isNaN(purchaseAmount) || purchaseAmount <= 0) {
+    throw new BadRequestException("Please enter a valid positive purchase amount");
+  }
+
+  const purchaseTitle = (input.title || "Target Acquisition").trim();
+  const freedomData = await getFreedomMetricsService(userId);
+  const { currentNetWealth, dailyBurnRate, totalFreedomDays } = freedomData;
+
+  const freedomDaysCost = dailyBurnRate > 0 ? parseFloat((purchaseAmount / dailyBurnRate).toFixed(1)) : 0;
+
+  const recurringTxs = await TransactionModel.find({
+    userId: new mongoose.Types.ObjectId(userId),
+    isRecurring: true,
+  }).lean();
+
+  let upcomingRecurringBills = 0;
+  const upcomingBillsList: Array<{ title: string; amount: number; date: string }> = [];
+
+  for (const tx of recurringTxs) {
+    if (tx.type === TransactionTypeEnum.EXPENSE) {
+      const amtInUnit = convertToUnit(Number(tx.amount));
+      upcomingRecurringBills += amtInUnit;
+      upcomingBillsList.push({
+        title: tx.title,
+        amount: Math.round(amtInUnit),
+        date: tx.nextRecurringDate ? new Date(tx.nextRecurringDate).toISOString().split("T")[0] : "Within 30d",
+      });
+    }
+  }
+
+  const postPurchaseNetWealth = currentNetWealth - purchaseAmount;
+  const liquidBufferAfterBills = postPurchaseNetWealth - upcomingRecurringBills;
+  const emergencyFloor90Days = dailyBurnRate * 90;
+  const emergencyFloor30Days = dailyBurnRate * 30;
+  const postPurchaseFreedomDays = dailyBurnRate > 0 ? Math.max(0, Math.floor(postPurchaseNetWealth / dailyBurnRate)) : totalFreedomDays;
+
+  let verdict: "SAFE" | "CONDITIONAL" | "HIGH_RISK" = "SAFE";
+  let headline = "";
+  let recommendation = "";
+  let tradeOffAdvice: string | null = null;
+
+  if (liquidBufferAfterBills < 0) {
+    verdict = "HIGH_RISK";
+    headline = "Not Recommended: Exceeds available cash flow.";
+    recommendation = `Purchasing this now will leave you with a ₹${Math.abs(Math.round(liquidBufferAfterBills)).toLocaleString("en-IN")} deficit after upcoming bills (₹${Math.round(upcomingRecurringBills).toLocaleString("en-IN")}) are paid.`;
+    tradeOffAdvice = "Postpone this purchase until your next income cycle.";
+  } else if (postPurchaseNetWealth < emergencyFloor30Days) {
+    verdict = "CONDITIONAL";
+    headline = "Caution: Leaves less than 30 days of reserves.";
+    recommendation = `You have enough funds to cover this and upcoming bills with ₹${Math.round(liquidBufferAfterBills).toLocaleString("en-IN")} remaining, but your emergency runway drops to ${postPurchaseFreedomDays} days.`;
+    tradeOffAdvice = "Ensure no unexpected expenses arise before your next deposit.";
+  } else if (postPurchaseNetWealth < emergencyFloor90Days) {
+    verdict = "CONDITIONAL";
+    headline = "Caution: Leaves a narrow safety buffer.";
+    recommendation = `You have sufficient funds (₹${Math.round(liquidBufferAfterBills).toLocaleString("en-IN")} remaining after upcoming bills), but it leaves less than 3 months of emergency savings.`;
+    tradeOffAdvice = "Consider pacing other discretionary spending over the next two weeks.";
+  } else {
+    verdict = "SAFE";
+    headline = "Affordable: Fits comfortably within your current reserves.";
+    recommendation = `Your balance comfortably covers this ₹${purchaseAmount.toLocaleString("en-IN")} expense while keeping your emergency buffer intact.`;
+    tradeOffAdvice = null;
+  }
+
+  return {
+    purchaseTitle,
+    purchaseAmount,
+    freedomDaysCost,
+    currentFreedomDays: totalFreedomDays,
+    postPurchaseFreedomDays,
+    currentNetWealth,
+    postPurchaseNetWealth: Math.round(postPurchaseNetWealth),
+    liquidBufferAfterBills: Math.round(liquidBufferAfterBills),
+    upcomingRecurringBills: Math.round(upcomingRecurringBills),
+    emergencyFloor: Math.round(emergencyFloor90Days),
+    verdict,
+    headline,
+    recommendation,
+    tradeOffAdvice,
+    upcomingBills: upcomingBillsList.slice(0, 5),
+  };
+};
+
+export const getLiquidityRadarService = async (userId: string) => {
+  const freedomData = await getFreedomMetricsService(userId);
+  const { currentNetWealth, dailyBurnRate } = freedomData;
+
+  const now = new Date();
+  const recurringTxs = await TransactionModel.find({
+    userId: new mongoose.Types.ObjectId(userId),
+    isRecurring: true,
+  }).lean();
+
+  let runningBalance = currentNetWealth;
+  const trajectory: Array<{
+    date: string;
+    dayLabel: string;
+    balance: number;
+    dailyBurn: number;
+    inflows: number;
+    outflows: number;
+    events: string[];
+  }> = [];
+
+  let valleyBalance = runningBalance;
+  let valleyDate = format(now, "yyyy-MM-dd");
+  let valleyDayLabel = format(now, "MMM dd");
+
+  for (let i = 0; i <= 30; i++) {
+    const curDate = addDays(now, i);
+    const dateStr = format(curDate, "yyyy-MM-dd");
+    const dayLabel = format(curDate, "MMM dd");
+    const dayNum = curDate.getDate();
+
+    let dayInflows = 0;
+    let dayOutflows = 0;
+    const events: string[] = [];
+
+    for (const tx of recurringTxs) {
+      let isDue = false;
+      if (tx.nextRecurringDate) {
+        const nextD = new Date(tx.nextRecurringDate);
+        if (format(nextD, "yyyy-MM-dd") === dateStr) {
+          isDue = true;
+        }
+      } else if (tx.date) {
+        const origD = new Date(tx.date);
+        if (origD.getDate() === dayNum) {
+          isDue = true;
+        }
+      }
+
+      if (isDue) {
+        const amt = convertToUnit(Number(tx.amount));
+        if (tx.type === TransactionTypeEnum.INCOME) {
+          dayInflows += amt;
+          events.push(`+₹${Math.round(amt).toLocaleString("en-IN")} (${tx.title})`);
+        } else {
+          dayOutflows += amt;
+          events.push(`-₹${Math.round(amt).toLocaleString("en-IN")} (${tx.title})`);
+        }
+      }
+    }
+
+    if (i > 0) {
+      runningBalance = runningBalance - dailyBurnRate + dayInflows - dayOutflows;
+    }
+
+    const roundedBal = Math.round(runningBalance);
+    trajectory.push({
+      date: dateStr,
+      dayLabel,
+      balance: roundedBal,
+      dailyBurn: Math.round(dailyBurnRate),
+      inflows: Math.round(dayInflows),
+      outflows: Math.round(dayOutflows),
+      events,
+    });
+
+    if (roundedBal < valleyBalance) {
+      valleyBalance = roundedBal;
+      valleyDate = dateStr;
+      valleyDayLabel = dayLabel;
+    }
+  }
+
+  const valleySafetyDays = dailyBurnRate > 0 ? parseFloat((valleyBalance / dailyBurnRate).toFixed(1)) : 0;
+  const valleyRisk: "DEFICIT" | "TIGHT" | "OPTIMAL" =
+    valleyBalance < 0 ? "DEFICIT" : valleyBalance < dailyBurnRate * 15 ? "TIGHT" : "OPTIMAL";
+
+  return {
+    currentNetWealth: Math.round(currentNetWealth),
+    dailyBurnRate: Math.round(dailyBurnRate),
+    trajectory,
+    valley: {
+      date: valleyDate,
+      dayLabel: valleyDayLabel,
+      balance: valleyBalance,
+      safetyDays: valleySafetyDays,
+      riskLevel: valleyRisk,
+      description:
+        valleyRisk === "DEFICIT"
+          ? `Estimated low of ₹${valleyBalance.toLocaleString("en-IN")} on ${valleyDayLabel}`
+          : valleyRisk === "TIGHT"
+          ? `Estimated low of ₹${valleyBalance.toLocaleString("en-IN")} on ${valleyDayLabel}`
+          : `Projected minimum of ₹${valleyBalance.toLocaleString("en-IN")} on ${valleyDayLabel}`,
+    },
+    thirtyDayNetChange: Math.round(runningBalance - currentNetWealth),
+  };
 };
 

@@ -70,3 +70,85 @@ export interface ExpensePieChartBreakdownResponse {
     preset: PresetType;
   };
 }
+
+export interface FreedomMilestone {
+  id: string;
+  label: string;
+  description: string;
+  targetDays: number;
+  targetAmount: number;
+  isAchieved: boolean;
+  progress: number;
+  daysRemaining: number;
+}
+
+export interface FreedomMetricsResponse {
+  message: string;
+  data: {
+    currentNetWealth: number;
+    dailyBurnRate: number;
+    costPerDay: number;
+    totalFreedomDays: number;
+    formattedRunway: string;
+    years: number;
+    months: number;
+    days: number;
+    freedomVelocityDays: number;
+    thisMonthNetCashFlow: number;
+    milestones: FreedomMilestone[];
+    currency: string;
+  };
+}
+
+export interface PurchaseSimulationResponse {
+  message: string;
+  data: {
+    purchaseTitle: string;
+    purchaseAmount: number;
+    freedomDaysCost: number;
+    currentFreedomDays: number;
+    postPurchaseFreedomDays: number;
+    currentNetWealth: number;
+    postPurchaseNetWealth: number;
+    liquidBufferAfterBills: number;
+    upcomingRecurringBills: number;
+    emergencyFloor: number;
+    verdict: "SAFE" | "CONDITIONAL" | "HIGH_RISK";
+    headline: string;
+    recommendation: string;
+    tradeOffAdvice: string | null;
+    upcomingBills: Array<{
+      title: string;
+      amount: number;
+      date: string;
+    }>;
+  };
+}
+
+export interface LiquidityRadarDay {
+  date: string;
+  dayLabel: string;
+  balance: number;
+  dailyBurn: number;
+  inflows: number;
+  outflows: number;
+  events: string[];
+}
+
+export interface LiquidityRadarResponse {
+  message: string;
+  data: {
+    currentNetWealth: number;
+    dailyBurnRate: number;
+    trajectory: LiquidityRadarDay[];
+    valley: {
+      date: string;
+      dayLabel: string;
+      balance: number;
+      safetyDays: number;
+      riskLevel: "DEFICIT" | "TIGHT" | "OPTIMAL";
+      description: string;
+    };
+    thirtyDayNetChange: number;
+  };
+}

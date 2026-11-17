@@ -8,6 +8,9 @@ import {
   summaryAnalyticsService,
   generateAiInsightsService,
   chatWithAiFinancialAdvisorService,
+  getFreedomMetricsService,
+  simulatePurchaseService,
+  getLiquidityRadarService,
 } from "../services/analytics.service";
 import { processVoiceCommandService } from "../services/voice-terminal.service";
 
@@ -147,6 +150,48 @@ export const voiceTerminalCommandController = asyncHandler(
     return res.status(HTTPSTATUS.OK).json({
       message: "Voice command processed successfully",
       data: result,
+    });
+  }
+);
+
+export const getFreedomMetricsController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = req.user?._id?.toString();
+    const data = await getFreedomMetricsService(userId);
+
+    return res.status(HTTPSTATUS.OK).json({
+      message: "Freedom metrics retrieved successfully",
+      data,
+    });
+  }
+);
+
+export const simulatePurchaseController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = req.user?._id?.toString();
+    const { amount, title, category } = req.body;
+
+    const data = await simulatePurchaseService(userId, {
+      amount,
+      title,
+      category,
+    });
+
+    return res.status(HTTPSTATUS.OK).json({
+      message: "Purchase simulation calculated",
+      data,
+    });
+  }
+);
+
+export const getLiquidityRadarController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = req.user?._id?.toString();
+    const data = await getLiquidityRadarService(userId);
+
+    return res.status(HTTPSTATUS.OK).json({
+      message: "30-day liquidity radar calculated",
+      data,
     });
   }
 );

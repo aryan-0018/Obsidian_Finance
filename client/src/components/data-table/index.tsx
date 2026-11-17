@@ -92,7 +92,7 @@ export function DataTable<TData>({
   >(initialFilters);
 
   React.useEffect(() => {
-    if (initialSearchTerm !== undefined && initialSearchTerm !== searchTerm) {
+    if (initialSearchTerm !== undefined) {
       setSearchTerm(initialSearchTerm);
     }
   }, [initialSearchTerm]);

@@ -1,5 +1,13 @@
 import { apiClient } from "@/app/api-client";
-import { ChartAnalyticsResponse, ExpensePieChartBreakdownResponse, FilterParams, SummaryAnalyticsResponse } from "./anayticsType";
+import {
+  ChartAnalyticsResponse,
+  ExpensePieChartBreakdownResponse,
+  FilterParams,
+  SummaryAnalyticsResponse,
+  FreedomMetricsResponse,
+  PurchaseSimulationResponse,
+  LiquidityRadarResponse,
+} from "./anayticsType";
 
 export interface AiAdvisorChatResponse {
   message: string;
@@ -132,6 +140,24 @@ export const analyticsApi = apiClient.injectEndpoints({
         return [];
       },
     }),
+    getFreedomMetrics: builder.query<FreedomMetricsResponse, void>({
+      query: () => "/analytics/freedom-clock",
+      providesTags: ["analytics", "transactions"],
+    }),
+    simulatePurchase: builder.mutation<
+      PurchaseSimulationResponse,
+      { amount: number; title: string; category?: string }
+    >({
+      query: (body) => ({
+        url: "/analytics/simulate-purchase",
+        method: "POST",
+        body,
+      }),
+    }),
+    getLiquidityRadar: builder.query<LiquidityRadarResponse, void>({
+      query: () => "/analytics/liquidity-radar",
+      providesTags: ["analytics", "transactions"],
+    }),
   }),
 });
 
@@ -142,4 +168,7 @@ export const {
   useGetAiInsightsMutation,
   useChatWithAiAdvisorMutation,
   useProcessVoiceCommandMutation,
+  useGetFreedomMetricsQuery,
+  useSimulatePurchaseMutation,
+  useGetLiquidityRadarQuery,
 } = analyticsApi;

@@ -1,40 +1,8 @@
-/* eslint-disable react-refresh/only-export-components */
 import { ColumnDef } from "@tanstack/react-table";
-import { Button } from "@/components/ui/button";
-import { Clock, RefreshCw } from "lucide-react";
+import { Clock } from "lucide-react";
 import { _REPORT_STATUS, ReportStatusType } from "@/constant";
 import { ReportType } from "@/features/report/reportType";
-import { useResendReportMutation } from "@/features/report/reportAPI";
-import { toast } from "sonner";
-
-const ResendActionCell = ({ reportId }: { reportId: string }) => {
-  const [resendReport, { isLoading }] = useResendReportMutation();
-
-  const handleResend = () => {
-    resendReport(reportId)
-      .unwrap()
-      .then(() => toast.success("Report resent successfully to your registered email"))
-      .catch((err: unknown) => {
-        const message =
-          (err as { data?: { message?: string } })?.data?.message ||
-          "Failed to resend report";
-        toast.error(message);
-      });
-  };
-
-  return (
-    <Button
-      size="sm"
-      variant="outline"
-      className="rounded-xl border border-white/[0.12] bg-white/[0.03] text-white hover:text-[#e5c158] hover:border-[#c1a063]/40 active:scale-[0.98] transition-all text-xs font-medium"
-      disabled={isLoading}
-      onClick={handleResend}
-    >
-      <RefreshCw className={`h-3 w-3 mr-1.5 ${isLoading ? "animate-spin" : ""}`} />
-      {isLoading ? "Sending..." : "Resend"}
-    </Button>
-  );
-};
+import { ResendActionCell } from "./report-cells";
 
 export const reportColumns: ColumnDef<ReportType>[] = [
   {
@@ -87,8 +55,7 @@ export const reportColumns: ColumnDef<ReportType>[] = [
 
       return (
         <span
-          className={`inline-flex items-center rounded-full
-         px-2.5 py-0.5 text-xs font-medium ${style}`}
+          className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${style}`}
         >
           {status}
         </span>
@@ -100,6 +67,13 @@ export const reportColumns: ColumnDef<ReportType>[] = [
     id: "actions",
     header: "Actions",
     meta: { className: "table-cell text-right" },
-    cell: ({ row }) => <ResendActionCell reportId={row.original._id} />,
+    cell: ({ row }) => {
+      const reportId = row.original._id;
+      return (
+        <div className="flex justify-end">
+          <ResendActionCell reportId={reportId} />
+        </div>
+      );
+    },
   },
 ];

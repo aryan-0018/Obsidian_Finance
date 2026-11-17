@@ -132,19 +132,34 @@ export default function AiAdvisorChat({ dateRange }: AiAdvisorChatProps) {
   const [chatWithAi, { isLoading }] = useChatWithAiAdvisorMutation();
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [isListeningChat, setIsListeningChat] = useState(false);
-  const chatRecognitionRef = useRef<any>(null);
+  const chatRecognitionRef = useRef<{
+    start: () => void;
+    stop: () => void;
+    continuous: boolean;
+    interimResults: boolean;
+    lang: string;
+    onstart: (() => void) | null;
+    onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
+    onerror: ((err: { error?: string }) => void) | null;
+    onend: (() => void) | null;
+  } | null>(null);
   const chatSilenceTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const handleSendRef = useRef<(messageToSend?: string, e?: React.FormEvent) => Promise<void>>(async () => {});
 
   useEffect(() => {
+    const windowWithSpeech = window as unknown as {
+      SpeechRecognition?: new () => NonNullable<typeof chatRecognitionRef.current>;
+      webkitSpeechRecognition?: new () => NonNullable<typeof chatRecognitionRef.current>;
+    };
     const SpeechClass =
-      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+      windowWithSpeech.SpeechRecognition || windowWithSpeech.webkitSpeechRecognition;
     if (SpeechClass) {
       const rec = new SpeechClass();
       rec.continuous = true;
       rec.interimResults = true;
       rec.lang = "en-IN";
       rec.onstart = () => setIsListeningChat(true);
-      rec.onresult = (e: any) => {
+      rec.onresult = (e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => {
         let text = "";
         for (let i = 0; i < e.results.length; i++) {
           text += e.results[i][0].transcript;
@@ -164,11 +179,11 @@ export default function AiAdvisorChat({ dateRange }: AiAdvisorChatProps) {
             } catch {
               // ignore
             }
-            handleSend(trimmed);
+            handleSendRef.current(trimmed);
           }, 1400);
         }
       };
-      rec.onerror = (err: any) => {
+      rec.onerror = (err: { error?: string }) => {
         if (err?.error === "no-speech" || err?.error === "aborted") return;
         setIsListeningChat(false);
         if (chatSilenceTimerRef.current) {
@@ -314,6 +329,10 @@ export default function AiAdvisorChat({ dateRange }: AiAdvisorChatProps) {
       ]);
     }
   };
+
+  useEffect(() => {
+    handleSendRef.current = handleSend;
+  });
 
   const handleResetChat = () => {
     localStorage.removeItem(CHAT_STORAGE_KEY);

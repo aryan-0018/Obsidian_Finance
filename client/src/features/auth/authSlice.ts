@@ -14,6 +14,7 @@ interface User {
   email: string;
   profilePicture: string;
   currency?: string;
+  portfolioBalance?: number;
 }
 
 interface ReportSetting {

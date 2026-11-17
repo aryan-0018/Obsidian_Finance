@@ -169,7 +169,10 @@ const ReceiptScanner = ({
     if (cameraInputRef.current) cameraInputRef.current.value = "";
   };
 
-  const handleUpdateField = (field: keyof AIScanReceiptData, val: any) => {
+  const handleUpdateField = <K extends keyof AIScanReceiptData>(
+    field: K,
+    val: AIScanReceiptData[K]
+  ) => {
     if (!extractedData) return;
     const updated = { ...extractedData, [field]: val };
     setExtractedData(updated);

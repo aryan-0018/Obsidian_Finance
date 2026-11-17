@@ -37,7 +37,7 @@ export default function AiInsights({ dateRange }: AiInsightsProps) {
         return () => {
             if (interval) clearInterval(interval);
         };
-    }, [isLoading]);
+    }, [isLoading, loadingStages.length]);
 
     // Reset when date range changes so user knows to refresh for new period
     useEffect(() => {

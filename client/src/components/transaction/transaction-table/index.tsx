@@ -120,7 +120,7 @@ const TransactionTable = (props: {
     if (urlKeyword && urlKeyword !== debouncedTerm) {
       setSearchTerm(urlKeyword);
     }
-  }, [urlKeyword]);
+  }, [urlKeyword, debouncedTerm, setSearchTerm]);
 
   const [bulkDeleteTransaction, { isLoading: isBulkDeleting }] =
     useBulkDeleteTransactionMutation();

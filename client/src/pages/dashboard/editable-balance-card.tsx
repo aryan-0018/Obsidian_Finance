@@ -16,7 +16,10 @@ export default function EditableBalanceCard() {
     const { user, portfolioBalance } = useTypedSelector((state) => state.auth);
     const dispatch = useAppDispatch();
     const currency = user?.currency || "INR";
-    const baseBalance = isNaN(portfolioBalance) || !portfolioBalance ? 0 : portfolioBalance;
+    const rawBalance = portfolioBalance !== undefined && portfolioBalance !== null && !isNaN(portfolioBalance)
+        ? portfolioBalance
+        : (user?.portfolioBalance ?? 0);
+    const baseBalance = Number(rawBalance) || 0;
 
     // Use Analytics API to get mathematically driven income vs expenses
     const { data } = useSummaryAnalyticsQuery({ preset: DateRangeEnum.ALL_TIME });
@@ -92,28 +95,33 @@ export default function EditableBalanceCard() {
                         </Button>
                     </div>
                 ) : (
-                    <div className="flex items-baseline gap-3 overflow-hidden">
-                        <span className="text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight tabular-nums text-white truncate">
-                            <CountUp
-                                start={0}
-                                end={trueBalance}
-                                duration={0.6}
-                                preserveValue
-                                decimals={2}
-                                decimalPlaces={2}
-                                formattingFn={(val) => formatCurrency(val, { currency, showSign: val < 0 })}
-                            />
-                        </span>
-                        <button
-                            onClick={() => {
-                                setInputValue(baseBalance.toString());
-                                setIsEditing(true);
-                            }}
-                            className="text-[#8e8e93] hover:text-[#e5c158] transition-colors p-1 cursor-pointer active:scale-90"
-                            title="Edit Base Portfolio Balance"
-                        >
-                            <Edit2 className="size-3.5" />
-                        </button>
+                    <div className="flex flex-col justify-center">
+                        <div className="flex items-baseline gap-3 overflow-hidden">
+                            <span className="text-3xl sm:text-4xl lg:text-5xl font-semibold tracking-tight tabular-nums text-white truncate">
+                                <CountUp
+                                    start={0}
+                                    end={trueBalance}
+                                    duration={0.6}
+                                    preserveValue
+                                    decimals={2}
+                                    decimalPlaces={2}
+                                    formattingFn={(val) => formatCurrency(val, { currency, showSign: val < 0 })}
+                                />
+                            </span>
+                            <button
+                                onClick={() => {
+                                    setInputValue(baseBalance.toString());
+                                    setIsEditing(true);
+                                }}
+                                className="text-[#8e8e93] hover:text-[#e5c158] transition-colors p-1 cursor-pointer active:scale-90"
+                                title="Edit Base Portfolio Balance"
+                            >
+                                <Edit2 className="size-3.5" />
+                            </button>
+                        </div>
+                        <p className="text-xs text-[#8e8e93] mt-1 font-normal">
+                            Calculated from base balance + all recorded cash flows
+                        </p>
                     </div>
                 )}
             </div>

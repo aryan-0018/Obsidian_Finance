@@ -7,14 +7,14 @@ import ExportTransactionModal from "@/components/transaction/export-transaction-
 export default function Transactions() {
   return (
     <PageLayout
-      title="All Transactions"
-      subtitle="View, search, and manage your financial records."
+      title="Transactions"
+      subtitle="Verified inflows, outflows, and transfers across all accounts."
       rightAction={
-        <>
+        <div className="flex items-center gap-2">
           <ExportTransactionModal />
           <ImportTransactionModal />
           <AddTransactionDrawer />
-        </>
+        </div>
       }
     >
       <div className="w-full">
