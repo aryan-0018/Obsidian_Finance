@@ -65,25 +65,42 @@ export const parseDeterministicIndianSms = (
     return null;
   }
 
-  // 1. Transaction Intent Detection
+  // 1. Transaction Intent Detection & Directional Ownership Analysis
   const hasDebit = /\b(debited|paid|spent|sent|transferred|withdrawn|purchase|deducted|debit|dr|dr\.)\b/i.test(lower);
   const hasCredit = /\b(credited|received|deposit|deposited|refund|refunded|cashback|credit|cr|cr\.)\b/i.test(lower);
 
-  // If neither or both without clarity, return null to let AI evaluate
+  // If neither intent is present, ignore
   if (!hasDebit && !hasCredit) return null;
 
-  // Resolve type
+  // Resolve type: Check directional grammar relative to user's Account / Card
   let type: TransactionTypeEnum = TransactionTypeEnum.EXPENSE;
-  if (hasCredit && !hasDebit) {
+
+  // Case A: Clear Debit from user's account (e.g. "Dr. from A/C", "debited from a/c", "A/C ... Dr", "spent on card")
+  const isDebitFromUser =
+    /\b(?:dr\.?|debited|spent|paid|withdrawn)\s+(?:from|on|by)?\s*(?:a\/c|acct|card)\b/i.test(lower) ||
+    /\b(?:a\/c|acct|card)\s*[^.]*?\b(?:dr\.?|debited)\b/i.test(lower) ||
+    /\bdr\.?\s+from\b/i.test(lower);
+
+  // Case B: Clear Credit to user's account (e.g. "Cr. to A/C", "credited to a/c", "A/C ... Cr", "deposited in a/c")
+  const isCreditToUser =
+    /\b(?:cr\.?|credited|deposited|received|refunded)\s+(?:to|in|into)?\s*(?:a\/c|acct|card)\b/i.test(lower) ||
+    /\b(?:a\/c|acct|card)\s*[^.]*?\b(?:cr\.?|credited)\b/i.test(lower) ||
+    /\bcr\.?\s+to\s+(?:a\/c|acct)\b/i.test(lower);
+
+  if (isDebitFromUser && !isCreditToUser) {
+    type = TransactionTypeEnum.EXPENSE;
+  } else if (isCreditToUser && !isDebitFromUser) {
     type = TransactionTypeEnum.INCOME;
-  } else if (hasDebit && hasCredit) {
-    // Context check: e.g. "debited ... credited to payee" vs "credited ... refunded"
-    const debitPos = lower.indexOf("debit");
-    const creditPos = lower.indexOf("credit");
-    if (creditPos !== -1 && (debitPos === -1 || creditPos < debitPos)) {
+  } else if (hasCredit && !hasDebit) {
+    type = TransactionTypeEnum.INCOME;
+  } else {
+    // If both exist (e.g. "Dr. from A/C ... and Cr. to VPA"), look at the first action attached to the account
+    if (/\bdr\.?\s+from\b/i.test(lower) || /\bdebited\s+from\b/i.test(lower)) {
+      type = TransactionTypeEnum.EXPENSE;
+    } else if (/\bcr\.?\s+to\s+a\/c\b/i.test(lower) || /\bcredited\s+to\s+a\/c\b/i.test(lower)) {
       type = TransactionTypeEnum.INCOME;
     } else {
-      type = TransactionTypeEnum.EXPENSE;
+      type = hasCredit && !hasDebit ? TransactionTypeEnum.INCOME : TransactionTypeEnum.EXPENSE;
     }
   }
 
@@ -194,7 +211,7 @@ export const parseDeterministicIndianSms = (
 
   // Payment Method
   let paymentMethod = PaymentMethodEnum.CARD;
-  if (/upi|vpa|gpay|phonepe|paytm/i.test(lower)) {
+  if (/upi|vpa|gpay|phonepe|paytm/i.test(lower) || /@[a-zA-Z0-9.\-_]+/i.test(lower) || Boolean(vpaMatch)) {
     paymentMethod = PaymentMethodEnum.MOBILE_PAYMENT;
   } else if (/card|pos\b|visa|mastercard|rupay\s*card/i.test(lower)) {
     paymentMethod = PaymentMethodEnum.CARD;
