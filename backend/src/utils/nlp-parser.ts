@@ -381,7 +381,7 @@ export const detectIndianMerchantAndCategory = (
 
   // Groceries & Essentials
   if (
-    /\b(zepto|blinkit|instamart|bigbasket|dmart|kirana|ration|milk|amul|mother dairy|groceries|grocery|supermarket|vegetables|sabzi|fruits|bread|eggs?|meat|chicken|fish|dal|rice|ghee|cooking oil|mustard oil|olive oil|refined oil)\b/i.test(
+    /\b(zepto|blinkit|instamart|bigbasket|dmart|reliance\s*(?:fresh|retail|smart)|kirana|ration|milk|amul|mother dairy|groceries|grocery|supermarket|vegetables|sabzi|fruits|bread|eggs?|meat|chicken|fish|dal|rice|ghee|cooking oil|mustard oil|olive oil|refined oil)\b/i.test(
       lower
     )
   ) {
@@ -391,6 +391,7 @@ export const detectIndianMerchantAndCategory = (
     else if (/\binstamart\b/i.test(lower)) title = "Swiggy Instamart";
     else if (/\bbigbasket\b/i.test(lower)) title = "BigBasket";
     else if (/\bdmart\b/i.test(lower)) title = "DMart";
+    else if (/reliance\s*(?:fresh|retail|smart)/i.test(lower)) title = "Reliance Retail";
     else if (/\bmilk|amul\b/i.test(lower)) title = "Milk & Dairy";
     else if (/\bvegetables|sabzi|fruits\b/i.test(lower)) title = "Vegetables & Fruits";
     return {

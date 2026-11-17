@@ -4,6 +4,8 @@ import {
   TelegramStatusResponse,
   TelegramPairCodeResponse,
   GetCurrentUserResponse,
+  ApiKeyStatusResponse,
+  GenerateApiKeyResponse,
 } from "./userType";
 
 export const userApi = apiClient.injectEndpoints({
@@ -37,6 +39,38 @@ export const userApi = apiClient.injectEndpoints({
       }),
       invalidatesTags: ["telegram"],
     }),
+    getApiKeyStatus: builder.query<ApiKeyStatusResponse, void>({
+      query: () => "/user/api-key",
+      providesTags: ["apiKey"],
+    }),
+    generateApiKey: builder.mutation<GenerateApiKeyResponse, void>({
+      query: () => ({
+        url: "/user/api-key",
+        method: "POST",
+      }),
+      invalidatesTags: ["apiKey"],
+    }),
+    revokeApiKey: builder.mutation<{ message: string }, void>({
+      query: () => ({
+        url: "/user/api-key",
+        method: "DELETE",
+      }),
+      invalidatesTags: ["apiKey"],
+    }),
+    testSmsIngest: builder.mutation<
+      { success: boolean; message: string; data?: Record<string, unknown>; isDuplicate?: boolean },
+      { message: string; sender?: string; apiKey: string }
+    >({
+      query: ({ message, sender, apiKey }) => ({
+        url: "/sms/ingest",
+        method: "POST",
+        headers: {
+          "x-api-key": apiKey,
+        },
+        body: { message, sender },
+      }),
+      invalidatesTags: ["transactions", "analytics"],
+    }),
   }),
 });
 
@@ -47,5 +81,9 @@ export const {
   useGetTelegramStatusQuery,
   useGenerateTelegramPairCodeMutation,
   useUnlinkTelegramMutation,
+  useGetApiKeyStatusQuery,
+  useGenerateApiKeyMutation,
+  useRevokeApiKeyMutation,
+  useTestSmsIngestMutation,
 } = userApi;
 

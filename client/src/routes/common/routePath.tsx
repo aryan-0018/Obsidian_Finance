@@ -18,4 +18,5 @@ export const PROTECTED_ROUTES = {
   SETTINGS_BILLING: "/settings/billing",
   SETTINGS_COPILOT: "/settings/copilot",
   SETTINGS_SECURITY: "/settings/security",
+  SETTINGS_SMS: "/settings/sms",
 };

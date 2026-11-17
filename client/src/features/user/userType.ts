@@ -39,3 +39,21 @@ export interface TelegramPairCodeResponse {
   };
 }
 
+export interface ApiKeyStatusResponse {
+  message: string;
+  data: {
+    hasKey: boolean;
+    prefix: string | null;
+    createdAt: string | null;
+  };
+}
+
+export interface GenerateApiKeyResponse {
+  message: string;
+  data: {
+    apiKey: string;
+    prefix: string;
+    createdAt: string;
+  };
+}
+

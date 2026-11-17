@@ -16,6 +16,7 @@ const Settings = () => {
     { title: "Security & Audit", href: PROTECTED_ROUTES.SETTINGS_SECURITY },
     { title: "Billing", href: PROTECTED_ROUTES.SETTINGS_BILLING },
     { title: "Telegram", href: PROTECTED_ROUTES.SETTINGS_COPILOT },
+    { title: "iOS / SMS Sync", href: PROTECTED_ROUTES.SETTINGS_SMS },
   ];
   return (
     <PageLayout

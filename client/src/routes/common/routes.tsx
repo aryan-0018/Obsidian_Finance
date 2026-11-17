@@ -12,6 +12,7 @@ import Account from "@/pages/settings/account";
 import Billing from "@/pages/settings/billing";
 import TelegramCopilotSettings from "@/pages/settings/copilot";
 import SecuritySettings from "@/pages/settings/security";
+import SmsSyncSettings from "@/pages/settings/sms-sync";
 
 export const authenticationRoutePaths = [
   { path: AUTH_ROUTES.SIGN_IN, element: <SignIn /> },
@@ -34,6 +35,7 @@ export const protectedRoutePaths = [
       { path: PROTECTED_ROUTES.SETTINGS_BILLING, element: <Billing /> },
       { path: PROTECTED_ROUTES.SETTINGS_COPILOT, element: <TelegramCopilotSettings /> },
       { path: PROTECTED_ROUTES.SETTINGS_SECURITY, element: <SecuritySettings /> },
+      { path: PROTECTED_ROUTES.SETTINGS_SMS, element: <SmsSyncSettings /> },
     ]
   },
 ];

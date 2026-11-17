@@ -26,9 +26,15 @@ import {
 } from "./voice-terminal.service";
 import { parseBankDate, normalizeMerchantBrand } from "../utils/nlp-parser";
 import { uploadBufferToCloudinary } from "../config/cloudinary.config";
+import {
+  parseDeterministicIndianSms,
+  checkDuplicateSmsTransaction,
+} from "./sms-parser.service";
 
 let bot: Telegraf | null = null;
 let botUsername: string = "";
+
+export const getTelegramBotInstance = (): Telegraf | null => bot;
 
 const VALID_CATEGORIES = [
   "groceries",
@@ -895,6 +901,54 @@ If the message is an analytical or advisory question (e.g., "what's my balance?"
         return ctx.reply(
           `⚠️ Please link your Obsidian account first using /start <code> from your web dashboard.`
         );
+      }
+
+      // 1. High-priority deterministic check for forwarded or pasted Indian Bank / UPI SMS
+      const deterministicSms = parseDeterministicIndianSms(text);
+      if (deterministicSms && deterministicSms.isTransaction && deterministicSms.amount > 0) {
+        const dupCheck = await checkDuplicateSmsTransaction(
+          user._id.toString(),
+          deterministicSms
+        );
+
+        if (dupCheck.isDuplicate) {
+          return ctx.reply(
+            `⚠️ *Transaction Already Logged*\n\n` +
+              `${dupCheck.reason}\n\n` +
+              `_No duplicate was created in your ledger._`,
+            { parse_mode: "Markdown" }
+          );
+        }
+
+        const created = await createTransactionService(
+          {
+            title: deterministicSms.title,
+            amount: deterministicSms.amount,
+            type: deterministicSms.type,
+            category: deterministicSms.category,
+            paymentMethod: deterministicSms.paymentMethod,
+            date: new Date(),
+            description: `Bank SMS: ${deterministicSms.title}`,
+            isRecurring: false,
+          },
+          user._id.toString()
+        );
+
+        const icon = deterministicSms.type === TransactionTypeEnum.INCOME ? "📈" : "📉";
+        const formattedAmt = new Intl.NumberFormat("en-IN", {
+          style: "currency",
+          currency: "INR",
+        }).format(Number(created.amount));
+
+        const reply =
+          `⚡ *Bank SMS Auto-Logged!*\n\n` +
+          `${icon} *${deterministicSms.type}:* ${formattedAmt}\n` +
+          `📌 *Merchant:* ${created.title}\n` +
+          `🏷 *Category:* ${created.category.charAt(0).toUpperCase() + created.category.slice(1)}\n` +
+          `💳 *Payment Method:* ${created.paymentMethod}\n\n` +
+          `⚡ _Synchronized in real time with your Obsidian ledger._`;
+
+        return ctx.reply(reply, { parse_mode: "Markdown" });
       }
 
       // Check if it's a transaction logging command or a financial question/query

@@ -32,6 +32,7 @@ export const baseTransactionSchema = z.object({
     .optional(),
 
   receiptUrl: z.string().optional(),
+  externalRef: z.string().nullable().optional(),
   paymentMethod: z
     .enum([
       PaymentMethodEnum.CARD,

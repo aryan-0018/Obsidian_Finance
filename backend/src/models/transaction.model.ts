@@ -43,6 +43,7 @@ export interface TransactionDocument extends Document {
   date: Date;
   status: keyof typeof TransactionStatusEnum;
   paymentMethod: keyof typeof PaymentMethodEnum;
+  externalRef?: string | null;
   ledgerHash?: string | null;
   prevLedgerHash?: string | null;
   createdAt: Date;
@@ -112,6 +113,12 @@ const transactionSchema = new Schema<TransactionDocument>(
       type: String,
       enum: Object.values(PaymentMethodEnum),
       default: PaymentMethodEnum.CASH,
+    },
+    externalRef: {
+      type: String,
+      default: null,
+      index: true,
+      sparse: true,
     },
     ledgerHash: {
       type: String,

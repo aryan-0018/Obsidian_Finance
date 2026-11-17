@@ -22,6 +22,7 @@ import reportRoutes from "./routes/report.route";
 import { getDateRange } from "./utils/date";
 import analyticsRoutes from "./routes/analytics.route";
 import budgetRoutes from "./routes/budget.route";
+import smsRoutes from "./routes/sms.route";
 import { initTelegramBot } from "./services/telegram.service";
 import helmet from "helmet";
 import mongoose from "mongoose";
@@ -82,6 +83,7 @@ app.use(`${BASE_PATH}/transaction`, passportAuthenticateJwt, transactionRoutes);
 app.use(`${BASE_PATH}/report`, passportAuthenticateJwt, reportRoutes);
 app.use(`${BASE_PATH}/analytics`, passportAuthenticateJwt, analyticsRoutes);
 app.use(`${BASE_PATH}/budget`, passportAuthenticateJwt, budgetRoutes);
+app.use(`${BASE_PATH}/sms`, smsRoutes);
 
 app.use(errorHandler);
 

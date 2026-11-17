@@ -16,6 +16,9 @@ export interface UserDocument extends Document {
   telegramUsername?: string | null;
   telegramPairingCode?: string | null;
   telegramPairingCodeExpires?: Date | null;
+  apiKeyHash?: string | null;
+  apiKeyPrefix?: string | null;
+  apiKeyCreatedAt?: Date | null;
 }
 
 const userSchema = new Schema<UserDocument>(
@@ -64,6 +67,20 @@ const userSchema = new Schema<UserDocument>(
       index: true,
     },
     telegramPairingCodeExpires: {
+      type: Date,
+      default: null,
+    },
+    apiKeyHash: {
+      type: String,
+      default: null,
+      index: true,
+      select: false,
+    },
+    apiKeyPrefix: {
+      type: String,
+      default: null,
+    },
+    apiKeyCreatedAt: {
       type: Date,
       default: null,
     },

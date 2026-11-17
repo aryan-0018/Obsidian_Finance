@@ -9,6 +9,11 @@ import {
   generateTelegramPairingCodeService,
   unlinkTelegramService,
 } from "../services/telegram.service";
+import {
+  getUserApiKeyStatusService,
+  generateUserApiKeyService,
+  revokeUserApiKeyService,
+} from "../services/api-key.service";
 import { HTTPSTATUS } from "../config/http.config";
 import { updateUserSchema } from "../validators/user.validator";
 
@@ -67,6 +72,39 @@ export const unlinkTelegramController = asyncHandler(
     const result = await unlinkTelegramService(userId);
     return res.status(HTTPSTATUS.OK).json({
       message: "Telegram unlinked successfully",
+      data: result,
+    });
+  }
+);
+
+export const getUserApiKeyStatusController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = req.user?._id;
+    const status = await getUserApiKeyStatusService(userId);
+    return res.status(HTTPSTATUS.OK).json({
+      message: "API key status retrieved",
+      data: status,
+    });
+  }
+);
+
+export const generateUserApiKeyController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = req.user?._id;
+    const keyData = await generateUserApiKeyService(userId);
+    return res.status(HTTPSTATUS.CREATED).json({
+      message: "API key successfully generated. Copy and store it securely.",
+      data: keyData,
+    });
+  }
+);
+
+export const revokeUserApiKeyController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = req.user?._id;
+    const result = await revokeUserApiKeyService(userId);
+    return res.status(HTTPSTATUS.OK).json({
+      message: "API key revoked successfully",
       data: result,
     });
   }
