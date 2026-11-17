@@ -19,29 +19,33 @@ Obsidian Finance enables intelligent financial analysis, secure user authenticat
 
 ## ✨ Key Features
 
-- **Comprehensive Dashboard:** Interactive charts and data visualizations using `recharts`.
-- **AI-Powered Insights:** Integration with Google Gemini AI for smart financial advice and data interpretation.
+- **Purchase Affordability Simulator:** Real-time liquidity buffer analysis and upcoming bill impact calculation before major spending decisions.
+- **Financial Freedom Runway Engine:** Burn rate velocity and milestone calculations for financial independence tracking.
+- **Dynamic Portfolio Balance Sync:** Real-time net cash flow computation and unified balance tracking across accounts.
+- **AI-Powered Insights:** Integration with Google Gemini AI for financial advice, spending analysis, and automated categorization.
+- **Telegram Copilot & Voice Terminal:** Hands-free expense logging and balance queries via Telegram bot and speech recognition.
+- **Cryptographic Audit Ledger:** Sequential SHA-256 block hashing ensuring tamper-evident transaction history verification.
+- **Bank Statement & Receipt Processing:** Automated transaction extraction from bank CSV/PDF statements and receipt scanning.
+- **Transactions Management:** Multi-currency support with precision decimal handling, custom categories, and filters.
 - **Secure Authentication:** JWT, Google OAuth integration, and secure password hashing.
-- **Transactions Management:** Easily track, categorize, and manage your income and expenses.
-- **Cloud Storage:** Image and media handling using Cloudinary.
-- **Modern UI/UX:** Built with React, Radix UI components, Tailwind CSS v4.
-- **Automated Tasks:** Background cron jobs for financial summaries and alerts.
+- **Automated Tasks & Reports:** Background cron jobs for scheduled financial summaries and email report generation.
 
 ## 🛠️ Tech Stack
 
 ### Frontend (Client)
 - **Framework:** React 18.2.0 + Vite
-- **Styling:** Tailwind CSS v4, Radix UI, Class Variance Authority
+- **Styling & Components:** Tailwind CSS v4, Radix primitives
 - **State Management:** Redux Toolkit, Redux Persist
 - **Routing:** React Router v7
 - **Forms & Validation:** React Hook Form + Zod
 - **Charts:** Recharts
 
 ### Backend (Server)
-- **Environment:** Node.js + Express
+- **Environment:** Node.js + Express + TypeScript
 - **Database:** MongoDB + Mongoose
 - **Authentication:** Passport.js (JWT, Google OAuth), bcryptjs
 - **AI Integration:** Google GenAI SDK (`@google/genai`)
+- **Telegram Bot:** Telegraf
 - **File Uploads:** Multer + Cloudinary
 - **Emails:** Resend
 
@@ -91,6 +95,7 @@ CLOUDINARY_CLOUD_NAME=your_cloudinary_name
 CLOUDINARY_API_KEY=your_cloudinary_api_key
 CLOUDINARY_API_SECRET=your_cloudinary_api_secret
 RESEND_API_KEY=your_resend_api_key
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token
 ```
 
 **Frontend (`client/.env`):**
