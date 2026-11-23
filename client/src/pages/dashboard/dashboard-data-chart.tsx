@@ -43,17 +43,25 @@ const chartConfig = {
   },
 } satisfies ChartConfig;
 
+const safeFormatDate = (value: unknown, pattern: string) => {
+  const d = new Date(String(value));
+  return Number.isNaN(d.getTime()) ? String(value ?? "") : format(d, pattern);
+};
+
 const DashboardDataChart: React.FC<PropsType> = (props) => {
   const { dateRange } = props;
   const isMobile = useIsMobile();
   const { user } = useTypedSelector((state) => state.auth);
   const currency = user?.currency || "INR";
 
-  const { data, isFetching } = useChartAnalyticsQuery({
-    preset: dateRange?.value,
-    from: dateRange?.from ? new Date(dateRange.from).toISOString() : undefined,
-    to: dateRange?.to ? new Date(dateRange.to).toISOString() : undefined,
-  });
+  const { data, isFetching } = useChartAnalyticsQuery(
+    {
+      preset: dateRange?.value,
+      from: dateRange?.from ? new Date(dateRange.from).toISOString() : undefined,
+      to: dateRange?.to ? new Date(dateRange.to).toISOString() : undefined,
+    },
+    { skip: !dateRange }
+  );
   const chartData = data?.data?.chartData || [];
   const totalExpenseCount = data?.data?.totalExpenseCount || 0;
   const totalIncomeCount = data?.data?.totalIncomeCount || 0;
@@ -136,7 +144,7 @@ const DashboardDataChart: React.FC<PropsType> = (props) => {
                 tickMargin={8}
                 minTickGap={isMobile ? 20 : 25}
                 tickFormatter={(value) =>
-                  format(new Date(value), isMobile ? "MMM d" : "MMMM d, yyyy")
+                  safeFormatDate(value, isMobile ? "MMM d" : "MMMM d, yyyy")
                 }
               />
               <ChartTooltip
@@ -148,7 +156,7 @@ const DashboardDataChart: React.FC<PropsType> = (props) => {
                 content={
                   <ChartTooltipContent
                     labelFormatter={(value) =>
-                      format(new Date(value), "MMM d, yyyy")
+                      safeFormatDate(value, "MMM d, yyyy")
                     }
                     indicator="line"
                     formatter={(value, name) => {
@@ -171,7 +179,6 @@ const DashboardDataChart: React.FC<PropsType> = (props) => {
               />
               <Area
                 dataKey="expenses"
-                stackId="1"
                 type="monotone"
                 fill="url(#expensesGradient)"
                 stroke={COLORS[1]}
@@ -180,7 +187,6 @@ const DashboardDataChart: React.FC<PropsType> = (props) => {
               />
               <Area
                 dataKey="income"
-                stackId="1"
                 type="monotone"
                 fill="url(#incomeGradient)"
                 stroke={COLORS[0]}

@@ -2,9 +2,11 @@ import mongoose, { PipelineStage } from "mongoose";
 import { DateRangeEnum, DateRangePreset } from "../enums/date-range.enum";
 import TransactionModel, {
   PaymentMethodEnum,
+  RecurringIntervalEnum,
   TransactionTypeEnum,
 } from "../models/transaction.model";
 import { getDateRange } from "../utils/date";
+import { escapeRegex } from "../utils/security";
 import {
   differenceInDays,
   subDays,
@@ -175,9 +177,9 @@ export const summaryAnalyticsService = async (
 
   const budgetProfile = await getBudgetService(userId);
   const budgetLimit = Number(budgetProfile?.limit) || 0;
-  // If the queried range is not monthly (e.g. ALL_TIME or THIS_YEAR), calculate current calendar month expenses for the monthly budget limit
+  // If the queried range is not monthly (e.g. ALL_TIME, THIS_YEAR, or LAST_30_DAYS), calculate current calendar month expenses for the monthly budget limit
   let monthlyExpensesForBudget = totalExpensesInUnit;
-  if (rangeValue !== DateRangeEnum.THIS_MONTH && rangeValue !== DateRangeEnum.LAST_30_DAYS) {
+  if (rangeValue !== DateRangeEnum.THIS_MONTH) {
     const startOfCurrentMonth = startOfMonth(new Date());
     const endOfCurrentMonth = endOfMonth(new Date());
     const [thisMonthExpensesData] = await TransactionModel.aggregate([
@@ -1084,19 +1086,14 @@ Output strictly valid JSON matching this schema:
       },
     ];
 
-    const aiChatTimeout = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("AI_ADVISOR_TIMEOUT")), 4500)
-    );
-
-    const response = await Promise.race([
-      generateContentWithRetry({
-        contents: contents as any,
-        config: {
-          responseMimeType: "application/json",
-        },
-      }),
-      aiChatTimeout,
-    ]);
+    const response = await generateContentWithRetry({
+      contents: contents as any,
+      config: {
+        responseMimeType: "application/json",
+      },
+      timeoutMs: 22000,
+      perAttemptTimeoutMs: 9000,
+    });
 
     const rawText = response.text || "{}";
     const cleaned = rawText.replace(/```(?:json)?\n?/g, "").trim();
@@ -1124,7 +1121,11 @@ Output strictly valid JSON matching this schema:
     const action = parsed.action || "NONE";
     const params = parsed.actionParams || {};
 
-    if (action === "ADD_TRANSACTION" && params.amount) {
+    if (action === "ADD_TRANSACTION" && params.amount !== undefined) {
+      const cleanAmt = Math.abs(Number(params.amount));
+      if (!Number.isFinite(cleanAmt) || cleanAmt <= 0 || cleanAmt > 1_000_000_000) {
+        throw new BadRequestException("Invalid transaction amount");
+      }
       const type =
         params.type === "INCOME"
           ? TransactionTypeEnum.INCOME
@@ -1191,7 +1192,7 @@ Output strictly valid JSON matching this schema:
       const query: any = { userId: new mongoose.Types.ObjectId(userId) };
 
       if (keyword && keyword.toLowerCase() !== "last") {
-        query.title = { $regex: keyword, $options: "i" };
+        query.title = { $regex: escapeRegex(keyword), $options: "i" };
       }
 
       const candidate = await TransactionModel.findOne(query).sort({
@@ -1223,7 +1224,7 @@ Output strictly valid JSON matching this schema:
       if (mongoose.Types.ObjectId.isValid(keyword)) {
         query._id = new mongoose.Types.ObjectId(keyword);
       } else if (keyword && keyword.toLowerCase() !== "last") {
-        query.title = { $regex: keyword, $options: "i" };
+        query.title = { $regex: escapeRegex(keyword), $options: "i" };
       }
 
       const candidate = await TransactionModel.findOne(query).sort({
@@ -1267,6 +1268,9 @@ Output strictly valid JSON matching this schema:
       }
     } else if (action === "SET_BUDGET" && params.limit !== undefined) {
       const newLimit = Math.abs(Number(params.limit));
+      if (!Number.isFinite(newLimit) || newLimit > 1_000_000_000_000) {
+        throw new BadRequestException("Invalid budget limit");
+      }
       const budget = await updateBudgetService(userId, newLimit);
       actionTaken = {
         type: "SET_BUDGET",
@@ -1275,11 +1279,7 @@ Output strictly valid JSON matching this schema:
         )}.`,
         data: budget,
       };
-    } else if (
-      action === "GENERATE_REPORT" ||
-      /\b(generate|create|download|show|view|get|dispatch)\b.*\b(report|statement)\b/i.test(userMessage) ||
-      (/\b(mail|email|send)\b.*\b(report|statement|financial summary)\b/i.test(userMessage))
-    ) {
+    } else if (action === "GENERATE_REPORT") {
       const now = new Date();
       const today = endOfDay(now);
       let from: Date = startOfMonth(today);
@@ -1335,10 +1335,11 @@ Output strictly valid JSON matching this schema:
         from = startOfQuarter(prevQ);
         to = endOfQuarter(prevQ);
       }
-      // 7. This Year or specific year 2026
+      // 7. This Year or explicit current year
       else if (
         requestedPeriod === "THIS_YEAR" ||
-        /\b(this\s*year|2026)\b/i.test(userMessage)
+        /\bthis\s*year\b/i.test(userMessage) ||
+        new RegExp(`\\b${today.getFullYear()}\\b`).test(userMessage)
       ) {
         from = startOfYear(today);
         to = endOfYear(today);
@@ -1604,49 +1605,8 @@ Output strictly valid JSON matching this schema:
     console.warn("AI chat timeout or error, activating intelligent heuristic shield:", error?.message);
     const lower = userMessage.toLowerCase();
 
-    // 1. Check if user asked to Add a transaction
+    // 1. Safe read-only fallback: do not mutate ledger transactions on AI failure
     const fastAmount = parseIndianCurrencyExpression(lower);
-    const isQuestion = /\b(what|how much|how long|did i|where|can i|is my|show|tell me|explain)\b/i.test(lower);
-    if (fastAmount && fastAmount > 0 && !isQuestion) {
-      try {
-        const { title, category, paymentMethod, type } = detectIndianMerchantAndCategory(lower);
-        const created = await createTransactionService(
-          {
-            title,
-            amount: fastAmount,
-            type,
-            category,
-            paymentMethod,
-            date: new Date(),
-            description: `AI Assistant: "${userMessage}"`,
-            isRecurring: false,
-          },
-          userId
-        );
-        const formattedAmount = fastAmount.toLocaleString("en-IN");
-        return {
-          headline: "Transaction Added",
-          summary: `Successfully added ${type.toLowerCase()} of ₹${formattedAmount} for "${title}" under ${category}.`,
-          keyMetrics: [
-            { label: "Amount", value: `₹${formattedAmount}` },
-            { label: "Category", value: category.toUpperCase() },
-          ],
-          bulletPoints: [
-            `Recorded under ${category}`,
-            `Payment method: ${paymentMethod}`,
-          ],
-          recommendation: "Keep tracking your daily expenses to stay within your monthly budget.",
-          actionTaken: {
-            type: "ADD_TRANSACTION",
-            description: `Added ${type.toLowerCase()} of ₹${formattedAmount} for "${title}".`,
-            data: created,
-          },
-          reply: `Successfully added ${type.toLowerCase()} of ₹${formattedAmount} for "${title}" under ${category}.`,
-        };
-      } catch (addErr) {
-        console.warn("Shield add error:", addErr);
-      }
-    }
 
     // 2. Check if user asked to Delete / Undo
     if (/\b(delete|remove|cancel|undo|clear)\b/i.test(lower)) {
@@ -1657,7 +1617,7 @@ Output strictly valid JSON matching this schema:
         const keyword = keywordMatch ? keywordMatch[1] : "";
         const query: any = { userId: new mongoose.Types.ObjectId(userId) };
         if (keyword && !["last", "recent", "transaction", "expense", "one"].includes(keyword.toLowerCase())) {
-          query.title = { $regex: keyword, $options: "i" };
+          query.title = { $regex: escapeRegex(keyword), $options: "i" };
         }
         const candidate = await TransactionModel.findOne(query).sort({ date: -1, createdAt: -1 });
         if (candidate) {
@@ -1706,16 +1666,116 @@ Output strictly valid JSON matching this schema:
       }
     }
 
-    // 4. Default: Analytical Synthesis with exact live numbers
+    // 4. Question-Aware Analytical Fallback (exact live numbers when AI is unavailable)
     const totalBal = Math.round(trueTotalPortfolioBalance).toLocaleString("en-IN");
-    const avail = Math.round(currentSummary.availableBalance).toLocaleString("en-IN");
     const inc = Math.round(currentSummary.totalIncome).toLocaleString("en-IN");
     const exp = Math.round(currentSummary.totalExpenses).toLocaleString("en-IN");
     const rate = currentSummary.savingRate?.percentage || 0;
-    const topCat = currentBreakdown.breakdown[0]
-      ? `${currentBreakdown.breakdown[0]._id || currentBreakdown.breakdown[0].name} (₹${Math.round(currentBreakdown.breakdown[0].value).toLocaleString("en-IN")})`
-      : "None recorded";
     const remBudget = Math.max(0, budgetLimit - currentMonthSpent).toLocaleString("en-IN");
+
+    const expensesOnly = (transactions || []).filter(
+      (t: any) => t.type === TransactionTypeEnum.EXPENSE
+    );
+    const sortedExpenses = [...expensesOnly].sort(
+      (a: any, b: any) => Number(b.amount) - Number(a.amount)
+    );
+    const topCategoriesList = (currentBreakdown.breakdown || []).slice(0, 4);
+
+    if (
+      /\b(most\s*money|highest|biggest|largest|top\s*spend|where\s*did\s*i\s*spend|category|categories|spent\s*most)\b/i.test(
+        lower
+      )
+    ) {
+      const topCatName = topCategoriesList[0]
+        ? String(topCategoriesList[0]._id || topCategoriesList[0].name || "Other")
+        : "None";
+      const topCatAmt = topCategoriesList[0]
+        ? Math.round(Number(topCategoriesList[0].value) || 0).toLocaleString("en-IN")
+        : "0";
+      const biggestTx = sortedExpenses[0];
+      const biggestTxAmt = biggestTx
+        ? Math.round(convertToUnit(Number(biggestTx.amount))).toLocaleString("en-IN")
+        : "0";
+
+      return {
+        headline: "Highest Spending Breakdown",
+        summary: topCategoriesList[0]
+          ? `Your highest spending category is ${topCatName} at ₹${topCatAmt} (${topCategoriesList[0].percentage || 0}% of expenses in ${activePeriodLabel}).${biggestTx ? ` Your single largest expense is "${biggestTx.title}" at ₹${biggestTxAmt}.` : ""}`
+          : "No expense categories recorded in this period.",
+        keyMetrics: topCategoriesList.map((c: any) => ({
+          label: String(c._id || c.name || "Other").toUpperCase(),
+          value: `₹${Math.round(Number(c.value) || 0).toLocaleString("en-IN")} (${c.percentage || 0}%)`,
+        })),
+        bulletPoints: sortedExpenses.slice(0, 4).map((t: any) => {
+          const amt = Math.round(convertToUnit(Number(t.amount))).toLocaleString("en-IN");
+          return `${t.title} (${t.category}) — ₹${amt}`;
+        }),
+        recommendation:
+          topCategoriesList[0]
+            ? `Focusing on trimming ${topCatName} spending offers the fastest path to improving your monthly cash flow.`
+            : "Log your expenses consistently to unlock detailed spending insights.",
+        reply: `Top category: ${topCatName} (₹${topCatAmt}). Largest transaction: ${biggestTx?.title || "N/A"} (₹${biggestTxAmt}).`,
+      };
+    }
+
+    if (/\b(subscription|recurring|leak|leaks|bills)\b/i.test(lower)) {
+      const recurringExpenses = expensesOnly.filter((t: any) => t.isRecurring);
+      const recurringTotal = recurringExpenses.reduce(
+        (sum: number, t: any) => sum + convertToUnit(Number(t.amount)),
+        0
+      );
+      return {
+        headline: "Recurring & Subscription Audit",
+        summary:
+          recurringExpenses.length > 0
+            ? `Found ${recurringExpenses.length} recurring expense(s) totaling ₹${Math.round(recurringTotal).toLocaleString("en-IN")} per cycle.`
+            : "No recurring subscriptions or automated bills are currently flagged in your ledger.",
+        keyMetrics: [
+          { label: "Active Subscriptions", value: `${recurringExpenses.length}` },
+          {
+            label: "Total Recurring",
+            value: `₹${Math.round(recurringTotal).toLocaleString("en-IN")}`,
+          },
+        ],
+        bulletPoints: recurringExpenses.slice(0, 5).map((t: any) => {
+          const amt = Math.round(convertToUnit(Number(t.amount))).toLocaleString("en-IN");
+          return `${t.title} (${t.recurringInterval || "MONTHLY"}) — ₹${amt}`;
+        }),
+        recommendation:
+          recurringExpenses.length > 0
+            ? "Cancel or downgrade any recurring charges you haven't used in the past 30 days."
+            : "Mark monthly bills and subscriptions as recurring to track fixed commitments.",
+        reply: `Recurring expenses tracked: ${recurringExpenses.length}, total ₹${Math.round(recurringTotal).toLocaleString("en-IN")}.`,
+      };
+    }
+
+    if (/\b(pace|burn|runway|projection|forecast)\b/i.test(lower)) {
+      const dailyBurn = currentSummary.runwayMetrics?.dailyBurnRate || Math.round(currentMonthSpent / Math.max(1, new Date().getDate()));
+      const projectedMonthly = Math.round(dailyBurn * 30).toLocaleString("en-IN");
+      return {
+        headline: "Spending Pace & Runway",
+        summary: `Your current daily burn rate is ₹${Math.round(dailyBurn).toLocaleString("en-IN")}/day, projecting ₹${projectedMonthly} over 30 days.`,
+        keyMetrics: [
+          { label: "Daily Burn Rate", value: `₹${Math.round(dailyBurn).toLocaleString("en-IN")}` },
+          { label: "30-Day Projection", value: `₹${projectedMonthly}` },
+          { label: "Portfolio Balance", value: `₹${totalBal}` },
+        ],
+        bulletPoints: [
+          `This month's expenses so far: ₹${Math.round(currentMonthSpent).toLocaleString("en-IN")}`,
+          `Monthly budget limit: ₹${budgetLimit.toLocaleString("en-IN")}`,
+          `Remaining budget: ₹${remBudget}`,
+        ],
+        recommendation:
+          budgetLimit > 0 && dailyBurn * 30 > budgetLimit
+            ? "Your current pace will exceed your monthly budget limit unless daily discretionary spend slows down."
+            : "Your current spending pace fits within your overall financial buffer.",
+        reply: `Daily burn rate: ₹${Math.round(dailyBurn).toLocaleString("en-IN")}/day (projected ₹${projectedMonthly}/mo).`,
+      };
+    }
+
+    const topCat = topCategoriesList[0]
+      ? `${topCategoriesList[0]._id || topCategoriesList[0].name} (₹${Math.round(topCategoriesList[0].value).toLocaleString("en-IN")})`
+      : "None recorded";
 
     return {
       headline: "Financial Overview",
@@ -1941,17 +2001,47 @@ export const simulatePurchaseService = async (
     isRecurring: true,
   }).lean();
 
+  const now = new Date();
+  const windowStart = startOfDay(now);
+  const windowEnd = endOfDay(addDays(now, 30));
+
+  const countRecurringOccurrencesIn30Days = (tx: any): number => {
+    const interval = tx.recurringInterval;
+    if (interval === RecurringIntervalEnum.DAILY) return 30;
+    if (interval === RecurringIntervalEnum.WEEKLY) return 4;
+    if (interval === RecurringIntervalEnum.YEARLY) {
+      if (!tx.nextRecurringDate && !tx.date) return 0;
+      const anchor = new Date(tx.nextRecurringDate || tx.date);
+      const nextThisYear = new Date(
+        now.getFullYear(),
+        anchor.getMonth(),
+        anchor.getDate()
+      );
+      if (nextThisYear < windowStart) {
+        nextThisYear.setFullYear(now.getFullYear() + 1);
+      }
+      return nextThisYear >= windowStart && nextThisYear <= windowEnd ? 1 : 0;
+    }
+    // Default / MONTHLY
+    return 1;
+  };
+
   let upcomingRecurringBills = 0;
   const upcomingBillsList: Array<{ title: string; amount: number; date: string }> = [];
 
   for (const tx of recurringTxs) {
     if (tx.type === TransactionTypeEnum.EXPENSE) {
-      const amtInUnit = convertToUnit(Number(tx.amount));
-      upcomingRecurringBills += amtInUnit;
+      const occurrences = countRecurringOccurrencesIn30Days(tx);
+      if (occurrences <= 0) continue;
+      const singleAmt = convertToUnit(Number(tx.amount));
+      const totalForBill = singleAmt * occurrences;
+      upcomingRecurringBills += totalForBill;
       upcomingBillsList.push({
-        title: tx.title,
-        amount: Math.round(amtInUnit),
-        date: tx.nextRecurringDate ? new Date(tx.nextRecurringDate).toISOString().split("T")[0] : "Within 30d",
+        title: occurrences > 1 ? `${tx.title} (${occurrences}x)` : tx.title,
+        amount: Math.round(totalForBill),
+        date: tx.nextRecurringDate
+          ? new Date(tx.nextRecurringDate).toISOString().split("T")[0]
+          : "Within 30d",
       });
     }
   }
@@ -2045,15 +2135,35 @@ export const getLiquidityRadarService = async (userId: string) => {
 
     for (const tx of recurringTxs) {
       let isDue = false;
-      if (tx.nextRecurringDate) {
-        const nextD = new Date(tx.nextRecurringDate);
-        if (format(nextD, "yyyy-MM-dd") === dateStr) {
-          isDue = true;
-        }
-      } else if (tx.date) {
-        const origD = new Date(tx.date);
-        if (origD.getDate() === dayNum) {
-          isDue = true;
+      const anchor = tx.nextRecurringDate
+        ? new Date(tx.nextRecurringDate)
+        : tx.date
+        ? new Date(tx.date)
+        : null;
+
+      if (anchor && !Number.isNaN(anchor.getTime())) {
+        const curStart = startOfDay(curDate);
+        const anchorStart = startOfDay(anchor);
+        const interval = tx.recurringInterval;
+
+        if (interval === RecurringIntervalEnum.DAILY) {
+          isDue = curStart >= anchorStart || !tx.nextRecurringDate;
+        } else if (interval === RecurringIntervalEnum.WEEKLY) {
+          const daysApart = differenceInDays(curStart, anchorStart);
+          isDue =
+            daysApart >= 0
+              ? daysApart % 7 === 0
+              : Math.abs(daysApart) % 7 === 0 && !tx.nextRecurringDate;
+        } else if (interval === RecurringIntervalEnum.YEARLY) {
+          isDue =
+            curDate.getMonth() === anchor.getMonth() &&
+            curDate.getDate() === anchor.getDate() &&
+            curStart >= anchorStart;
+        } else {
+          // MONTHLY or unspecified: match calendar day (or last day of shorter months)
+          const lastDayOfMonth = endOfMonth(curDate).getDate();
+          const targetDay = Math.min(anchor.getDate(), lastDayOfMonth);
+          isDue = dayNum === targetDay && (curStart >= anchorStart || !tx.nextRecurringDate);
         }
       }
 

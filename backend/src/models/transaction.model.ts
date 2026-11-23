@@ -1,4 +1,4 @@
-import mongoose, { Schema } from "mongoose";
+import mongoose, { Document, Schema } from "mongoose";
 import { convertToSmallestUnit, convertToUnit } from "../utils/format-currency";
 
 export enum TransactionStatusEnum {
@@ -117,8 +117,6 @@ const transactionSchema = new Schema<TransactionDocument>(
     externalRef: {
       type: String,
       default: null,
-      index: true,
-      sparse: true,
     },
     ledgerHash: {
       type: String,
@@ -140,6 +138,13 @@ const transactionSchema = new Schema<TransactionDocument>(
 transactionSchema.index({ userId: 1, date: -1 });
 transactionSchema.index({ userId: 1, category: 1, date: -1 });
 transactionSchema.index({ isRecurring: 1, nextRecurringDate: 1 });
+transactionSchema.index(
+  { userId: 1, externalRef: 1 },
+  {
+    unique: true,
+    partialFilterExpression: { externalRef: { $type: "string" } },
+  }
+);
 
 const TransactionModel = mongoose.model<TransactionDocument>(
   "Transaction",

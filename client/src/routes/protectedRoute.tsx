@@ -4,8 +4,9 @@ import { AUTH_ROUTES } from "./common/routePath";
 
 const ProtectedRoute = () => {
   const { accessToken, user } = useTypedSelector((state) => state.auth);
+  const isAuthenticated = Boolean(accessToken && user);
 
-  if (accessToken && user) return <Outlet />;
+  if (isAuthenticated) return <Outlet />;
 
   return <Navigate to={AUTH_ROUTES.SIGN_IN} replace />;
 };

@@ -51,7 +51,6 @@ export function AccountForm() {
   });
 
   const onSubmit = (values: AccountFormValues) => {
-    console.log(values);
     if (isLoading) return;
 
     const formData = new FormData();
@@ -72,27 +71,32 @@ export function AccountForm() {
         toast.success("Account updated successfully");
       })
       .catch((error) => {
-        toast.error(error.data.message || "Failed to update account");
+        toast.error(error?.data?.message || "Failed to update account");
       });
   };
 
   const handleAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) {
+    const selected = event.target.files?.[0];
+    if (!selected) {
       toast.error("Please select a file");
       return;
     }
-    if (!file.type.startsWith("image/")) {
-      toast.error("Please select an image file");
+    const allowedTypes = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
+    if (!allowedTypes.includes(selected.type.toLowerCase())) {
+      toast.error("Please select a JPG, PNG, or WEBP image");
       return;
     }
-    setFile(file);
+    if (selected.size > 5 * 1024 * 1024) {
+      toast.error("Profile photo must be 5 MB or smaller");
+      return;
+    }
+    setFile(selected);
     const reader = new FileReader();
     reader.onload = (e) => {
       const result = e.target?.result as string;
       setAvatarUrl(result);
     };
-    reader.readAsDataURL(file);
+    reader.readAsDataURL(selected);
   };
 
   return (

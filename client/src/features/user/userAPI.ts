@@ -20,7 +20,7 @@ export const userApi = apiClient.injectEndpoints({
         method: "PUT",
         body: formData,
       }),
-      invalidatesTags: ["user"],
+      invalidatesTags: ["user", "analytics"],
     }),
     getTelegramStatus: builder.query<TelegramStatusResponse, void>({
       query: () => "/user/telegram/status",

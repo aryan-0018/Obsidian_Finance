@@ -111,7 +111,9 @@ export const analyticsApi = apiClient.injectEndpoints({
         body,
       }),
       invalidatesTags: (result) =>
-        result?.actionTaken ? ["transactions", "analytics", "reports", "budget"] : [],
+        result?.actionTaken
+          ? ["transactions", "analytics", "reports", "budget", "telegram"]
+          : [],
     }),
     processVoiceCommand: builder.mutation<
       VoiceTerminalCommandResponse,

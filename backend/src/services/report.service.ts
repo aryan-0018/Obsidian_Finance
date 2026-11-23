@@ -24,7 +24,7 @@ import {
   subQuarters,
   subDays,
 } from "date-fns";
-import { genAI, genAIModel, generateContentWithRetry } from "../config/google-ai.config";
+import { generateContentWithRetry } from "../config/google-ai.config";
 import { createUserContent } from "@google/genai";
 import { reportInsightPrompt } from "../utils/prompt";
 import { sendReportEmail } from "../mailers/report.mailer";
@@ -80,9 +80,15 @@ export const updateReportSettingService = async (
     const currentNextReportDate = existingReportSetting.nextReportDate;
     const now = new Date();
     if (!currentNextReportDate || currentNextReportDate <= now) {
-      nextReportDate = calulateNextReportDate(
-        existingReportSetting.lastSentDate
+      let candidate = calulateNextReportDate(
+        existingReportSetting.lastSentDate || now
       );
+      let guard = 0;
+      while (candidate <= now && guard < 24) {
+        candidate = calulateNextReportDate(candidate);
+        guard++;
+      }
+      nextReportDate = candidate;
     } else {
       nextReportDate = currentNextReportDate;
     }
@@ -381,17 +387,13 @@ export const generateReportService = async (
     },
   ]);
 
-  if (
-    !results?.length ||
-    (results[0]?.totalIncome === 0 && results[0]?.totalExpenses === 0)
-  )
-    return null;
+  const totalIncome = Number(results?.[0]?.totalIncome) || 0;
+  const totalExpenses = Number(results?.[0]?.totalExpenses) || 0;
+  const categories = results?.[0]?.categories || [];
 
-  const {
-    totalIncome = 0,
-    totalExpenses = 0,
-    categories = [],
-  } = results[0] || {};
+  if (!results?.length || !(totalIncome > 0 || totalExpenses > 0)) {
+    return null;
+  }
 
   const byCategory = categories.reduce(
     (acc: any, { _id, total }: any) => {

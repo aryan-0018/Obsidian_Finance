@@ -126,7 +126,9 @@ export default function SecuritySettings() {
                 <FileKey className="h-3.5 w-3.5 text-[#e5c158]" />
                 Chain Status
               </div>
-              <p className="text-lg font-semibold text-white">Intact</p>
+              <p className={`text-lg font-semibold ${isSecure ? "text-white" : "text-[#ff453a]"}`}>
+                {isSecure ? "Intact" : "Compromised"}
+              </p>
             </div>
 
             <div className="rounded-xl border border-white/[0.06] bg-white/[0.02] p-3 text-center">

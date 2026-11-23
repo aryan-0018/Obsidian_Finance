@@ -169,8 +169,12 @@ export function DataTable<TData>({
           .map((k) => {
             const val = item[k];
             if (val === null || val === undefined) return '""';
-            if (typeof val === "object") return `"${JSON.stringify(val).replace(/"/g, '""')}"`;
-            return `"${String(val).replace(/"/g, '""')}"`;
+            let str =
+              typeof val === "object" ? JSON.stringify(val) : String(val);
+            if (/^[=+\-@\t\r]/.test(str)) {
+              str = `'${str}`;
+            }
+            return `"${str.replace(/"/g, '""')}"`;
           })
           .join(",")
       ),
@@ -184,6 +188,7 @@ export function DataTable<TData>({
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
 
   const handleSearch = (value: string) => {

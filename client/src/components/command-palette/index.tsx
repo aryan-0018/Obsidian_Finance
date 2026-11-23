@@ -29,12 +29,14 @@ import {
 } from "lucide-react";
 import { PROTECTED_ROUTES } from "@/routes/common/routePath";
 import { useUpdateUserMutation } from "@/features/user/userAPI";
-import { useTypedSelector } from "@/app/hook";
+import { updateCredentials } from "@/features/auth/authSlice";
+import { useAppDispatch, useTypedSelector } from "@/app/hook";
 import { toast } from "sonner";
 
 export function CommandPalette() {
   const [open, setOpen] = useState(false);
   const navigate = useNavigate();
+  const dispatch = useAppDispatch();
   const { user } = useTypedSelector((state) => state.auth);
   const [updateUser] = useUpdateUserMutation();
 
@@ -60,12 +62,6 @@ export function CommandPalette() {
             detail: { modal: "ADD_TRANSACTION" },
           })
         );
-      }
-
-      // Alt+V for Voice Terminal
-      if ((e.altKey && e.key.toLowerCase() === "v") || (e.ctrlKey && e.key.toLowerCase() === "m")) {
-        e.preventDefault();
-        window.dispatchEvent(new CustomEvent("open-voice-terminal"));
       }
 
       // Alt+A for Ledger Audit
@@ -97,7 +93,12 @@ export function CommandPalette() {
     try {
       const formData = new FormData();
       formData.append("currency", currency);
-      await updateUser(formData).unwrap();
+      const res = await updateUser(formData).unwrap();
+      dispatch(
+        updateCredentials({
+          user: res?.data ? { ...res.data, currency } : { currency },
+        })
+      );
       toast.success(`Currency switched to ${currency}`);
     } catch {
       toast.error("Failed to update currency");

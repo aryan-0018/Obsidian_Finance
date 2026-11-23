@@ -75,7 +75,7 @@ const ScheduleReportForm = ({
         toast.success("Report setting updated successfully");
       })
       .catch((error) => {
-        toast.error(error.data.message || "Failed to update report setting");
+        toast.error(error?.data?.message || "Failed to update report setting");
       });
   };
 
@@ -152,7 +152,7 @@ const ScheduleReportForm = ({
                     <FormLabel>Repeat On</FormLabel>
                     <Select
                       onValueChange={field.onChange}
-                      defaultValue={field.value}
+                      value={field.value}
                       disabled={true}
                     >
                       <FormControl className="w-full">

@@ -4,21 +4,36 @@ import {
   RecurringIntervalEnum,
   TransactionTypeEnum,
 } from "../models/transaction.model";
+import { isSafeHttpUrl } from "../utils/security";
 
-export const transactionIdSchema = z.string().trim().min(1);
+export const objectIdSchema = z
+  .string()
+  .trim()
+  .regex(/^[0-9a-fA-F]{24}$/, "Invalid ID format");
+
+export const transactionIdSchema = objectIdSchema;
 
 export const baseTransactionSchema = z.object({
-  title: z.string().min(1, "Title is required"),
-  description: z.string().optional(),
+  title: z.string().trim().min(1, "Title is required").max(200),
+  description: z.string().trim().max(2000).optional(),
   type: z.enum([TransactionTypeEnum.INCOME, TransactionTypeEnum.EXPENSE], {
     errorMap: () => ({
       message: "Transaction type must either INCOME or EXPENSE",
     }),
   }),
-  amount: z.number().positive("Amount must be postive").min(1),
-  category: z.string().min(1, "Category is required"),
+  amount: z.coerce
+    .number()
+    .finite("Amount must be a valid number")
+    .min(0.01, "Amount must be at least 0.01")
+    .max(1_000_000_000, "Amount exceeds maximum allowed limit"),
+  category: z.string().trim().min(1, "Category is required").max(100),
   date: z
-    .union([z.string().datetime({ message: "Invalid date string" }), z.date()])
+    .union([
+      z.string().refine((val) => !Number.isNaN(Date.parse(val)), {
+        message: "Invalid date string",
+      }),
+      z.date(),
+    ])
     .transform((val) => new Date(val)),
   isRecurring: z.boolean().default(false),
   recurringInterval: z
@@ -31,8 +46,15 @@ export const baseTransactionSchema = z.object({
     .nullable()
     .optional(),
 
-  receiptUrl: z.string().optional(),
-  externalRef: z.string().nullable().optional(),
+  receiptUrl: z
+    .string()
+    .trim()
+    .refine(
+      (val) => val === "" || isSafeHttpUrl(val),
+      "Receipt URL must be a valid http:// or https:// URL"
+    )
+    .optional(),
+  externalRef: z.string().trim().max(255).nullable().optional(),
   paymentMethod: z
     .enum([
       PaymentMethodEnum.CARD,
@@ -47,25 +69,58 @@ export const baseTransactionSchema = z.object({
 
 export const bulkDeleteTransactionSchema = z.object({
   transactionIds: z
-    .array(z.string().length(24, "Invalid transaction ID format"))
-    .min(1, "At least one transaction ID must be provided"),
+    .array(transactionIdSchema)
+    .min(1, "At least one transaction ID must be provided")
+    .max(500, "Cannot delete more than 500 transactions at once"),
 });
 
 export const bulkTransactionSchema = z.object({
   transactions: z
     .array(baseTransactionSchema)
     .min(1, "At least one transaction is required")
-    .max(300, "Must not be more than 300 transactions")
-    .refine(
-      (txs) =>
-        txs.every((tx) => {
-          const amount = Number(tx.amount);
-          return !isNaN(amount) && amount > 0 && amount <= 1_000_000_000;
-        }),
-      {
-        message: "Amount must be a postive number",
-      }
-    ),
+    .max(300, "Must not be more than 300 transactions"),
+});
+
+export const bulkCommitBankTransactionsSchema = z.object({
+  transactions: z
+    .array(
+      baseTransactionSchema.extend({
+        date: z
+          .union([
+            z.string().refine((val) => !Number.isNaN(Date.parse(val)), {
+              message: "Invalid date string",
+            }),
+            z.date(),
+          ])
+          .transform((val) => new Date(val))
+          .optional(),
+        paymentMethod: z
+          .enum([
+            PaymentMethodEnum.CARD,
+            PaymentMethodEnum.BANK_TRANSFER,
+            PaymentMethodEnum.MOBILE_PAYMENT,
+            PaymentMethodEnum.AUTO_DEBIT,
+            PaymentMethodEnum.CASH,
+            PaymentMethodEnum.OTHER,
+          ])
+          .optional()
+          .default(PaymentMethodEnum.BANK_TRANSFER),
+      })
+    )
+    .min(1, "No transactions selected to import")
+    .max(500, "Cannot import more than 500 transactions at once"),
+});
+
+export const transactionQuerySchema = z.object({
+  keyword: z.string().trim().max(120).optional(),
+  type: z
+    .enum([TransactionTypeEnum.INCOME, TransactionTypeEnum.EXPENSE])
+    .optional(),
+  recurringStatus: z.enum(["RECURRING", "NON_RECURRING"]).optional(),
+  category: z.string().trim().max(100).optional(),
+  paymentMethod: z.string().trim().max(60).optional(),
+  pageSize: z.coerce.number().int().min(1).max(200).default(20),
+  pageNumber: z.coerce.number().int().min(1).max(10000).default(1),
 });
 
 export const createTransactionSchema = baseTransactionSchema;

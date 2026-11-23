@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -57,6 +57,15 @@ const ReceiptScanner = ({
   const [isEditing, setIsEditing] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const progressTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (progressTimerRef.current) {
+        clearInterval(progressTimerRef.current);
+      }
+    };
+  }, []);
 
   const [aiScanReceipt] = useAiScanReceiptMutation();
 
@@ -99,6 +108,9 @@ const ReceiptScanner = ({
     setProgressVal(15);
     setScanStage("Scanning receipt image...");
 
+    if (progressTimerRef.current) {
+      clearInterval(progressTimerRef.current);
+    }
     const progressTimer = setInterval(() => {
       setProgressVal((prev) => {
         if (prev < 45) {
@@ -116,10 +128,12 @@ const ReceiptScanner = ({
         return prev;
       });
     }, 400);
+    progressTimerRef.current = progressTimer;
 
     try {
       const res = await aiScanReceipt(formData).unwrap();
       clearInterval(progressTimer);
+      progressTimerRef.current = null;
       setProgressVal(100);
       setScanStage("Receipt read successfully!");
 
@@ -129,6 +143,7 @@ const ReceiptScanner = ({
       toast.success(`Extracted: ${data.title} (₹${data.amount})`);
     } catch (err: unknown) {
       clearInterval(progressTimer);
+      progressTimerRef.current = null;
       const error = err as { data?: { message?: string }; message?: string };
       const errMsg =
         error?.data?.message ||
@@ -138,6 +153,7 @@ const ReceiptScanner = ({
       setExtractedData(null);
     } finally {
       clearInterval(progressTimer);
+      progressTimerRef.current = null;
       onLoadingChange(false);
     }
   };
@@ -272,7 +288,7 @@ const ReceiptScanner = ({
             Drag & drop receipt photo or click to browse
           </p>
           <p className="text-[10px] text-[#8e8e93] mt-0.5 font-normal">
-            JPG, PNG, WEBP, PDF up to 15MB • Auto-detects store, amount, items & date
+            JPG, PNG, WEBP, PDF up to 15MB • Single receipt auto-fill (use Import → Bank Statement for multi-row screenshots)
           </p>
 
           <div className="flex items-center gap-2 mt-3.5">

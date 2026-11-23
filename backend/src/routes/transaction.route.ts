@@ -14,11 +14,14 @@ import {
   bulkCommitBankTransactionsController,
   ledgerAuditController,
 } from "../controllers/transaction.controller";
-import { upload } from "../config/cloudinary.config";
 import {
   receiptMemoryUpload,
   statementUpload,
 } from "../middlewares/upload.middleware";
+import {
+  aiLimiter,
+  uploadLimiter,
+} from "../middlewares/rateLimiter.middleware";
 
 const transactionRoutes = Router();
 
@@ -26,12 +29,15 @@ transactionRoutes.post("/create", createTransactionController);
 
 transactionRoutes.post(
   "/scan-receipt",
+  uploadLimiter,
+  aiLimiter,
   receiptMemoryUpload.single("receipt"),
   scanReceiptController
 );
 
 transactionRoutes.post(
   "/parse-statement",
+  uploadLimiter,
   statementUpload.single("statement"),
   parseBankStatementController
 );

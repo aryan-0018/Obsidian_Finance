@@ -23,7 +23,7 @@ export const sendEmail = async ({
   let resendError: any = null;
 
   // 1. Primary: Resend API
-  if (Env.RESEND_API_KEY) {
+  if (Env.RESEND_API_KEY && resend) {
     try {
       const resendSender =
         from ||

@@ -20,11 +20,18 @@ import {
 } from "lucide-react";
 import { useLazyVerifyLedgerAuditQuery } from "@/features/transaction/transactionAPI";
 
-export function LedgerAuditModal() {
+export function LedgerAuditModal({
+  headless = false,
+  listenGlobal = false,
+}: {
+  headless?: boolean;
+  listenGlobal?: boolean;
+}) {
   const [open, setOpen] = useState(false);
-  const [triggerAudit, { data, isFetching }] = useLazyVerifyLedgerAuditQuery();
+  const [triggerAudit, { data, isFetching, isError }] = useLazyVerifyLedgerAuditQuery();
 
   useEffect(() => {
+    if (!listenGlobal) return;
     const handleCustomOpen = (e: Event) => {
       const customEvent = e as CustomEvent<{ modal?: string }>;
       if (customEvent.detail?.modal === "LEDGER_AUDIT") {
@@ -34,7 +41,7 @@ export function LedgerAuditModal() {
     };
     window.addEventListener("obsidian:open-modal", handleCustomOpen);
     return () => window.removeEventListener("obsidian:open-modal", handleCustomOpen);
-  }, [triggerAudit]);
+  }, [listenGlobal, triggerAudit]);
 
   const handleOpen = () => {
     setOpen(true);
@@ -46,22 +53,24 @@ export function LedgerAuditModal() {
   };
 
   const auditData = data?.data;
-  const isSecure = auditData?.status === "VERIFIED_SECURE";
+  const isSecure = !isError && auditData?.status === "VERIFIED_SECURE";
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleOpen}
-          className="flex items-center gap-1.5 rounded-xl border-white/[0.10] bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/[0.16] text-white active:scale-[0.98] transition-all cursor-pointer text-xs"
-          title="Verify Account Records"
-        >
-          <ShieldCheck className="h-3.5 w-3.5 text-[#e5c158]" />
-          <span>Verify Records</span>
-        </Button>
-      </DialogTrigger>
+      {!headless && (
+        <DialogTrigger asChild>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleOpen}
+            className="flex items-center gap-1.5 rounded-xl border-white/[0.10] bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/[0.16] text-white active:scale-[0.98] transition-all cursor-pointer text-xs"
+            title="Verify Account Records"
+          >
+            <ShieldCheck className="h-3.5 w-3.5 text-[#e5c158]" />
+            <span>Verify Records</span>
+          </Button>
+        </DialogTrigger>
+      )}
 
       <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md obsidian-card bg-[#0e0e13]/95 backdrop-blur-2xl border border-white/[0.09] text-[#f5f5f7] p-6 sm:p-7 rounded-3xl shadow-[0_32px_64px_rgba(0,0,0,0.85),inset_0_1px_0_rgba(255,255,255,0.12)]">
         <DialogHeader className="pb-3 border-b border-white/[0.06]">
@@ -105,6 +114,18 @@ export function LedgerAuditModal() {
               <Loader2 className="h-6 w-6 animate-spin text-[#e5c158]" />
               <p className="text-xs text-[#8e8e93]">
                 Verifying transaction balances and sequences...
+              </p>
+            </div>
+          ) : isError ? (
+            <div className="rounded-xl border border-[#ff453a]/20 bg-[#ff453a]/5 p-5 space-y-2 text-center">
+              <div className="h-9 w-9 rounded-full bg-[#ff453a]/10 text-[#ff453a] flex items-center justify-center mx-auto border border-[#ff453a]/20">
+                <ShieldAlert className="h-4.5 w-4.5" />
+              </div>
+              <h3 className="text-sm font-semibold text-[#ff453a]">
+                Verification Request Failed
+              </h3>
+              <p className="text-xs text-[#ff453a]/80 max-w-sm mx-auto leading-relaxed">
+                Could not reach the audit verification service. Please try refreshing.
               </p>
             </div>
           ) : isSecure ? (
@@ -153,8 +174,8 @@ export function LedgerAuditModal() {
                   <ShieldCheck className="h-3.5 w-3.5 text-[#30d158]" />
                   Status
                 </div>
-                <p className="text-sm font-semibold text-white">
-                  Balanced
+                <p className={`text-sm font-semibold ${isSecure ? "text-white" : "text-[#ff453a]"}`}>
+                  {isSecure ? "Balanced" : "Compromised"}
                 </p>
               </div>
 

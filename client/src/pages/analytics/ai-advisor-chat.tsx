@@ -275,12 +275,18 @@ export default function AiAdvisorChat({ dateRange }: AiAdvisorChatProps) {
           }
         : undefined;
 
+      const validHistory = messages
+        .slice(1)
+        .filter((m) => m.headline !== "Notice" && (m.parts || m.summary))
+        .slice(-12)
+        .map((m) => ({
+          role: m.role,
+          parts: (m.parts || m.summary || "").slice(0, 2000),
+        }));
+
       const response = await chatWithAi({
         message: query,
-        history: messages.slice(1).map((m) => ({
-          role: m.role,
-          parts: m.parts || m.summary || "",
-        })),
+        history: validHistory,
         currentRange: currentRangePayload,
       }).unwrap();
 
@@ -313,18 +319,18 @@ export default function AiAdvisorChat({ dateRange }: AiAdvisorChatProps) {
       }
     } catch (err: unknown) {
       const error = err as { data?: { message?: string }; message?: string };
-      toast.error(
-        error?.data?.message || error?.message || "Failed to communicate with AI Assistant"
-      );
+      const errDetail =
+        error?.data?.message ||
+        error?.message ||
+        "Request could not be completed. Please try again shortly.";
+      toast.error(errDetail);
       setMessages((prev) => [
         ...prev,
         {
           role: "model",
-          parts:
-            "Could not process your request at this moment. Please check your connection and try again.",
+          parts: errDetail,
           headline: "Notice",
-          summary:
-            "Request could not be completed. Please try again shortly.",
+          summary: errDetail,
         },
       ]);
     }
@@ -374,6 +380,7 @@ export default function AiAdvisorChat({ dateRange }: AiAdvisorChatProps) {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
     toast.success("Transcript downloaded as markdown");
   };
 

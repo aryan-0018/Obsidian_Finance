@@ -1,10 +1,9 @@
-
-
 export interface User {
   id: string;
+  _id?: string;
   name: string;
   email: string;
-  profilePicture: string;
+  profilePicture: string | null;
   portfolioBalance?: number;
   currency?: string;
   telegramChatId?: string | null;
@@ -17,6 +16,7 @@ export interface GetCurrentUserResponse {
 }
 
 export interface UpdateUserResponse {
+  message?: string;
   data: User;
 }
 
@@ -56,4 +56,3 @@ export interface GenerateApiKeyResponse {
     createdAt: string;
   };
 }
-

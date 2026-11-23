@@ -5,7 +5,9 @@ import {
   subMonths,
   subYears,
   startOfMonth,
+  endOfMonth,
   startOfYear,
+  endOfYear,
   endOfDay,
   startOfQuarter,
   endOfQuarter,
@@ -42,89 +44,112 @@ interface DateRangeSelectProps {
   defaultRange?: DateRangeEnumType;
 }
 
-const now = new Date();
-const today = endOfDay(now);
+const getTodayEnd = () => endOfDay(new Date());
 
 const presets: DateRangePreset[] = [
   {
     label: "Last 30 Days",
     value: DateRangeEnum.LAST_30_DAYS,
-    getRange: () => ({
-      from: subDays(today, 29),
-      to: today,
-      value: DateRangeEnum.LAST_30_DAYS,
-      label: "for Past 30 Days",
-    }),
+    getRange: () => {
+      const today = getTodayEnd();
+      return {
+        from: subDays(today, 29),
+        to: today,
+        value: DateRangeEnum.LAST_30_DAYS,
+        label: "for Past 30 Days",
+      };
+    },
   },
   {
     label: "Last Month",
     value: DateRangeEnum.LAST_MONTH,
-    getRange: () => ({
-      from: startOfMonth(subMonths(today, 1)),
-      to: startOfMonth(today),
-      value: DateRangeEnum.LAST_MONTH,
-      label: "for Last Month",
-    }),
+    getRange: () => {
+      const lastMonth = subMonths(getTodayEnd(), 1);
+      return {
+        from: startOfMonth(lastMonth),
+        to: endOfMonth(lastMonth),
+        value: DateRangeEnum.LAST_MONTH,
+        label: "for Last Month",
+      };
+    },
   },
   {
     label: "Last 3 Months",
     value: DateRangeEnum.LAST_3_MONTHS,
-    getRange: () => ({
-      from: startOfMonth(subMonths(today, 3)),
-      to: startOfMonth(today),
-      value: DateRangeEnum.LAST_3_MONTHS,
-      label: "for Past 3 Months",
-    }),
+    getRange: () => {
+      const today = getTodayEnd();
+      return {
+        from: startOfMonth(subMonths(today, 3)),
+        to: endOfMonth(subMonths(today, 1)),
+        value: DateRangeEnum.LAST_3_MONTHS,
+        label: "for Past 3 Months",
+      };
+    },
   },
   {
     label: "Last Year",
     value: DateRangeEnum.LAST_YEAR,
-    getRange: () => ({
-      from: startOfYear(subYears(today, 1)),
-      to: startOfYear(today),
-      value: DateRangeEnum.LAST_YEAR,
-      label: "for Past Year",
-    }),
+    getRange: () => {
+      const lastYear = subYears(getTodayEnd(), 1);
+      return {
+        from: startOfYear(lastYear),
+        to: endOfYear(lastYear),
+        value: DateRangeEnum.LAST_YEAR,
+        label: "for Past Year",
+      };
+    },
   },
   {
     label: "This Month",
     value: DateRangeEnum.THIS_MONTH,
-    getRange: () => ({
-      from: startOfMonth(today),
-      to: today,
-      value: DateRangeEnum.THIS_MONTH,
-      label: "for This Month",
-    }),
+    getRange: () => {
+      const today = getTodayEnd();
+      return {
+        from: startOfMonth(today),
+        to: today,
+        value: DateRangeEnum.THIS_MONTH,
+        label: "for This Month",
+      };
+    },
   },
   {
     label: "This Quarter",
     value: DateRangeEnum.THIS_QUARTER,
-    getRange: () => ({
-      from: startOfQuarter(today),
-      to: today,
-      value: DateRangeEnum.THIS_QUARTER,
-      label: "for This Quarter",
-    }),
+    getRange: () => {
+      const today = getTodayEnd();
+      return {
+        from: startOfQuarter(today),
+        to: today,
+        value: DateRangeEnum.THIS_QUARTER,
+        label: "for This Quarter",
+      };
+    },
   },
   {
     label: "Last Quarter",
     value: DateRangeEnum.LAST_QUARTER,
-    getRange: () => ({
-      from: startOfQuarter(subQuarters(today, 1)),
-      to: endOfQuarter(subQuarters(today, 1)),
-      value: DateRangeEnum.LAST_QUARTER,
-      label: "for Last Quarter",
-    }),
+    getRange: () => {
+      const lastQ = subQuarters(getTodayEnd(), 1);
+      return {
+        from: startOfQuarter(lastQ),
+        to: endOfQuarter(lastQ),
+        value: DateRangeEnum.LAST_QUARTER,
+        label: "for Last Quarter",
+      };
+    },
   },
   {
     label: "This Year",
     value: DateRangeEnum.THIS_YEAR,
-    getRange: () => ({
-      from: startOfYear(today),
-      to: today,
-      value: DateRangeEnum.THIS_YEAR,
-      label: "for This Year",
-    }),
+    getRange: () => {
+      const today = getTodayEnd();
+      return {
+        from: startOfYear(today),
+        to: today,
+        value: DateRangeEnum.THIS_YEAR,
+        label: "for This Year",
+      };
+    },
   },
   {
     label: "All Time",

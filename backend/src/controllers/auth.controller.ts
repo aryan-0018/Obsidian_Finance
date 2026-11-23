@@ -1,21 +1,37 @@
-import { Request, Response } from "express";
+import { CookieOptions, Request, Response } from "express";
 import { HTTPSTATUS } from "../config/http.config";
 import { asyncHandler } from "../middlewares/asyncHandler.middlerware";
-import { loginSchema, registerSchema } from "../validators/auth.validator";
+import {
+  googleLoginSchema,
+  loginSchema,
+  registerSchema,
+} from "../validators/auth.validator";
 import {
   loginService,
   registerService,
   googleLoginService,
   refreshTokenService,
+  logoutService,
 } from "../services/auth.service";
 import { UnauthorizedException } from "../utils/app-error";
-import jwt from "jsonwebtoken";
 import { Env } from "../config/env.config";
+
+const REFRESH_COOKIE_NAME = "refreshToken";
+
+const getRefreshCookieOptions = (): CookieOptions => {
+  const isProd = Env.NODE_ENV === "production";
+  return {
+    httpOnly: true,
+    secure: isProd,
+    sameSite: isProd ? "none" : "lax",
+    path: "/",
+    maxAge: 7 * 24 * 60 * 60 * 1000,
+  };
+};
 
 export const registerController = asyncHandler(
   async (req: Request, res: Response) => {
     const body = registerSchema.parse(req.body);
-
     const result = await registerService(body);
 
     return res.status(HTTPSTATUS.CREATED).json({
@@ -27,11 +43,11 @@ export const registerController = asyncHandler(
 
 export const loginController = asyncHandler(
   async (req: Request, res: Response) => {
-    const body = loginSchema.parse({
-      ...req.body,
-    });
-    const { user, accessToken, expiresAt, reportSetting } =
+    const body = loginSchema.parse(req.body);
+    const { user, accessToken, expiresAt, refreshToken, reportSetting } =
       await loginService(body);
+
+    res.cookie(REFRESH_COOKIE_NAME, refreshToken, getRefreshCookieOptions());
 
     return res.status(HTTPSTATUS.OK).json({
       message: "User logged in successfully",
@@ -45,11 +61,11 @@ export const loginController = asyncHandler(
 
 export const googleLoginController = asyncHandler(
   async (req: Request, res: Response) => {
-    const { token } = req.body;
-    if (!token) return res.status(HTTPSTATUS.BAD_REQUEST).json({ message: "Token is required" });
-
-    const { user, accessToken, expiresAt, reportSetting } =
+    const { token } = googleLoginSchema.parse(req.body);
+    const { user, accessToken, expiresAt, refreshToken, reportSetting } =
       await googleLoginService(token);
+
+    res.cookie(REFRESH_COOKIE_NAME, refreshToken, getRefreshCookieOptions());
 
     return res.status(HTTPSTATUS.OK).json({
       message: "User logged in with Google successfully",
@@ -63,27 +79,18 @@ export const googleLoginController = asyncHandler(
 
 export const refreshTokenController = asyncHandler(
   async (req: Request, res: Response) => {
-    let userId = req.user?._id?.toString();
+    const rawRefreshToken = req.cookies?.[REFRESH_COOKIE_NAME] as
+      | string
+      | undefined;
 
-    if (!userId) {
-      const authHeader = req.headers.authorization;
-      if (authHeader && authHeader.startsWith("Bearer ")) {
-        const token = authHeader.split(" ")[1];
-        try {
-          const decoded: any = jwt.verify(token, Env.JWT_SECRET, { ignoreExpiration: true });
-          userId = decoded.userId;
-        } catch {
-          throw new UnauthorizedException("Invalid token for refresh");
-        }
-      }
+    if (!rawRefreshToken) {
+      throw new UnauthorizedException("Refresh token cookie missing");
     }
 
-    if (!userId) {
-      throw new UnauthorizedException("Authentication token required for refresh");
-    }
+    const { user, accessToken, expiresAt, refreshToken, reportSetting } =
+      await refreshTokenService(rawRefreshToken);
 
-    const { user, accessToken, expiresAt, reportSetting } =
-      await refreshTokenService(userId);
+    res.cookie(REFRESH_COOKIE_NAME, refreshToken, getRefreshCookieOptions());
 
     return res.status(HTTPSTATUS.OK).json({
       message: "Token refreshed successfully",
@@ -97,6 +104,14 @@ export const refreshTokenController = asyncHandler(
 
 export const logoutController = asyncHandler(
   async (req: Request, res: Response) => {
+    const rawRefreshToken = req.cookies?.[REFRESH_COOKIE_NAME] as
+      | string
+      | undefined;
+    await logoutService(rawRefreshToken);
+
+    const { maxAge: _maxAge, ...clearOpts } = getRefreshCookieOptions();
+    res.clearCookie(REFRESH_COOKIE_NAME, clearOpts);
+
     return res.status(HTTPSTATUS.OK).json({
       message: "Logged out successfully",
     });

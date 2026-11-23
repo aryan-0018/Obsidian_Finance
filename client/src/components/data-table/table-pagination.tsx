@@ -42,8 +42,12 @@ export function DataTablePagination({
     <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 px-2">
       {/* Showing X to Y of Z Rows */}
       <div className="flex-1 text-sm text-muted-foreground">
-        Showing {(pageNumber - 1) * pageSize + 1}-
-        {Math.min(pageNumber * pageSize, totalCount)} of {totalCount}
+        {totalCount === 0
+          ? "Showing 0 of 0"
+          : `Showing ${(pageNumber - 1) * pageSize + 1}-${Math.min(
+              pageNumber * pageSize,
+              totalCount
+            )} of ${totalCount}`}
       </div>
       <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-6 flex-wrap">
         {/* Rows Per Page Selector */}

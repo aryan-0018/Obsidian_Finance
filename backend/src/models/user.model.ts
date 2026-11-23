@@ -9,7 +9,7 @@ export interface UserDocument extends Document {
   createdAt: Date;
   updatedAt: Date;
   comparePassword: (password: string) => Promise<boolean>;
-  omitPassword: () => Omit<UserDocument, "password">;
+  omitPassword: () => Omit<UserDocument, "password" | "apiKeyHash" | "refreshTokenHash"> & { id: string };
   portfolioBalance: number;
   currency?: string;
   telegramChatId?: string | null;
@@ -19,6 +19,7 @@ export interface UserDocument extends Document {
   apiKeyHash?: string | null;
   apiKeyPrefix?: string | null;
   apiKeyCreatedAt?: Date | null;
+  refreshTokenHash?: string | null;
 }
 
 const userSchema = new Schema<UserDocument>(
@@ -55,7 +56,8 @@ const userSchema = new Schema<UserDocument>(
     telegramChatId: {
       type: String,
       default: null,
-      index: true,
+      unique: true,
+      sparse: true,
     },
     telegramUsername: {
       type: String,
@@ -84,6 +86,11 @@ const userSchema = new Schema<UserDocument>(
       type: Date,
       default: null,
     },
+    refreshTokenHash: {
+      type: String,
+      default: null,
+      select: false,
+    },
   },
   {
     timestamps: true,
@@ -99,10 +106,12 @@ userSchema.pre("save", async function (next) {
   next();
 });
 
-userSchema.methods.omitPassword = function (): Omit<UserDocument, "password"> {
+userSchema.methods.omitPassword = function () {
   const userObject = this.toObject();
   delete userObject.password;
   delete userObject.apiKeyHash;
+  delete userObject.refreshTokenHash;
+  userObject.id = this._id?.toString();
   return userObject;
 };
 

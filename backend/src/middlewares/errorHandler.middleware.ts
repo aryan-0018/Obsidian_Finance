@@ -1,7 +1,5 @@
-import { Response } from "express";
-import fs from "fs";
+import { Response, ErrorRequestHandler } from "express";
 import { z, ZodError } from "zod";
-import { ErrorRequestHandler } from "express";
 import { HTTPSTATUS } from "../config/http.config";
 import { AppError } from "../utils/app-error";
 import { ErrorCodeEnum } from "../enums/error-code.enum";
@@ -14,14 +12,14 @@ const formatZodError = (res: Response, error: z.ZodError) => {
   }));
   return res.status(HTTPSTATUS.BAD_REQUEST).json({
     message: "Validation failed",
-    errors: errors,
+    errors,
     errorCode: ErrorCodeEnum.VALIDATION_ERROR,
   });
 };
 
 const handleMulterError = (error: MulterError) => {
   const messages = {
-    LIMIT_UNEXPECTED_FILE: "Invalid file field name. Please use 'file'",
+    LIMIT_UNEXPECTED_FILE: "Invalid file field name",
     LIMIT_FILE_SIZE: "File size exceeds the limit",
     LIMIT_FILE_COUNT: "Too many files uploaded",
     default: "File upload error",
@@ -38,13 +36,9 @@ export const errorHandler: ErrorRequestHandler = (
   error,
   req,
   res,
-  next
+  _next
 ): any => {
-  console.log("Error occurred on PATH:", req.path, "Error:", error);
-  fs.appendFileSync(
-    "error-dump.log",
-    `PATH: ${req.path}\nERROR: ${error?.stack || error?.message || error}\n\n`
-  );
+  console.error(`[Error] ${req.method} ${req.path}:`, error?.message || error);
 
   if (error instanceof ZodError) {
     return formatZodError(res, error);
@@ -66,6 +60,28 @@ export const errorHandler: ErrorRequestHandler = (
     });
   }
 
+  if (error?.name === "CastError") {
+    return res.status(HTTPSTATUS.BAD_REQUEST).json({
+      message: `Invalid identifier format for ${error.path || "parameter"}`,
+      errorCode: ErrorCodeEnum.VALIDATION_ERROR,
+    });
+  }
+
+  if (error?.name === "ValidationError") {
+    return res.status(HTTPSTATUS.BAD_REQUEST).json({
+      message: error.message || "Database validation failed",
+      errorCode: ErrorCodeEnum.VALIDATION_ERROR,
+    });
+  }
+
+  if (error?.code === 11000) {
+    const fields = error.keyPattern ? Object.keys(error.keyPattern).join(", ") : "field";
+    return res.status(HTTPSTATUS.CONFLICT).json({
+      message: `Duplicate value for ${fields}`,
+      errorCode: ErrorCodeEnum.VALIDATION_ERROR,
+    });
+  }
+
   if (
     error?.name === "MongoServerSelectionError" ||
     error?.name === "MongoNetworkError" ||
@@ -73,13 +89,17 @@ export const errorHandler: ErrorRequestHandler = (
     error?.code === "ENOTFOUND"
   ) {
     return res.status(HTTPSTATUS.SERVICE_UNAVAILABLE).json({
-      message: "Database is temporarily unreachable. Please check your network/internet connection and try again.",
+      message:
+        "Database is temporarily unreachable. Please check your network/internet connection and try again.",
       errorCode: "DATABASE_UNAVAILABLE",
     });
   }
 
   return res.status(HTTPSTATUS.INTERNAL_SERVER_ERROR).json({
     message: "Internal Server Error",
-    error: process.env.NODE_ENV === "production" ? "An internal server error occurred" : (error?.message || "Unknown error occurred"),
+    error:
+      process.env.NODE_ENV === "production"
+        ? "An internal server error occurred"
+        : error?.message || "Unknown error occurred",
   });
 };

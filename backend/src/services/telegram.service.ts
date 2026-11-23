@@ -1,3 +1,4 @@
+import crypto from "crypto";
 import { Telegraf } from "telegraf";
 import { Env } from "../config/env.config";
 import UserModel from "../models/user.model";
@@ -30,9 +31,38 @@ import {
   parseDeterministicIndianSms,
   checkDuplicateSmsTransaction,
 } from "./sms-parser.service";
+import { escapeHtml, isSafeHttpUrl } from "../utils/security";
 
 let bot: Telegraf | null = null;
 let botUsername: string = "";
+let retryTimer: NodeJS.Timeout | null = null;
+let signalsRegistered = false;
+
+const startRateLimits = new Map<string, { count: number; resetAt: number }>();
+
+const checkStartRateLimit = (chatId: string): boolean => {
+  const now = Date.now();
+  const entry = startRateLimits.get(chatId);
+  if (!entry || now > entry.resetAt) {
+    startRateLimits.set(chatId, { count: 1, resetAt: now + 60 * 1000 });
+    return true;
+  }
+  if (entry.count >= 5) {
+    return false;
+  }
+  entry.count += 1;
+  return true;
+};
+
+const downloadTelegramBuffer = async (url: string): Promise<Buffer> => {
+  const response = await axios.get(url, {
+    responseType: "arraybuffer",
+    timeout: 15000,
+    maxContentLength: 20 * 1024 * 1024,
+    maxBodyLength: 20 * 1024 * 1024,
+  });
+  return Buffer.from(response.data);
+};
 
 export const getTelegramBotInstance = (): Telegraf | null => bot;
 
@@ -106,6 +136,12 @@ export const initTelegramBot = async () => {
       const tgUsername = ctx.from.username || ctx.from.first_name || "Client";
 
       if (payload) {
+        if (!checkStartRateLimit(chatId)) {
+          return ctx.reply(
+            "⏳ Too many pairing attempts. Please wait a minute before trying again."
+          );
+        }
+
         // Attempt pairing with the code
         const user = await UserModel.findOne({
           telegramPairingCode: payload.toUpperCase(),
@@ -113,6 +149,12 @@ export const initTelegramBot = async () => {
         });
 
         if (user) {
+          // Ensure previous account holding this chatId is unlinked cleanly
+          await UserModel.updateMany(
+            { telegramChatId: chatId, _id: { $ne: user._id } },
+            { $set: { telegramChatId: null, telegramUsername: null } }
+          );
+
           user.telegramChatId = chatId;
           user.telegramUsername = tgUsername;
           user.telegramPairingCode = null;
@@ -120,24 +162,24 @@ export const initTelegramBot = async () => {
           await user.save();
 
           return ctx.reply(
-            `✨ *Obsidian Copilot Activated!*\n\nWelcome, *${user.name}*! Your Telegram account is now securely linked to your Obsidian Finance portfolio.\n\n` +
-              `💬 *How to use Obsidian Copilot:*\n` +
-              `• *Quick Expenses:* Text _"Spent 450 on lunch with card"_ or _"Paid 15000 rent via bank transfer"_\n` +
-              `• *Quick Income:* Text _"Got 45000 salary"_ or _"Received 5000 dividend"_\n` +
-              `• *Instant Receipt OCR:* Snap & send any bill or receipt photo 🧾\n` +
-              `• *Bank Statements:* Send CSV or PDF statements for auto-import 📊\n` +
-              `• *Voice Logging:* Hold the mic and speak any expense or question 🎙️\n` +
-              `• *Anti-Regret Simulator:* /afford <amount> <item> _(e.g. /afford 45000 iPhone)_\n` +
-              `• *Freedom Clock:* /freedom _(check your exact time-to-independence)_\n` +
-              `• *Live Stats:* /balance or /stats\n\n` +
+            `✨ <b>Obsidian Copilot Activated!</b>\n\nWelcome, <b>${escapeHtml(user.name)}</b>! Your Telegram account is now securely linked to your Obsidian Finance portfolio.\n\n` +
+              `💬 <b>How to use Obsidian Copilot:</b>\n` +
+              `• <b>Quick Expenses:</b> Text <i>"Spent 450 on lunch with card"</i> or <i>"Paid 15000 rent via bank transfer"</i>\n` +
+              `• <b>Quick Income:</b> Text <i>"Got 45000 salary"</i> or <i>"Received 5000 dividend"</i>\n` +
+              `• <b>Instant Receipt OCR:</b> Snap &amp; send any bill or receipt photo 🧾\n` +
+              `• <b>Bank Statements:</b> Send CSV or PDF statements for auto-import 📊\n` +
+              `• <b>Voice Logging:</b> Hold the mic and speak any expense or question 🎙️\n` +
+              `• <b>Anti-Regret Simulator:</b> /afford &lt;amount&gt; &lt;item&gt; <i>(e.g. /afford 45000 iPhone)</i>\n` +
+              `• <b>Freedom Clock:</b> /freedom <i>(check your exact time-to-independence)</i>\n` +
+              `• <b>Live Stats:</b> /balance or /stats\n\n` +
               `Your Obsidian web dashboard will synchronize in real time! ⚡`,
-            { parse_mode: "Markdown" }
+            { parse_mode: "HTML" }
           );
         } else {
           return ctx.reply(
-            `❌ *Invalid or Expired Link Code*\n\n` +
+            `❌ <b>Invalid or Expired Link Code</b>\n\n` +
               `Please open your Obsidian Finance web application, go to Settings, and generate a new connection link.`,
-            { parse_mode: "Markdown" }
+            { parse_mode: "HTML" }
           );
         }
       }
@@ -146,17 +188,17 @@ export const initTelegramBot = async () => {
       const existingUser = await UserModel.findOne({ telegramChatId: chatId });
       if (existingUser) {
         return ctx.reply(
-          `💼 *Obsidian Copilot Active*\n\nConnected Account: *${existingUser.name}* (${existingUser.email})\n\n` +
+          `💼 <b>Obsidian Copilot Active</b>\n\nConnected Account: <b>${escapeHtml(existingUser.name)}</b> (${escapeHtml(existingUser.email)})\n\n` +
             `Type /balance for your current portfolio stats or send any transaction or receipt to log it instantly!`,
-          { parse_mode: "Markdown" }
+          { parse_mode: "HTML" }
         );
       }
 
       return ctx.reply(
-        `🔒 *Obsidian Finance Copilot*\n\n` +
-          `To link your Obsidian portfolio, open the Obsidian Finance web app, navigate to Settings / Copilot, and click *"Connect Telegram"* to generate your instant link code.\n\n` +
+        `🔒 <b>Obsidian Finance Copilot</b>\n\n` +
+          `To link your Obsidian portfolio, open the Obsidian Finance web app, navigate to Settings / Copilot, and click <b>"Connect Telegram"</b> to generate your instant link code.\n\n` +
           `Once linked, you can log expenses, scan receipts with your camera, and query your finances directly from Telegram!`,
-        { parse_mode: "Markdown" }
+        { parse_mode: "HTML" }
       );
     });
 
@@ -205,18 +247,18 @@ export const initTelegramBot = async () => {
         const accrualSign = allTime.availableBalance >= 0 ? "+" : "";
 
         return ctx.reply(
-          `📊 *Obsidian Portfolio Snapshot*\n\n` +
-            `💼 *Total Portfolio Balance:* ₹${Math.round(totalPortfolioBalance).toLocaleString("en-IN")}\n` +
-            `_(Base: ₹${Math.round(baseWealth).toLocaleString("en-IN")} • Accrual: ${accrualSign}₹${Math.round(allTime.availableBalance).toLocaleString("en-IN")})_\n\n` +
-            `📅 *${periodName}'s Activity:*\n` +
-            `• 📈 *Income:* ₹${Math.round(periodSummary.totalIncome).toLocaleString("en-IN")}\n` +
-            `• 📉 *Expenses:* ₹${Math.round(periodSummary.totalExpenses).toLocaleString("en-IN")}\n` +
-            `• 💵 *Net Cash Flow:* ${periodSummary.availableBalance >= 0 ? "+" : ""}₹${Math.round(periodSummary.availableBalance).toLocaleString("en-IN")}\n` +
-            `• 🎯 *Savings Rate:* ${periodSummary.savingRate?.percentage || 0}%\n` +
-            `• 💳 *Budget Remaining:* ${periodSummary.budgetLimit > 0 ? `₹${Math.round(periodSummary.remainingBudget).toLocaleString("en-IN")} / ₹${Math.round(periodSummary.budgetLimit).toLocaleString("en-IN")}` : "No limit set"}\n` +
-            `• 🧾 *Transactions:* ${periodSummary.transactionCount}\n\n` +
-            `_Synced with your Obsidian Portfolio._`,
-          { parse_mode: "Markdown" }
+          `📊 <b>Obsidian Portfolio Snapshot</b>\n\n` +
+            `💼 <b>Total Portfolio Balance:</b> ₹${Math.round(totalPortfolioBalance).toLocaleString("en-IN")}\n` +
+            `<i>(Base: ₹${Math.round(baseWealth).toLocaleString("en-IN")} • Accrual: ${accrualSign}₹${Math.round(allTime.availableBalance).toLocaleString("en-IN")})</i>\n\n` +
+            `📅 <b>${escapeHtml(periodName)}'s Activity:</b>\n` +
+            `• 📈 <b>Income:</b> ₹${Math.round(periodSummary.totalIncome).toLocaleString("en-IN")}\n` +
+            `• 📉 <b>Expenses:</b> ₹${Math.round(periodSummary.totalExpenses).toLocaleString("en-IN")}\n` +
+            `• 💵 <b>Net Cash Flow:</b> ${periodSummary.availableBalance >= 0 ? "+" : ""}₹${Math.round(periodSummary.availableBalance).toLocaleString("en-IN")}\n` +
+            `• 🎯 <b>Savings Rate:</b> ${periodSummary.savingRate?.percentage || 0}%\n` +
+            `• 💳 <b>Budget Remaining:</b> ${periodSummary.budgetLimit > 0 ? `₹${Math.round(periodSummary.remainingBudget).toLocaleString("en-IN")} / ₹${Math.round(periodSummary.budgetLimit).toLocaleString("en-IN")}` : "No limit set"}\n` +
+            `• 🧾 <b>Transactions:</b> ${periodSummary.transactionCount}\n\n` +
+            `<i>Synced with your Obsidian Portfolio.</i>`,
+          { parse_mode: "HTML" }
         );
       } catch (err: any) {
         return ctx.reply(`Failed to fetch portfolio snapshot: ${err.message}`);
@@ -236,8 +278,8 @@ export const initTelegramBot = async () => {
       await user.save();
 
       return ctx.reply(
-        "🔓 *Obsidian Copilot Disconnected*\nYour Telegram account has been unlinked from Obsidian Finance.",
-        { parse_mode: "Markdown" }
+        "🔓 <b>Obsidian Copilot Disconnected</b>\nYour Telegram account has been unlinked from Obsidian Finance.",
+        { parse_mode: "HTML" }
       );
     });
 
@@ -252,15 +294,15 @@ export const initTelegramBot = async () => {
       const text = (ctx.message.text || "").replace(/^\/(?:afford|caniafford|buy)\s*/i, "").trim();
       if (!text) {
         return ctx.reply(
-          "Usage: `/afford <amount> <item>`\nExample: `/afford 25000 Laptop` or `/afford 2500 Dinner`",
-          { parse_mode: "Markdown" }
+          "Usage: <code>/afford &lt;amount&gt; &lt;item&gt;</code>\nExample: <code>/afford 25000 Laptop</code> or <code>/afford 2500 Dinner</code>",
+          { parse_mode: "HTML" }
         );
       }
 
       const amtMatch = text.match(/(?:₹|rs\.?|inr)?\s*(\d+(?:,\d+)*(?:\.\d+)?)/i);
       if (!amtMatch) {
-        return ctx.reply("Please provide a valid amount. Example: `/afford 25000 Laptop`", {
-          parse_mode: "Markdown",
+        return ctx.reply("Please provide a valid amount. Example: <code>/afford 25000 Laptop</code>", {
+          parse_mode: "HTML",
         });
       }
 
@@ -281,18 +323,18 @@ export const initTelegramBot = async () => {
             ? "Caution"
             : "Not Recommended";
 
-        let replyMsg =
-          `*Purchase Affordability Check*\n\n` +
-          `• *Item:* ${sim.purchaseTitle}\n` +
-          `• *Cost:* ₹${sim.purchaseAmount.toLocaleString("en-IN")}\n` +
-          `• *Assessment:* ${statusLabel}\n\n` +
-          `*Details:*\n` +
+        const replyMsg =
+          `<b>Purchase Affordability Check</b>\n\n` +
+          `• <b>Item:</b> ${escapeHtml(sim.purchaseTitle)}\n` +
+          `• <b>Cost:</b> ₹${sim.purchaseAmount.toLocaleString("en-IN")}\n` +
+          `• <b>Assessment:</b> ${escapeHtml(statusLabel)}\n\n` +
+          `<b>Details:</b>\n` +
           `• Buffer after purchase: ${sim.liquidBufferAfterBills < 0 ? `-₹${Math.abs(sim.liquidBufferAfterBills).toLocaleString("en-IN")} (Deficit)` : `₹${sim.liquidBufferAfterBills.toLocaleString("en-IN")}`}\n` +
           `• Upcoming bills (30d): ₹${sim.upcomingRecurringBills.toLocaleString("en-IN")}\n` +
           `• Coverage: ${sim.postPurchaseFreedomDays} days of expenses\n\n` +
-          `*Summary:* ${sim.recommendation}`;
+          `<b>Summary:</b> ${escapeHtml(sim.recommendation)}`;
 
-        return ctx.reply(replyMsg, { parse_mode: "Markdown" });
+        return ctx.reply(replyMsg, { parse_mode: "HTML" });
       } catch (err: any) {
         return ctx.reply(`Error checking purchase: ${err.message}`);
       }
@@ -311,14 +353,14 @@ export const initTelegramBot = async () => {
         const data = await getFreedomMetricsService(user._id.toString());
         const monthlySpend = Math.round(data.dailyBurnRate * 30);
 
-        let msg =
-          `*Financial Runway*\n\n` +
-          `• *Estimated Runway:* ${data.formattedRunway} (${data.totalFreedomDays.toLocaleString("en-IN")} days)\n` +
-          `• *Average Spend:* ₹${monthlySpend.toLocaleString("en-IN")}/month (~₹${data.costPerDay.toLocaleString("en-IN")}/day)\n` +
-          `• *Available Balance:* ₹${Math.round(data.currentNetWealth).toLocaleString("en-IN")}\n` +
-          `• *6-Month Buffer Progress:* ${data.milestones[1]?.progress || 0}%\n`;
+        const msg =
+          `<b>Financial Runway</b>\n\n` +
+          `• <b>Estimated Runway:</b> ${escapeHtml(data.formattedRunway)} (${data.totalFreedomDays.toLocaleString("en-IN")} days)\n` +
+          `• <b>Average Spend:</b> ₹${monthlySpend.toLocaleString("en-IN")}/month (~₹${data.costPerDay.toLocaleString("en-IN")}/day)\n` +
+          `• <b>Available Balance:</b> ₹${Math.round(data.currentNetWealth).toLocaleString("en-IN")}\n` +
+          `• <b>6-Month Buffer Progress:</b> ${data.milestones[1]?.progress || 0}%\n`;
 
-        return ctx.reply(msg, { parse_mode: "Markdown" });
+        return ctx.reply(msg, { parse_mode: "HTML" });
       } catch (err: any) {
         return ctx.reply(`Error fetching runway: ${err.message}`);
       }
@@ -331,8 +373,8 @@ export const initTelegramBot = async () => {
       mimeType: string,
       user: any
     ) => {
-      await ctx.reply("🔍 *Analyzing receipt with Gemini Vision...*", {
-        parse_mode: "Markdown",
+      await ctx.reply("🔍 <b>Analyzing receipt with Gemini Vision...</b>", {
+        parse_mode: "HTML",
       });
 
       try {
@@ -435,37 +477,37 @@ export const initTelegramBot = async () => {
         );
 
         let replyMsg =
-          `🧾 *Receipt Processed & Logged!*\n\n` +
-          `📌 *Merchant:* ${tx.title}\n` +
-          `💸 *Amount:* ₹${Number(tx.amount).toLocaleString("en-IN")}\n` +
-          `🏷 *Category:* ${category.charAt(0).toUpperCase() + category.slice(1)}\n` +
-          `💳 *Payment Method:* ${paymentMethod}\n` +
-          `📅 *Date:* ${tx.date.toISOString().split("T")[0]}`;
+          `🧾 <b>Receipt Processed &amp; Logged!</b>\n\n` +
+          `📌 <b>Merchant:</b> ${escapeHtml(tx.title)}\n` +
+          `💸 <b>Amount:</b> ₹${Number(tx.amount).toLocaleString("en-IN")}\n` +
+          `🏷 <b>Category:</b> ${escapeHtml(category.charAt(0).toUpperCase() + category.slice(1))}\n` +
+          `💳 <b>Payment Method:</b> ${escapeHtml(paymentMethod)}\n` +
+          `📅 <b>Date:</b> ${tx.date.toISOString().split("T")[0]}`;
 
         if (Number(parsed.tax) > 0) {
-          replyMsg += `\n🏛 *Tax/GST:* ₹${Number(parsed.tax).toLocaleString("en-IN")}`;
+          replyMsg += `\n🏛 <b>Tax/GST:</b> ₹${Number(parsed.tax).toLocaleString("en-IN")}`;
         }
         if (Number(parsed.discount) > 0) {
-          replyMsg += `\n🎉 *Discount:* ₹${Number(parsed.discount).toLocaleString("en-IN")}`;
+          replyMsg += `\n🎉 <b>Discount:</b> ₹${Number(parsed.discount).toLocaleString("en-IN")}`;
         }
 
         if (items.length > 0) {
-          replyMsg += `\n\n🛒 *Items Extracted:*`;
+          replyMsg += `\n\n🛒 <b>Items Extracted:</b>`;
           for (const it of items.slice(0, 5)) {
-            replyMsg += `\n• ${it.quantity && it.quantity > 1 ? `${it.quantity}x ` : ""}${it.name}: ₹${it.price}`;
+            replyMsg += `\n• ${it.quantity && it.quantity > 1 ? `${it.quantity}x ` : ""}${escapeHtml(it.name)}: ₹${escapeHtml(it.price)}`;
           }
           if (items.length > 5) {
-            replyMsg += `\n_...and ${items.length - 5} more items_`;
+            replyMsg += `\n<i>...and ${items.length - 5} more items</i>`;
           }
         }
 
-        if (receiptUrl) {
-          replyMsg += `\n\n🔗 [View Scanned Receipt](${receiptUrl})`;
+        if (receiptUrl && isSafeHttpUrl(receiptUrl)) {
+          replyMsg += `\n\n🔗 <a href="${escapeHtml(receiptUrl)}">View Scanned Receipt</a>`;
         }
 
-        replyMsg += `\n\n⚡ _Live in your Obsidian dashboard!_`;
+        replyMsg += `\n\n⚡ <i>Live in your Obsidian dashboard!</i>`;
 
-        return ctx.reply(replyMsg, { parse_mode: "Markdown" });
+        return ctx.reply(replyMsg, { parse_mode: "HTML" });
       } catch (err: any) {
         console.error("[Telegram Copilot] Receipt processing error:", err);
         return ctx.reply(
@@ -488,12 +530,10 @@ export const initTelegramBot = async () => {
         const highestResPhoto = photos[photos.length - 1];
         const fileLink = await ctx.telegram.getFileLink(highestResPhoto.file_id);
 
-        const response = await axios.get(fileLink.href, {
-          responseType: "arraybuffer",
-        });
+        const photoBuffer = await downloadTelegramBuffer(fileLink.href);
         await processReceiptBuffer(
           ctx,
-          Buffer.from(response.data),
+          photoBuffer,
           "image/jpeg",
           user
         );
@@ -524,17 +564,15 @@ export const initTelegramBot = async () => {
         fileExt === "csv" ||
         fileExt === "txt"
       ) {
-        await ctx.reply("📊 *Ingesting bank statement CSV...*", {
-          parse_mode: "Markdown",
+        await ctx.reply("📊 <b>Ingesting bank statement CSV...</b>", {
+          parse_mode: "HTML",
         });
 
         try {
           const fileLink = await ctx.telegram.getFileLink(doc.file_id);
-          const response = await axios.get(fileLink.href, {
-            responseType: "arraybuffer",
-          });
+          const csvBuffer = await downloadTelegramBuffer(fileLink.href);
           const statementFile: any = {
-            buffer: Buffer.from(response.data),
+            buffer: csvBuffer,
             originalname: fileName,
             mimetype: mime || "text/csv",
           };
@@ -571,19 +609,19 @@ export const initTelegramBot = async () => {
             }
 
             return ctx.reply(
-              `📄 *Bank Statement Ingested!*\n\n` +
-                `📁 *File:* ${fileName}\n` +
-                `📥 *Transactions Found:* ${parseResult.totalTransactions}\n` +
-                `✅ *Added to Ledger:* ${committedCount}\n` +
-                `🔁 *Duplicates Skipped:* ${parseResult.duplicateCount}\n` +
-                `📈 *Total Income:* ₹${Number(
+              `📄 <b>Bank Statement Ingested!</b>\n\n` +
+                `📁 <b>File:</b> ${escapeHtml(fileName)}\n` +
+                `📥 <b>Transactions Found:</b> ${parseResult.totalTransactions}\n` +
+                `✅ <b>Added to Ledger:</b> ${committedCount}\n` +
+                `🔁 <b>Duplicates Skipped:</b> ${parseResult.duplicateCount}\n` +
+                `📈 <b>Total Income:</b> ₹${Number(
                   parseResult.totalIncome
                 ).toLocaleString("en-IN")}\n` +
-                `📉 *Total Expense:* ₹${Number(
+                `📉 <b>Total Expense:</b> ₹${Number(
                   parseResult.totalExpense
                 ).toLocaleString("en-IN")}\n\n` +
-                `⚡ _Your transactions and dashboard are live and updated!_`,
-              { parse_mode: "Markdown" }
+                `⚡ <i>Your transactions and dashboard are live and updated!</i>`,
+              { parse_mode: "HTML" }
             );
           } else {
             return ctx.reply(
@@ -600,16 +638,13 @@ export const initTelegramBot = async () => {
 
       // 2. Check if it's a PDF (could be a multi-transaction Bank Statement OR a single Receipt)
       if (mime === "application/pdf" || fileExt === "pdf") {
-        await ctx.reply("🔍 *Analyzing PDF document...*", {
-          parse_mode: "Markdown",
+        await ctx.reply("🔍 <b>Analyzing PDF document...</b>", {
+          parse_mode: "HTML",
         });
 
         try {
           const fileLink = await ctx.telegram.getFileLink(doc.file_id);
-          const response = await axios.get(fileLink.href, {
-            responseType: "arraybuffer",
-          });
-          const pdfBuffer = Buffer.from(response.data);
+          const pdfBuffer = await downloadTelegramBuffer(fileLink.href);
 
           // Test if this PDF is a tabular bank statement with multiple transactions
           try {
@@ -656,19 +691,19 @@ export const initTelegramBot = async () => {
               }
 
               return ctx.reply(
-                `📄 *Bank Statement Ingested!*\n\n` +
-                  `📁 *File:* ${fileName}\n` +
-                  `📥 *Transactions Found:* ${statementResult.totalTransactions}\n` +
-                  `✅ *Added to Ledger:* ${committedCount}\n` +
-                  `🔁 *Duplicates Skipped:* ${statementResult.duplicateCount}\n` +
-                  `📈 *Total Income:* ₹${Number(
+                `📄 <b>Bank Statement Ingested!</b>\n\n` +
+                  `📁 <b>File:</b> ${escapeHtml(fileName)}\n` +
+                  `📥 <b>Transactions Found:</b> ${statementResult.totalTransactions}\n` +
+                  `✅ <b>Added to Ledger:</b> ${committedCount}\n` +
+                  `🔁 <b>Duplicates Skipped:</b> ${statementResult.duplicateCount}\n` +
+                  `📈 <b>Total Income:</b> ₹${Number(
                     statementResult.totalIncome
                   ).toLocaleString("en-IN")}\n` +
-                  `📉 *Total Expense:* ₹${Number(
+                  `📉 <b>Total Expense:</b> ₹${Number(
                     statementResult.totalExpense
                   ).toLocaleString("en-IN")}\n\n` +
-                  `⚡ _Your transactions and dashboard are live and updated!_`,
-                { parse_mode: "Markdown" }
+                  `⚡ <i>Your transactions and dashboard are live and updated!</i>`,
+                { parse_mode: "HTML" }
               );
             }
           } catch (statementErr: any) {
@@ -678,9 +713,9 @@ export const initTelegramBot = async () => {
               statementErr?.name === "PasswordException";
             if (isPassword) {
               return ctx.reply(
-                `🔒 *Password-Protected PDF Detected*\n\n` +
-                  `This bank statement is encrypted with a password. Please open your Obsidian web dashboard, go to *Import Transactions*, and upload it with your statement password to decrypt and import it.`,
-                { parse_mode: "Markdown" }
+                `🔒 <b>Password-Protected PDF Detected</b>\n\n` +
+                  `This bank statement is encrypted with a password. Please open your Obsidian web dashboard, go to <b>Import Transactions</b>, and upload it with your statement password to decrypt and import it.`,
+                { parse_mode: "HTML" }
               );
             }
             // Not a multi-line bank statement; fallback to single receipt invoice extraction
@@ -707,9 +742,7 @@ export const initTelegramBot = async () => {
       ) {
         try {
           const fileLink = await ctx.telegram.getFileLink(doc.file_id);
-          const response = await axios.get(fileLink.href, {
-            responseType: "arraybuffer",
-          });
+          const imageBuffer = await downloadTelegramBuffer(fileLink.href);
           const mimeType = mime.startsWith("image/")
             ? mime
             : fileExt === "png"
@@ -722,7 +755,7 @@ export const initTelegramBot = async () => {
 
           return await processReceiptBuffer(
             ctx,
-            Buffer.from(response.data),
+            imageBuffer,
             mimeType,
             user
           );
@@ -736,9 +769,9 @@ export const initTelegramBot = async () => {
 
       // 4. Fallback for unsupported document types
       return ctx.reply(
-        `⚠️ Unsupported document format: *${fileName}*\n\n` +
-          `Please send receipts or bank statements as a *PDF*, *CSV*, or *Image (JPG, PNG, WEBP)*.`,
-        { parse_mode: "Markdown" }
+        `⚠️ Unsupported document format: <b>${escapeHtml(fileName)}</b>\n\n` +
+          `Please send receipts or bank statements as a <b>PDF</b>, <b>CSV</b>, or <b>Image (JPG, PNG, WEBP)</b>.`,
+        { parse_mode: "HTML" }
       );
     });
 
@@ -760,10 +793,8 @@ export const initTelegramBot = async () => {
         await ctx.sendChatAction("typing");
         const fileLink = await ctx.telegram.getFileLink(fileId);
 
-        const response = await axios.get(fileLink.href, {
-          responseType: "arraybuffer",
-        });
-        const base64Audio = Buffer.from(response.data).toString("base64");
+        const audioBuffer = await downloadTelegramBuffer(fileLink.href);
+        const base64Audio = audioBuffer.toString("base64");
 
         const voicePrompt = `
 You are the Obsidian Finance Voice Intelligence Core.
@@ -838,19 +869,19 @@ If the message is an analytical or advisory question (e.g., "what's my balance?"
             const freedom = await getFreedomMetricsService(user._id.toString());
             const burn = freedom.dailyBurnRate || 1000;
             const daysImpact = parseFloat((cleanAmt / burn).toFixed(1));
-            freedomImpactStr = `\n⏳ *Freedom Impact:* ${type === TransactionTypeEnum.INCOME ? "+" : "-"}${daysImpact} Days`;
+            freedomImpactStr = `\n⏳ <b>Freedom Impact:</b> ${type === TransactionTypeEnum.INCOME ? "+" : "-"}${daysImpact} Days`;
           } catch {}
 
           return ctx.reply(
-            `🎙️ *Voice Note Transcribed:*\n_${parsed.transcript || "Spoken command"}_\n\n` +
-              `✅ *Transaction Logged!*\n` +
-              `${icon} *${type}:* ₹${Number(created.amount).toLocaleString("en-IN")}${freedomImpactStr}\n` +
-              `📌 *Title:* ${created.title}\n` +
-              `🏷 *Category:* ${category.charAt(0).toUpperCase() + category.slice(1)}\n` +
-              `💳 *Method:* ${paymentMethod}\n` +
-              `📅 *Date:* ${new Date().toISOString().split("T")[0]}\n\n` +
-              `⚡ _Live in your Obsidian dashboard!_`,
-            { parse_mode: "Markdown" }
+            `🎙️ <b>Voice Note Transcribed:</b>\n<i>${escapeHtml(parsed.transcript || "Spoken command")}</i>\n\n` +
+              `✅ <b>Transaction Logged!</b>\n` +
+              `${icon} <b>${escapeHtml(type)}:</b> ₹${Number(created.amount).toLocaleString("en-IN")}${freedomImpactStr}\n` +
+              `📌 <b>Title:</b> ${escapeHtml(created.title)}\n` +
+              `🏷 <b>Category:</b> ${escapeHtml(category.charAt(0).toUpperCase() + category.slice(1))}\n` +
+              `💳 <b>Method:</b> ${escapeHtml(paymentMethod)}\n` +
+              `📅 <b>Date:</b> ${new Date().toISOString().split("T")[0]}\n\n` +
+              `⚡ <i>Live in your Obsidian dashboard!</i>`,
+            { parse_mode: "HTML" }
           );
         } else {
           // Analytical or general financial question from voice
@@ -860,18 +891,18 @@ If the message is an analytical or advisory question (e.g., "what's my balance?"
             spokenQuery
           );
 
-          let replyMsg = `🎙️ *Voice Note:* _${spokenQuery}_\n\n🧠 *${
+          let replyMsg = `🎙️ <b>Voice Note:</b> <i>${escapeHtml(spokenQuery)}</i>\n\n🧠 <b>${escapeHtml(
             advisorResponse.headline || "Financial Insights"
-          }*\n\n${advisorResponse.summary}`;
+          )}</b>\n\n${escapeHtml(advisorResponse.summary)}`;
 
           if (advisorResponse.keyMetrics?.length) {
-            replyMsg += `\n\n📊 *Key Figures:*`;
+            replyMsg += `\n\n📊 <b>Key Figures:</b>`;
             for (const m of advisorResponse.keyMetrics) {
-              replyMsg += `\n• *${m.label}:* ${m.value}`;
+              replyMsg += `\n• <b>${escapeHtml(m.label)}:</b> ${escapeHtml(m.value)}`;
             }
           }
 
-          return ctx.reply(replyMsg, { parse_mode: "Markdown" });
+          return ctx.reply(replyMsg, { parse_mode: "HTML" });
         }
       } catch (voiceErr: any) {
         console.error("[Telegram Copilot] Audio note processing error:", voiceErr);
@@ -906,49 +937,57 @@ If the message is an analytical or advisory question (e.g., "what's my balance?"
       // 1. High-priority deterministic check for forwarded or pasted Indian Bank / UPI SMS
       const deterministicSms = parseDeterministicIndianSms(text);
       if (deterministicSms && deterministicSms.isTransaction && deterministicSms.amount > 0) {
-        const dupCheck = await checkDuplicateSmsTransaction(
-          user._id.toString(),
-          deterministicSms
-        );
+        try {
+          const dupCheck = await checkDuplicateSmsTransaction(
+            user._id.toString(),
+            deterministicSms
+          );
 
-        if (dupCheck.isDuplicate) {
+          if (dupCheck.isDuplicate) {
+            return ctx.reply(
+              `⚠️ <b>Transaction Already Logged</b>\n\n` +
+                `${escapeHtml(dupCheck.reason)}\n\n` +
+                `<i>No duplicate was created in your ledger.</i>`,
+              { parse_mode: "HTML" }
+            );
+          }
+
+          const created = await createTransactionService(
+            {
+              title: deterministicSms.title,
+              amount: deterministicSms.amount,
+              type: deterministicSms.type,
+              category: deterministicSms.category,
+              paymentMethod: deterministicSms.paymentMethod,
+              date: deterministicSms.date || new Date(),
+              description: `Bank SMS: ${deterministicSms.title}`,
+              externalRef: deterministicSms.externalRef || null,
+              isRecurring: false,
+            },
+            user._id.toString()
+          );
+
+          const icon = deterministicSms.type === TransactionTypeEnum.INCOME ? "📈" : "📉";
+          const formattedAmt = new Intl.NumberFormat("en-IN", {
+            style: "currency",
+            currency: "INR",
+          }).format(Number(created.amount));
+
+          const reply =
+            `⚡ <b>Bank SMS Auto-Logged!</b>\n\n` +
+            `${icon} <b>${escapeHtml(deterministicSms.type)}:</b> ${escapeHtml(formattedAmt)}\n` +
+            `📌 <b>Merchant:</b> ${escapeHtml(created.title)}\n` +
+            `🏷 <b>Category:</b> ${escapeHtml(created.category.charAt(0).toUpperCase() + created.category.slice(1))}\n` +
+            `💳 <b>Payment Method:</b> ${escapeHtml(created.paymentMethod)}\n\n` +
+            `⚡ <i>Synchronized in real time with your Obsidian ledger.</i>`;
+
+          return ctx.reply(reply, { parse_mode: "HTML" });
+        } catch (smsErr: any) {
+          console.error("[Telegram Copilot] Deterministic SMS logging error:", smsErr);
           return ctx.reply(
-            `⚠️ *Transaction Already Logged*\n\n` +
-              `${dupCheck.reason}\n\n` +
-              `_No duplicate was created in your ledger._`,
-            { parse_mode: "Markdown" }
+            `⚠️ Could not log SMS transaction: ${smsErr?.message || "Unknown error"}`
           );
         }
-
-        const created = await createTransactionService(
-          {
-            title: deterministicSms.title,
-            amount: deterministicSms.amount,
-            type: deterministicSms.type,
-            category: deterministicSms.category,
-            paymentMethod: deterministicSms.paymentMethod,
-            date: new Date(),
-            description: `Bank SMS: ${deterministicSms.title}`,
-            isRecurring: false,
-          },
-          user._id.toString()
-        );
-
-        const icon = deterministicSms.type === TransactionTypeEnum.INCOME ? "📈" : "📉";
-        const formattedAmt = new Intl.NumberFormat("en-IN", {
-          style: "currency",
-          currency: "INR",
-        }).format(Number(created.amount));
-
-        const reply =
-          `⚡ *Bank SMS Auto-Logged!*\n\n` +
-          `${icon} *${deterministicSms.type}:* ${formattedAmt}\n` +
-          `📌 *Merchant:* ${created.title}\n` +
-          `🏷 *Category:* ${created.category.charAt(0).toUpperCase() + created.category.slice(1)}\n` +
-          `💳 *Payment Method:* ${created.paymentMethod}\n\n` +
-          `⚡ _Synchronized in real time with your Obsidian ledger._`;
-
-        return ctx.reply(reply, { parse_mode: "Markdown" });
       }
 
       // Check if it's a transaction logging command or a financial question/query
@@ -1032,16 +1071,16 @@ If this is purely an analytical question (e.g. "what did I spend?"), set "isTran
 
             const icon = type === TransactionTypeEnum.INCOME ? "📈" : "📉";
             return ctx.reply(
-              `✅ *Transaction Logged!*\n\n` +
-                `${icon} *${type}:* ₹${Number(created.amount).toLocaleString(
+              `✅ <b>Transaction Logged!</b>\n\n` +
+                `${icon} <b>${escapeHtml(type)}:</b> ₹${Number(created.amount).toLocaleString(
                   "en-IN"
                 )}\n` +
-                `📌 *Title:* ${created.title}\n` +
-                `🏷 *Category:* ${category.charAt(0).toUpperCase() + category.slice(1)}\n` +
-                `💳 *Method:* ${paymentMethod}\n` +
-                `📅 *Date:* ${date.toISOString().split("T")[0]}\n\n` +
-                `⚡ _Live in your Obsidian dashboard!_`,
-              { parse_mode: "Markdown" }
+                `📌 <b>Title:</b> ${escapeHtml(created.title)}\n` +
+                `🏷 <b>Category:</b> ${escapeHtml(category.charAt(0).toUpperCase() + category.slice(1))}\n` +
+                `💳 <b>Method:</b> ${escapeHtml(paymentMethod)}\n` +
+                `📅 <b>Date:</b> ${date.toISOString().split("T")[0]}\n\n` +
+                `⚡ <i>Live in your Obsidian dashboard!</i>`,
+              { parse_mode: "HTML" }
             );
           }
         } catch (err) {
@@ -1065,14 +1104,14 @@ If this is purely an analytical question (e.g. "what did I spend?"), set "isTran
 
             const icon = detected.type === TransactionTypeEnum.INCOME ? "📈" : "📉";
             return ctx.reply(
-              `✅ *Transaction Logged!*\n\n` +
-                `${icon} *${detected.type}:* ₹${Number(created.amount).toLocaleString("en-IN")}\n` +
-                `📌 *Title:* ${created.title}\n` +
-                `🏷 *Category:* ${detected.category.charAt(0).toUpperCase() + detected.category.slice(1)}\n` +
-                `💳 *Method:* ${detected.paymentMethod}\n` +
-                `📅 *Date:* ${new Date().toISOString().split("T")[0]}\n\n` +
-                `⚡ _Live in your Obsidian dashboard!_`,
-              { parse_mode: "Markdown" }
+              `✅ <b>Transaction Logged!</b>\n\n` +
+                `${icon} <b>${escapeHtml(detected.type)}:</b> ₹${Number(created.amount).toLocaleString("en-IN")}\n` +
+                `📌 <b>Title:</b> ${escapeHtml(created.title)}\n` +
+                `🏷 <b>Category:</b> ${escapeHtml(detected.category.charAt(0).toUpperCase() + detected.category.slice(1))}\n` +
+                `💳 <b>Method:</b> ${escapeHtml(detected.paymentMethod)}\n` +
+                `📅 <b>Date:</b> ${new Date().toISOString().split("T")[0]}\n\n` +
+                `⚡ <i>Live in your Obsidian dashboard!</i>`,
+              { parse_mode: "HTML" }
             );
           }
         }
@@ -1085,25 +1124,25 @@ If this is purely an analytical question (e.g. "what did I spend?"), set "isTran
           text
         );
 
-        let replyMsg = `🧠 *${advisorResponse.headline || "Financial Insights"}*\n\n${
+        let replyMsg = `🧠 <b>${escapeHtml(advisorResponse.headline || "Financial Insights")}</b>\n\n${escapeHtml(
           advisorResponse.summary
-        }`;
+        )}`;
 
         if (advisorResponse.keyMetrics?.length) {
-          replyMsg += `\n\n📊 *Key Figures:*`;
+          replyMsg += `\n\n📊 <b>Key Figures:</b>`;
           for (const m of advisorResponse.keyMetrics) {
-            replyMsg += `\n• *${m.label}:* ${m.value}`;
+            replyMsg += `\n• <b>${escapeHtml(m.label)}:</b> ${escapeHtml(m.value)}`;
           }
         }
 
         if (advisorResponse.bulletPoints?.length) {
-          replyMsg += `\n\n📌 *Insights:*`;
+          replyMsg += `\n\n📌 <b>Insights:</b>`;
           for (const b of advisorResponse.bulletPoints) {
-            replyMsg += `\n• ${b}`;
+            replyMsg += `\n• ${escapeHtml(b)}`;
           }
         }
 
-        return ctx.reply(replyMsg, { parse_mode: "Markdown" });
+        return ctx.reply(replyMsg, { parse_mode: "HTML" });
       } catch (err: any) {
         return ctx.reply(`⚠️ ${err.message || "Could not process request."}`);
       }
@@ -1137,9 +1176,12 @@ If this is purely an analytical question (e.g. "what did I spend?"), set "isTran
               delayMs / 1000
             )}s... (${retries} attempts left)`
           );
-          setTimeout(() => {
+          if (retryTimer) clearTimeout(retryTimer);
+          retryTimer = setTimeout(() => {
+            retryTimer = null;
             launchPolling(retries - 1, delayMs);
           }, delayMs);
+          retryTimer.unref?.();
           return;
         }
 
@@ -1154,25 +1196,37 @@ If this is purely an analytical question (e.g. "what did I spend?"), set "isTran
     launchPolling();
 
     const cleanShutdown = (signal: string) => {
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+        retryTimer = null;
+      }
       if (bot) {
         try {
           bot.stop(signal);
         } catch {
           // ignore
         }
+        bot = null;
       }
     };
 
-    process.once("SIGINT", () => cleanShutdown("SIGINT"));
-    process.once("SIGTERM", () => cleanShutdown("SIGTERM"));
-    process.once("SIGUSR2", () => cleanShutdown("SIGUSR2"));
-    process.once("beforeExit", () => cleanShutdown("beforeExit"));
+    if (!signalsRegistered) {
+      signalsRegistered = true;
+      process.once("SIGINT", () => cleanShutdown("SIGINT"));
+      process.once("SIGTERM", () => cleanShutdown("SIGTERM"));
+      process.once("SIGUSR2", () => cleanShutdown("SIGUSR2"));
+      process.once("beforeExit", () => cleanShutdown("beforeExit"));
+    }
   } catch (err) {
     console.error("[Telegram Copilot] Failed to launch bot:", err);
   }
 };
 
 export const stopTelegramBot = async () => {
+  if (retryTimer) {
+    clearTimeout(retryTimer);
+    retryTimer = null;
+  }
   if (bot) {
     try {
       bot.stop("SHUTDOWN");
@@ -1186,9 +1240,7 @@ export const stopTelegramBot = async () => {
 export const getTelegramBotUsername = () => botUsername;
 
 export const generateTelegramPairingCodeService = async (userId: string) => {
-  // Generate random 6-character uppercase code e.g. "OB-7842"
-  const randomDigits = Math.floor(1000 + Math.random() * 9000);
-  const code = `OB-${randomDigits}`;
+  const code = `OB-${crypto.randomBytes(8).toString("hex").toUpperCase()}`;
   const expires = new Date(Date.now() + 15 * 60 * 1000); // 15 mins
 
   await UserModel.findByIdAndUpdate(userId, {

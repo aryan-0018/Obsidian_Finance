@@ -1,5 +1,4 @@
 import mongoose from "mongoose";
-import axios from "axios";
 import TransactionModel, {
   TransactionTypeEnum,
   PaymentMethodEnum,
@@ -10,7 +9,7 @@ import {
   CreateTransactionType,
   UpdateTransactionType,
 } from "../validators/transaction.validator";
-import { genAI, genAIModel, generateContentWithRetry } from "../config/google-ai.config";
+import { generateContentWithRetry } from "../config/google-ai.config";
 import { createPartFromBase64, createUserContent } from "@google/genai";
 import { sendEmail } from "../mailers/mailer";
 import { receiptPrompt } from "../utils/prompt";
@@ -19,7 +18,7 @@ import { convertToSmallestUnit } from "../utils/format-currency";
 import {
   computeTransactionBlockHash,
   getGenesisHash,
-  recomputeUserLedgerChain,
+  recomputeUserLedgerChainUnlocked,
 } from "./ledger-audit.service";
 import { PDFParse } from "pdf-parse";
 import {
@@ -29,58 +28,64 @@ import {
   normalizeMerchantBrand,
 } from "../utils/nlp-parser";
 import { uploadBufferToCloudinary } from "../config/cloudinary.config";
+import { assertValidReceiptFile } from "../utils/file-validation";
+import { withUserLedgerLock } from "../utils/ledger-lock";
+import { escapeHtml, escapeRegex, sanitizeCsvCell } from "../utils/security";
 
 export const createTransactionService = async (
   body: CreateTransactionType,
   userId: string
 ) => {
-  let nextRecurringDate: Date | undefined;
-  const currentDate = new Date();
+  return withUserLedgerLock(userId, async () => {
+    let nextRecurringDate: Date | null = null;
+    const currentDate = new Date();
 
-  if (body.isRecurring && body.recurringInterval) {
-    const calulatedDate = calculateNextOccurrence(
-      body.date,
-      body.recurringInterval
-    );
+    if (body.isRecurring && body.recurringInterval) {
+      const calulatedDate = calculateNextOccurrence(
+        body.date,
+        body.recurringInterval
+      );
 
-    nextRecurringDate =
-      calulatedDate < currentDate
-        ? calculateNextOccurrence(currentDate, body.recurringInterval)
-        : calulatedDate;
-  }
+      nextRecurringDate =
+        calulatedDate < currentDate
+          ? calculateNextOccurrence(currentDate, body.recurringInterval)
+          : calulatedDate;
+    }
 
-  // Find previous transaction for Merkle hash chain continuity
-  const lastTx = await TransactionModel.findOne({ userId })
-    .sort({ createdAt: -1, _id: -1 })
-    .select("ledgerHash");
+    // Find previous transaction for Merkle hash chain continuity
+    const lastTx = await TransactionModel.findOne({ userId })
+      .sort({ createdAt: -1, _id: -1 })
+      .select("ledgerHash")
+      .lean();
 
-  const prevLedgerHash = lastTx?.ledgerHash || getGenesisHash();
+    const prevLedgerHash = lastTx?.ledgerHash || getGenesisHash();
 
-  const transaction = await TransactionModel.create({
-    ...body,
-    userId,
-    category: body.category,
-    amount: Number(body.amount),
-    isRecurring: body.isRecurring || false,
-    recurringInterval: body.recurringInterval || null,
-    nextRecurringDate,
-    lastProcessed: null,
-    prevLedgerHash,
+    const transaction = await TransactionModel.create({
+      ...body,
+      userId,
+      category: body.category,
+      amount: Number(body.amount),
+      isRecurring: body.isRecurring || false,
+      recurringInterval: body.isRecurring ? body.recurringInterval || null : null,
+      nextRecurringDate,
+      lastProcessed: null,
+      prevLedgerHash,
+    });
+
+    // Calculate and commit cryptographic block hash for tamper-proof ledger
+    const blockHash = computeTransactionBlockHash(prevLedgerHash, {
+      _id: transaction._id,
+      date: transaction.date,
+      amount: convertToSmallestUnit(Number(body.amount)),
+      type: transaction.type,
+      title: transaction.title,
+    });
+
+    transaction.ledgerHash = blockHash;
+    await transaction.save();
+
+    return transaction;
   });
-
-  // Calculate and commit cryptographic block hash for tamper-proof ledger
-  const blockHash = computeTransactionBlockHash(prevLedgerHash, {
-    _id: transaction._id,
-    date: transaction.date,
-    amount: convertToSmallestUnit(Number(body.amount)),
-    type: transaction.type,
-    title: transaction.title,
-  });
-
-  transaction.ledgerHash = blockHash;
-  await transaction.save();
-
-  return transaction;
 };
 
 export const getAllTransactionService = async (
@@ -105,9 +110,10 @@ export const getAllTransactionService = async (
   };
 
   if (keyword) {
+    const safeKeyword = escapeRegex(keyword);
     filterConditions.$or = [
-      { title: { $regex: keyword, $options: "i" } },
-      { category: { $regex: keyword, $options: "i" } },
+      { title: { $regex: safeKeyword, $options: "i" } },
+      { category: { $regex: safeKeyword, $options: "i" } },
     ];
   }
 
@@ -115,8 +121,10 @@ export const getAllTransactionService = async (
     filterConditions.type = type;
   }
 
-  if (category) {
-    filterConditions.category = { $regex: new RegExp(`^${category}$`, "i") };
+  if (category && category.toLowerCase() !== "all") {
+    filterConditions.category = {
+      $regex: new RegExp(`^${escapeRegex(category)}$`, "i"),
+    };
   }
 
   if (fromDate || toDate) {
@@ -175,56 +183,61 @@ export const duplicateTransactionService = async (
   userId: string,
   transactionId: string
 ) => {
-  const transaction = await TransactionModel.findOne({
-    _id: transactionId,
-    userId,
+  return withUserLedgerLock(userId, async () => {
+    const transaction = await TransactionModel.findOne({
+      _id: transactionId,
+      userId,
+    });
+    if (!transaction) throw new NotFoundException("Transaction not found");
+
+    const lastTx = await TransactionModel.findOne({ userId })
+      .sort({ createdAt: -1, _id: -1 })
+      .select("ledgerHash")
+      .lean();
+
+    const prevLedgerHash = lastTx?.ledgerHash || getGenesisHash();
+    const newTxId = new mongoose.Types.ObjectId();
+    const title = `Duplicate - ${transaction.title}`;
+    const now = new Date();
+    const rawAmt = Number(transaction.amount);
+
+    const blockHash = computeTransactionBlockHash(prevLedgerHash, {
+      _id: newTxId,
+      date: now,
+      amount: convertToSmallestUnit(rawAmt),
+      type: transaction.type,
+      title,
+    });
+
+    const txObj = transaction.toObject();
+    delete (txObj as any)._id;
+    delete (txObj as any).id;
+    delete (txObj as any).externalRef;
+    delete (txObj as any).ledgerHash;
+    delete (txObj as any).prevLedgerHash;
+    delete (txObj as any).createdAt;
+    delete (txObj as any).updatedAt;
+
+    const duplicated = await TransactionModel.create({
+      ...txObj,
+      _id: newTxId,
+      title,
+      date: now,
+      description: transaction.description
+        ? `${transaction.description} (Duplicate)`
+        : "Duplicated transaction",
+      isRecurring: false,
+      recurringInterval: null,
+      nextRecurringDate: null,
+      externalRef: null,
+      prevLedgerHash,
+      ledgerHash: blockHash,
+    });
+
+    await recomputeUserLedgerChainUnlocked(userId);
+
+    return duplicated;
   });
-  if (!transaction) throw new NotFoundException("Transaction not found");
-
-  const lastTx = await TransactionModel.findOne({ userId })
-    .sort({ createdAt: -1, _id: -1 })
-    .select("ledgerHash");
-
-  const prevLedgerHash = lastTx?.ledgerHash || getGenesisHash();
-  const newTxId = new mongoose.Types.ObjectId();
-  const title = `Duplicate - ${transaction.title}`;
-  const now = new Date();
-  const rawAmt = Number(transaction.amount);
-
-  const blockHash = computeTransactionBlockHash(prevLedgerHash, {
-    _id: newTxId,
-    date: now,
-    amount: convertToSmallestUnit(rawAmt),
-    type: transaction.type,
-    title,
-  });
-
-  const txObj = transaction.toObject();
-  delete (txObj as any)._id;
-  delete (txObj as any).id;
-  delete (txObj as any).ledgerHash;
-  delete (txObj as any).prevLedgerHash;
-  delete (txObj as any).createdAt;
-  delete (txObj as any).updatedAt;
-
-  const duplicated = await TransactionModel.create({
-    ...txObj,
-    _id: newTxId,
-    title,
-    date: now,
-    description: transaction.description
-      ? `${transaction.description} (Duplicate)`
-      : "Duplicated transaction",
-    isRecurring: false,
-    recurringInterval: null,
-    nextRecurringDate: null,
-    prevLedgerHash,
-    ledgerHash: blockHash,
-  });
-
-  await recomputeUserLedgerChain(userId);
-
-  return duplicated;
 };
 
 export const updateTransactionService = async (
@@ -232,109 +245,124 @@ export const updateTransactionService = async (
   transactionId: string,
   body: UpdateTransactionType
 ) => {
-  const existingTransaction = await TransactionModel.findOne({
-    _id: transactionId,
-    userId,
+  return withUserLedgerLock(userId, async () => {
+    const existingTransaction = await TransactionModel.findOne({
+      _id: transactionId,
+      userId,
+    });
+    if (!existingTransaction)
+      throw new NotFoundException("Transaction not found");
+
+    const now = new Date();
+    const isRecurring = body.isRecurring ?? existingTransaction.isRecurring;
+
+    const date =
+      body.date !== undefined ? new Date(body.date) : existingTransaction.date;
+
+    const recurringInterval = isRecurring
+      ? body.recurringInterval ?? existingTransaction.recurringInterval ?? null
+      : null;
+
+    let nextRecurringDate: Date | null = null;
+
+    if (isRecurring && recurringInterval) {
+      const calulatedDate = calculateNextOccurrence(date, recurringInterval);
+
+      nextRecurringDate =
+        calulatedDate < now
+          ? calculateNextOccurrence(now, recurringInterval)
+          : calulatedDate;
+    }
+
+    existingTransaction.set({
+      ...(body.title !== undefined && { title: body.title }),
+      ...(body.description !== undefined && { description: body.description }),
+      ...(body.category !== undefined && { category: body.category }),
+      ...(body.type !== undefined && { type: body.type }),
+      ...(body.paymentMethod !== undefined && {
+        paymentMethod: body.paymentMethod,
+      }),
+      ...(body.amount !== undefined && { amount: Number(body.amount) }),
+      ...(body.receiptUrl !== undefined && { receiptUrl: body.receiptUrl }),
+      date,
+      isRecurring,
+      recurringInterval,
+      nextRecurringDate,
+    });
+
+    const prevHash = existingTransaction.prevLedgerHash || getGenesisHash();
+    const rawUnitAmount =
+      body.amount !== undefined
+        ? Number(body.amount)
+        : Number(existingTransaction.amount);
+    existingTransaction.ledgerHash = computeTransactionBlockHash(prevHash, {
+      _id: existingTransaction._id,
+      date,
+      amount: convertToSmallestUnit(rawUnitAmount),
+      type: existingTransaction.type,
+      title: existingTransaction.title,
+    });
+
+    await existingTransaction.save();
+    await recomputeUserLedgerChainUnlocked(userId);
+
+    return;
   });
-  if (!existingTransaction)
-    throw new NotFoundException("Transaction not found");
-
-  const now = new Date();
-  const isRecurring = body.isRecurring ?? existingTransaction.isRecurring;
-
-  const date =
-    body.date !== undefined ? new Date(body.date) : existingTransaction.date;
-
-  const recurringInterval =
-    body.recurringInterval || existingTransaction.recurringInterval;
-
-  let nextRecurringDate: Date | undefined;
-
-  if (isRecurring && recurringInterval) {
-    const calulatedDate = calculateNextOccurrence(date, recurringInterval);
-
-    nextRecurringDate =
-      calulatedDate < now
-        ? calculateNextOccurrence(now, recurringInterval)
-        : calulatedDate;
-  }
-
-  existingTransaction.set({
-    ...(body.title && { title: body.title }),
-    ...(body.description && { description: body.description }),
-    ...(body.category && { category: body.category }),
-    ...(body.type && { type: body.type }),
-    ...(body.paymentMethod && { paymentMethod: body.paymentMethod }),
-    ...(body.amount !== undefined && { amount: Number(body.amount) }),
-    ...(body.receiptUrl !== undefined && { receiptUrl: body.receiptUrl }),
-    date,
-    isRecurring,
-    recurringInterval,
-    nextRecurringDate,
-  });
-
-  const prevHash = existingTransaction.prevLedgerHash || getGenesisHash();
-  const rawUnitAmount = body.amount !== undefined ? Number(body.amount) : Number(existingTransaction.amount);
-  existingTransaction.ledgerHash = computeTransactionBlockHash(prevHash, {
-    _id: existingTransaction._id,
-    date,
-    amount: convertToSmallestUnit(rawUnitAmount),
-    type: existingTransaction.type,
-    title: existingTransaction.title,
-  });
-
-  await existingTransaction.save();
-  await recomputeUserLedgerChain(userId);
-
-  return;
 };
 
 export const deleteTransactionService = async (
   userId: string,
   transactionId: string
 ) => {
-  const deleted = await TransactionModel.findOneAndDelete({
-    _id: transactionId,
-    userId,
+  return withUserLedgerLock(userId, async () => {
+    const deleted = await TransactionModel.findOneAndDelete({
+      _id: transactionId,
+      userId,
+    });
+    if (!deleted) throw new NotFoundException("Transaction not found");
+
+    await recomputeUserLedgerChainUnlocked(userId);
+
+    return;
   });
-  if (!deleted) throw new NotFoundException("Transaction not found");
-
-  await recomputeUserLedgerChain(userId);
-
-  return;
 };
 
 export const bulkDeleteTransactionService = async (
   userId: string,
   transactionIds: string[]
 ) => {
-  const result = await TransactionModel.deleteMany({
-    _id: { $in: transactionIds },
-    userId,
+  return withUserLedgerLock(userId, async () => {
+    const result = await TransactionModel.deleteMany({
+      _id: { $in: transactionIds },
+      userId,
+    });
+
+    if (result.deletedCount === 0)
+      throw new NotFoundException("No transations found");
+
+    await recomputeUserLedgerChainUnlocked(userId);
+
+    return {
+      sucess: true,
+      success: true,
+      deletedCount: result.deletedCount,
+    };
   });
-
-  if (result.deletedCount === 0)
-    throw new NotFoundException("No transations found");
-
-  await recomputeUserLedgerChain(userId);
-
-  return {
-    sucess: true,
-    deletedCount: result.deletedCount,
-  };
 };
 
 export const bulkTransactionService = async (
   userId: string,
   transactions: CreateTransactionType[]
 ) => {
-  try {
+  return withUserLedgerLock(userId, async () => {
     const lastTx = await TransactionModel.findOne({ userId })
       .sort({ createdAt: -1, _id: -1 })
-      .select("ledgerHash");
+      .select("ledgerHash")
+      .lean();
     let runningHash = lastTx?.ledgerHash || getGenesisHash();
+    const baseTime = Date.now();
 
-    const bulkOps = transactions.map((tx) => {
+    const bulkOps = transactions.map((tx, idx) => {
       const smallestAmount = convertToSmallestUnit(tx.amount);
       const txDate = tx.date ? new Date(tx.date) : new Date();
       const tempId = new mongoose.Types.ObjectId();
@@ -346,6 +374,7 @@ export const bulkTransactionService = async (
         type: tx.type,
         title: tx.title,
       });
+      const stamp = new Date(baseTime + idx);
 
       return {
         insertOne: {
@@ -361,8 +390,8 @@ export const bulkTransactionService = async (
             lastProcessed: null,
             prevLedgerHash: prev,
             ledgerHash: runningHash,
-            createdAt: new Date(),
-            updatedAt: new Date(),
+            createdAt: stamp,
+            updatedAt: stamp,
           },
         },
       };
@@ -376,37 +405,25 @@ export const bulkTransactionService = async (
       insertedCount: result.insertedCount,
       success: true,
     };
-  } catch (error) {
-    throw error;
-  }
+  });
 };
 
 export const scanReceiptService = async (
   file: Express.Multer.File | undefined
 ) => {
-  if (!file) throw new BadRequestException("No receipt file provided");
+  if (!file || !file.buffer || file.buffer.length === 0) {
+    throw new BadRequestException("No receipt file provided");
+  }
 
   const isPdf =
     file.mimetype === "application/pdf" ||
     file.originalname.toLowerCase().endsWith(".pdf");
 
-  try {
-    let base64String = "";
-    let extractedPdfText = "";
+  assertValidReceiptFile(file.buffer, isPdf);
 
-    if (file.buffer && file.buffer.length > 0) {
-      base64String = file.buffer.toString("base64");
-    } else if (file.path) {
-      if (file.path.startsWith("http://") || file.path.startsWith("https://")) {
-        const responseData = await axios.get(file.path, {
-          responseType: "arraybuffer",
-        });
-        base64String = Buffer.from(responseData.data).toString("base64");
-      } else {
-        const fs = await import("fs");
-        base64String = fs.readFileSync(file.path).toString("base64");
-      }
-    }
+  try {
+    let base64String = file.buffer.toString("base64");
+    let extractedPdfText = "";
 
     if (!base64String) {
       throw new BadRequestException("Could not read receipt file content");
@@ -416,14 +433,16 @@ export const scanReceiptService = async (
     base64String = base64String.replace(/^data:[a-z0-9/+-]+;base64,/i, "").trim();
 
     // If PDF, also extract text using pdf-parse for zero-failure redundancy
-    if (isPdf && file.buffer && file.buffer.length > 0) {
+    if (isPdf) {
+      let pdfParser: PDFParse | null = null;
       try {
-        const pdfParser = new PDFParse({ data: file.buffer });
+        pdfParser = new PDFParse({ data: file.buffer });
         const textResult = await pdfParser.getText();
         extractedPdfText = textResult?.text?.trim() || "";
-        await pdfParser.destroy();
       } catch (pdfErr) {
         console.warn("[Receipt Scanner] PDF text extraction notice:", pdfErr);
+      } finally {
+        await pdfParser?.destroy().catch(() => {});
       }
     }
 
@@ -546,11 +565,14 @@ ${extractedPdfText.slice(0, 15000)}
       throw new BadRequestException("Could not extract readable details from this receipt. Please enter manually.");
     }
 
-    // Upload receipt to Cloudinary asynchronously for permanent viewing
-    let permanentReceiptUrl = file.path || "";
+    // Upload receipt to Cloudinary for permanent viewing
+    let permanentReceiptUrl = "";
     if (file.buffer && file.buffer.length > 0) {
       try {
-        permanentReceiptUrl = await uploadBufferToCloudinary(file.buffer, "receipts");
+        permanentReceiptUrl = await uploadBufferToCloudinary(
+          file.buffer,
+          "receipts"
+        );
       } catch (uploadErr) {
         console.warn("[Receipt Scanner] Cloudinary upload notice:", uploadErr);
       }
@@ -564,15 +586,18 @@ ${extractedPdfText.slice(0, 15000)}
       }
       rawAmount = Number(rawAmount.replace(/[^0-9.-]+/g, ""));
     }
-    let amount = !isNaN(Number(rawAmount)) && Number(rawAmount) > 0 ? Math.abs(Number(rawAmount)) : 0;
+    let amount =
+      Number.isFinite(Number(rawAmount)) && Number(rawAmount) > 0
+        ? Math.abs(Number(rawAmount))
+        : 0;
 
     const items = Array.isArray(parsedData.items)
       ? parsedData.items
           .filter((i: any) => i && i.name)
           .map((i: any) => ({
             name: String(i.name).trim(),
-            quantity: Number(i.quantity) || 1,
-            price: Number(i.price) || 0,
+            quantity: Math.max(1, Number(i.quantity) || 1),
+            price: Math.max(0, Number(i.price) || 0),
           }))
       : [];
 
@@ -589,28 +614,41 @@ ${extractedPdfText.slice(0, 15000)}
     if (typeof rawSubtotal === "string") {
       rawSubtotal = Number(rawSubtotal.replace(/[^0-9.-]+/g, ""));
     }
-    let subtotal = !isNaN(Number(rawSubtotal)) && Number(rawSubtotal) > 0 ? Math.abs(Number(rawSubtotal)) : 0;
+    let subtotal =
+      Number.isFinite(Number(rawSubtotal)) && Number(rawSubtotal) > 0
+        ? Math.abs(Number(rawSubtotal))
+        : 0;
 
     let rawTax = parsedData.tax;
     if (typeof rawTax === "string") {
       rawTax = Number(rawTax.replace(/[^0-9.-]+/g, ""));
     }
-    const tax = !isNaN(Number(rawTax)) && Number(rawTax) >= 0 ? Math.abs(Number(rawTax)) : 0;
+    const tax =
+      Number.isFinite(Number(rawTax)) && Number(rawTax) >= 0
+        ? Math.abs(Number(rawTax))
+        : 0;
 
     let rawDiscount = parsedData.discount;
     if (typeof rawDiscount === "string") {
       rawDiscount = Number(rawDiscount.replace(/[^0-9.-]+/g, ""));
     }
-    const discount = !isNaN(Number(rawDiscount)) && Number(rawDiscount) >= 0 ? Math.abs(Number(rawDiscount)) : 0;
+    const discount =
+      Number.isFinite(Number(rawDiscount)) && Number(rawDiscount) >= 0
+        ? Math.abs(Number(rawDiscount))
+        : 0;
 
     // Mathematical reconciliation: Missing decimal dot in OCR (e.g. read 24500 when items sum to 245.00)
-    if (itemsSum > 0 && Math.abs(amount - itemsSum * 100) < 5) {
+    if (
+      itemsSum >= 1 &&
+      subtotal === 0 &&
+      Math.abs(amount - itemsSum * 100) < 0.05
+    ) {
       amount = itemsSum;
     }
 
     // Mathematical reconciliation: If amount is missing or zero, derive from subtotal + tax - discount
     if (!amount && subtotal > 0) {
-      amount = subtotal + tax - discount;
+      amount = Math.max(0, subtotal + tax - discount);
     }
 
     // Mathematical reconciliation: If amount is still missing, derive from sum of line items
@@ -618,8 +656,10 @@ ${extractedPdfText.slice(0, 15000)}
       amount = itemsSum;
     }
 
-    if (!amount) {
-      throw new BadRequestException("Could not detect total amount on this receipt. Please enter manually.");
+    if (!amount || amount <= 0) {
+      throw new BadRequestException(
+        "Could not detect total amount on this receipt. Please enter manually."
+      );
     }
 
     if (!subtotal) {
@@ -684,7 +724,7 @@ ${extractedPdfText.slice(0, 15000)}
       category,
       paymentMethod,
       type: "EXPENSE",
-      receiptUrl: permanentReceiptUrl || file.path || "",
+      receiptUrl: permanentReceiptUrl || "",
       subtotal,
       tax,
       discount,
@@ -708,11 +748,11 @@ export const exportTransactionsEmailService = async (
     toDate?: Date;
   } = {}
 ) => {
-  let targetEmail = userEmail;
-  if (!targetEmail) {
-    const user = await UserModel.findById(userId);
-    targetEmail = user?.email;
-  }
+  const user = await UserModel.findById(userId)
+    .select("email currency")
+    .lean();
+  const targetEmail = userEmail || user?.email;
+  const userCurrency = user?.currency || "INR";
 
   if (!targetEmail) {
     throw new BadRequestException(
@@ -727,9 +767,10 @@ export const exportTransactionsEmailService = async (
   };
 
   if (keyword) {
+    const safeKeyword = escapeRegex(keyword);
     filterConditions.$or = [
-      { title: { $regex: keyword, $options: "i" } },
-      { category: { $regex: keyword, $options: "i" } },
+      { title: { $regex: safeKeyword, $options: "i" } },
+      { category: { $regex: safeKeyword, $options: "i" } },
     ];
   }
 
@@ -738,7 +779,9 @@ export const exportTransactionsEmailService = async (
   }
 
   if (category && category.toLowerCase() !== "all") {
-    filterConditions.category = { $regex: new RegExp(`^${category}$`, "i") };
+    filterConditions.category = {
+      $regex: new RegExp(`^${escapeRegex(category)}$`, "i"),
+    };
   }
 
   if (fromDate || toDate) {
@@ -757,41 +800,28 @@ export const exportTransactionsEmailService = async (
     );
   }
 
-  const escapeCsv = (val: any) => {
-    const str = String(val ?? "");
-    if (
-      str.includes(",") ||
-      str.includes('"') ||
-      str.includes("\n") ||
-      str.includes("\r")
-    ) {
-      return `"${str.replace(/"/g, '""')}"`;
-    }
-    return str;
-  };
-
   const headers = [
     "Date",
     "Title",
     "Type",
     "Category",
-    "Amount (INR)",
+    `Amount (${userCurrency})`,
     "Payment Method",
     "Description",
   ];
 
   const rows = transactions.map((t) => [
-    escapeCsv(new Date(t.date).toISOString().split("T")[0]),
-    escapeCsv(t.title),
-    escapeCsv(t.type),
-    escapeCsv(
+    sanitizeCsvCell(new Date(t.date).toISOString().split("T")[0]),
+    sanitizeCsvCell(t.title),
+    sanitizeCsvCell(t.type),
+    sanitizeCsvCell(
       t.category
         ? t.category.charAt(0).toUpperCase() + t.category.slice(1)
         : "Other"
     ),
-    escapeCsv(Math.abs(t.amount)),
-    escapeCsv(t.paymentMethod || "CARD"),
-    escapeCsv(t.description || ""),
+    sanitizeCsvCell(Math.abs(t.amount)),
+    sanitizeCsvCell(t.paymentMethod || "CARD"),
+    sanitizeCsvCell(t.description || ""),
   ]);
 
   const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join(
@@ -804,7 +834,7 @@ export const exportTransactionsEmailService = async (
     to: targetEmail,
     subject: `Your Requested Transaction Export - Obsidian Finance (${todayStr})`,
     text: `Please find your requested transaction export (${transactions.length} records) attached as a CSV spreadsheet.`,
-    html: `<p>Hello,</p><p>Please find attached your requested Obsidian Finance transaction export (<strong>${transactions.length}</strong> records).</p><p>Best regards,<br>The Obsidian Finance Team</p>`,
+    html: `<p>Hello,</p><p>Please find attached your requested Obsidian Finance transaction export (<strong>${escapeHtml(transactions.length)}</strong> records).</p><p>Best regards,<br>The Obsidian Finance Team</p>`,
     attachments: [
       {
         filename: `Obsidian_Transactions_${todayStr}.csv`,

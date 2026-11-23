@@ -15,7 +15,15 @@ import ConfirmationStep from "./confirmation-step";
 import BankStatementTab from "./bank-statement-tab";
 import { cn } from "@/lib/utils";
 
-const ImportTransactionModal = () => {
+interface ImportTransactionModalProps {
+  headless?: boolean;
+  listenGlobal?: boolean;
+}
+
+const ImportTransactionModal = ({
+  headless = false,
+  listenGlobal = false,
+}: ImportTransactionModalProps) => {
   const [activeMode, setActiveMode] = useState<"statement" | "csv">("statement");
   const [statementStep, setStatementStep] = useState<
     "upload" | "processing" | "password_prompt" | "review" | "success"
@@ -29,6 +37,7 @@ const ImportTransactionModal = () => {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
+    if (!listenGlobal) return;
     const handleOpen = (e: Event) => {
       const customEvent = e as CustomEvent<{ modal?: string }>;
       if (customEvent.detail?.modal === "IMPORT_STATEMENT") {
@@ -37,7 +46,7 @@ const ImportTransactionModal = () => {
     };
     window.addEventListener("obsidian:open-modal", handleOpen);
     return () => window.removeEventListener("obsidian:open-modal", handleOpen);
-  }, []);
+  }, [listenGlobal]);
 
   const transactionFields: TransactionField[] = [
     { fieldName: "title", required: true },
@@ -152,14 +161,16 @@ const ImportTransactionModal = () => {
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <Button
-        variant="outline"
-        className="gap-2 rounded-xl border-white/[0.10] bg-white/[0.03] text-white hover:text-[#e5c158] hover:border-[#e5c158]/40 active:scale-[0.98] transition-all cursor-pointer"
-        onClick={() => setOpen(true)}
-      >
-        <ImportIcon className="size-4 text-[#e5c158]" />
-        <span>Import</span>
-      </Button>
+      {!headless && (
+        <Button
+          variant="outline"
+          className="gap-2 rounded-xl border-white/[0.10] bg-white/[0.03] text-white hover:text-[#e5c158] hover:border-[#e5c158]/40 active:scale-[0.98] transition-all cursor-pointer"
+          onClick={() => setOpen(true)}
+        >
+          <ImportIcon className="size-4 text-[#e5c158]" />
+          <span>Import</span>
+        </Button>
+      )}
 
       <DialogContent
         className={cn(

@@ -77,7 +77,9 @@ const Navbar = () => {
             {/* Navigation*/}
             <nav className="hidden lg:flex flex-1 justify-center items-center gap-x-1 xl:gap-x-2 mx-4 p-1.5 bg-white/[0.04] backdrop-blur-2xl rounded-full border border-white/[0.08] shadow-[inset_0_1px_0_0_rgba(255,255,255,0.10),0_8px_24px_rgba(0,0,0,0.5)] max-w-fit select-none">
               {routes?.map((route) => {
-                const isActive = pathname === route.href;
+                const isActive =
+                  pathname === route.href ||
+                  pathname.startsWith(`${route.href}/`);
                 return (
                   <NavLink
                     key={route.href}
@@ -103,25 +105,33 @@ const Navbar = () => {
                   <SheetDescription>Quick navigation for Obsidian Finance</SheetDescription>
                 </SheetHeader>
                 <nav className="flex flex-col gap-y-2 pt-9">
-                  {routes?.map((route) => (
-                    <Button
-                      key={route.href}
-                      size="sm"
-                      variant="ghost"
-                      className={cn(
-                        `w-full font-normal py-4.5
+                  {routes?.map((route) => {
+                    const isActive =
+                      pathname === route.href ||
+                      pathname.startsWith(`${route.href}/`);
+                    return (
+                      <Button
+                        key={route.href}
+                        size="sm"
+                        variant="ghost"
+                        className={cn(
+                          `w-full font-normal py-4.5
                        hover:bg-white/[0.06] hover:text-[#e5c158] border-none
                        text-[#a1a1aa] focus:bg-white/[0.08]
                        transition !bg-transparent justify-start rounded-xl`,
-                        pathname === route.href && "!bg-[#e5c158]/10 !text-[#e5c158] font-medium"
-                      )}
-                      asChild
-                    >
-                      <NavLink to={route.href}>
-                        {route.label}
-                      </NavLink>
-                    </Button>
-                  ))}
+                          isActive && "!bg-[#e5c158]/10 !text-[#e5c158] font-medium"
+                        )}
+                        asChild
+                      >
+                        <NavLink
+                          to={route.href}
+                          onClick={() => setIsOpen(false)}
+                        >
+                          {route.label}
+                        </NavLink>
+                      </Button>
+                    );
+                  })}
                 </nav>
               </SheetContent>
             </Sheet>

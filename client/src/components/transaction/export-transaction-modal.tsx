@@ -23,12 +23,24 @@ import { toast } from "sonner";
 import { usePapaParse } from "react-papaparse";
 import { CATEGORIES } from "@/constant";
 
-export default function ExportTransactionModal() {
+const sanitizeCsvField = (val: unknown): string => {
+    const str = String(val ?? "");
+    return /^[=+\-@\t\r]/.test(str) ? `'${str}` : str;
+};
+
+export default function ExportTransactionModal({
+    headless = false,
+    listenGlobal = false,
+}: {
+    headless?: boolean;
+    listenGlobal?: boolean;
+}) {
     const [isOpen, setIsOpen] = useState(false);
     const [dateRange, setDateRange] = useState<DateRangeType>(null);
     const [category, setCategory] = useState<string>("all");
 
     useEffect(() => {
+        if (!listenGlobal) return;
         const handleOpen = (e: Event) => {
             const customEvent = e as CustomEvent<{ modal?: string }>;
             if (customEvent.detail?.modal === "EXPORT_TRANSACTIONS") {
@@ -37,7 +49,7 @@ export default function ExportTransactionModal() {
         };
         window.addEventListener("obsidian:open-modal", handleOpen);
         return () => window.removeEventListener("obsidian:open-modal", handleOpen);
-    }, []);
+    }, [listenGlobal]);
 
     const { data: transactionRes, isFetching: isTrxFetching } = useGetAllTransactionsQuery(
         {
@@ -90,12 +102,16 @@ export default function ExportTransactionModal() {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const csvData = exportTransactions.map((t: any) => ({
             Date: format(new Date(t.date), "yyyy-MM-dd"),
-            Title: t.title,
-            Type: t.type,
-            Category: t.category ? (t.category.charAt(0).toUpperCase() + t.category.slice(1)) : "Uncategorized",
+            Title: sanitizeCsvField(t.title),
+            Type: sanitizeCsvField(t.type),
+            Category: sanitizeCsvField(
+                t.category
+                    ? t.category.charAt(0).toUpperCase() + t.category.slice(1)
+                    : "Uncategorized"
+            ),
             Amount: t.amount,
-            Description: t.description || "",
-            Status: t.status || "completed",
+            Description: sanitizeCsvField(t.description || ""),
+            Status: sanitizeCsvField(t.status || "completed"),
         }));
 
         const csvContent = jsonToCSV(csvData);
@@ -108,6 +124,7 @@ export default function ExportTransactionModal() {
         document.body.appendChild(link);
         link.click();
         link.remove();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
 
         toast.success("Transactions exported successfully.");
         setIsOpen(false);
@@ -130,12 +147,14 @@ export default function ExportTransactionModal() {
 
     return (
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
-            <DialogTrigger asChild>
-                <Button variant="outline" className="gap-2 rounded-xl border-white/[0.10] bg-white/[0.03] text-white hover:text-[#e5c158] hover:border-[#e5c158]/40 active:scale-[0.98] transition-all cursor-pointer">
-                    <Download className="size-4 text-[#e5c158]" />
-                    <span>Export</span>
-                </Button>
-            </DialogTrigger>
+            {!headless && (
+                <DialogTrigger asChild>
+                    <Button variant="outline" className="gap-2 rounded-xl border-white/[0.10] bg-white/[0.03] text-white hover:text-[#e5c158] hover:border-[#e5c158]/40 active:scale-[0.98] transition-all cursor-pointer">
+                        <Download className="size-4 text-[#e5c158]" />
+                        <span>Export</span>
+                    </Button>
+                </DialogTrigger>
+            )}
             <DialogContent className="sm:max-w-[425px] obsidian-card rounded-3xl bg-[#0e0e13]/95 backdrop-blur-2xl border border-white/[0.09] text-white shadow-[0_32px_64px_rgba(0,0,0,0.85),inset_0_1px_0_rgba(255,255,255,0.12)] p-6 sm:p-7">
                 <DialogHeader>
                     <div className="flex items-center gap-3 mb-1">

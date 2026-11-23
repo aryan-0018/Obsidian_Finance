@@ -85,11 +85,16 @@ Create a `.env` file in both the `backend` and `client` directories.
 
 **Backend (`backend/.env`):**
 ```env
-PORT=5000
-MONGODB_URI=your_mongodb_connection_string
-JWT_SECRET=your_jwt_secret
+NODE_ENV=development
+PORT=8000
+BASE_PATH=/api
+MONGO_URI=your_mongodb_connection_string
+JWT_SECRET=your_strong_jwt_secret_at_least_32_chars
+JWT_EXPIRES_IN=15m
+JWT_REFRESH_SECRET=your_strong_jwt_refresh_secret_at_least_32_chars
+JWT_REFRESH_EXPIRES_IN=7d
+FRONTEND_ORIGIN=http://localhost:5173
 GOOGLE_CLIENT_ID=your_google_oauth_client_id
-GOOGLE_CLIENT_SECRET=your_google_oauth_client_secret
 GEMINI_API_KEY=your_gemini_api_key
 CLOUDINARY_CLOUD_NAME=your_cloudinary_name
 CLOUDINARY_API_KEY=your_cloudinary_api_key
@@ -100,7 +105,8 @@ TELEGRAM_BOT_TOKEN=your_telegram_bot_token
 
 **Frontend (`client/.env`):**
 ```env
-VITE_API_URL=http://localhost:5000/api
+VITE_API_URL=http://localhost:8000/api
+VITE_REDUX_PERSIST_SECRET_KEY=your_redux_persist_secret
 VITE_GOOGLE_CLIENT_ID=your_google_oauth_client_id
 ```
 

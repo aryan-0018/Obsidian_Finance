@@ -7,19 +7,21 @@ import ReportModel, { ReportStatusEnum } from "../../models/report.model";
 import { calulateNextReportDate } from "../../utils/helper";
 import { sendReportEmail } from "../../mailers/report.mailer";
 
-export const processReportJob = async () => {
-  const now = new Date();
+let isProcessingReports = false;
 
+export const processReportJob = async () => {
+  if (isProcessingReports) {
+    console.warn("[Report Cron] Previous run still active; skipping overlap.");
+    return { success: true, processedCount: 0, failedCount: 0 };
+  }
+
+  isProcessingReports = true;
+  const now = new Date();
   let processedCount = 0;
   let failedCount = 0;
 
-  //Today july 1, then run report for -> june 1 - 30 
-//Get Last Month because this will run on the first of the month
   const from = startOfMonth(subMonths(now, 1));
   const to = endOfMonth(subMonths(now, 1));
-
-  // const from = "2025-04-01T23:00:00.000Z";
-  // const to = "2025-04-T23:00:00.000Z";
 
   try {
     const reportSettingCursor = ReportSettingModel.find({
@@ -29,12 +31,12 @@ export const processReportJob = async () => {
       .populate<{ userId: UserDocument }>("userId")
       .cursor();
 
-    console.log("Running report ");
+    console.log("[Report Cron] Running scheduled monthly report job...");
 
     for await (const setting of reportSettingCursor) {
       const user = setting.userId as UserDocument;
       if (!user) {
-        console.log(`User not found for setting: ${setting._id}`);
+        console.log(`[Report Cron] User not found for setting: ${setting._id}`);
         continue;
       }
 
@@ -43,14 +45,12 @@ export const processReportJob = async () => {
       try {
         const report = await generateReportService(user.id, from, to);
 
-        console.log(report, "resport data");
-
         let emailSent = false;
-        if (report) {
+        if (report && user.email) {
           try {
             await sendReportEmail({
-              email: user.email!,
-              username: user.name!,
+              email: user.email,
+              username: user.name || "Client",
               report: {
                 period: report.period,
                 totalIncome: report.summary.income,
@@ -64,95 +64,117 @@ export const processReportJob = async () => {
               frequency: setting.frequency!,
             });
             emailSent = true;
-          } catch (error) {
-            console.log(`Email failed for ${user.id}`);
+          } catch {
+            console.log(`[Report Cron] Email delivery failed for user ${user.id}`);
           }
         }
 
-        await session.withTransaction(
-          async () => {
-            const bulkReports: any[] = [];
-            const bulkSettings: any[] = [];
+        const persistOutcome = async (txSession?: mongoose.ClientSession) => {
+          const bulkReports: any[] = [];
+          const bulkSettings: any[] = [];
 
-            if (report && emailSent) {
-              bulkReports.push({
-                insertOne: {
-                  document: {
-                    userId: user.id,
-                    sentDate: now,
-                    period: report.period,
-                    status: ReportStatusEnum.SENT,
-                    createdAt: now,
+          if (report && emailSent) {
+            bulkReports.push({
+              insertOne: {
+                document: {
+                  userId: user.id,
+                  sentDate: now,
+                  period: report.period,
+                  fromDate: from,
+                  toDate: to,
+                  status: ReportStatusEnum.SENT,
+                  createdAt: now,
+                  updatedAt: now,
+                },
+              },
+            });
+
+            bulkSettings.push({
+              updateOne: {
+                filter: { _id: setting._id },
+                update: {
+                  $set: {
+                    lastSentDate: now,
+                    nextReportDate: calulateNextReportDate(now),
                     updatedAt: now,
                   },
                 },
-              });
-
-              bulkSettings.push({
-                updateOne: {
-                  filter: { _id: setting._id },
-                  update: {
-                    $set: {
-                      lastSentDate: now,
-                      nextReportDate: calulateNextReportDate(now),
-                      updatedAt: now,
-                    },
-                  },
+              },
+            });
+          } else {
+            bulkReports.push({
+              insertOne: {
+                document: {
+                  userId: user.id,
+                  sentDate: now,
+                  period:
+                    report?.period ||
+                    `${format(from, "MMMM d")}–${format(to, "d, yyyy")}`,
+                  fromDate: from,
+                  toDate: to,
+                  status: report
+                    ? ReportStatusEnum.FAILED
+                    : ReportStatusEnum.NO_ACTIVITY,
+                  createdAt: now,
+                  updatedAt: now,
                 },
-              });
-            } else {
-              bulkReports.push({
-                insertOne: {
-                  document: {
-                    userId: user.id,
-                    sentDate: now,
-                    period:
-                      report?.period ||
-                      `${format(from, "MMMM d")}–${format(to, "d, yyyy")}`,
-                    status: report
-                      ? ReportStatusEnum.FAILED
-                      : ReportStatusEnum.NO_ACTIVITY,
-                    createdAt: now,
+              },
+            });
+
+            bulkSettings.push({
+              updateOne: {
+                filter: { _id: setting._id },
+                update: {
+                  $set: {
+                    nextReportDate: calulateNextReportDate(now),
                     updatedAt: now,
                   },
                 },
-              });
-
-              bulkSettings.push({
-                updateOne: {
-                  filter: { _id: setting._id },
-                  update: {
-                    $set: {
-                      lastSentDate: null,
-                      nextReportDate: calulateNextReportDate(now),
-                      updatedAt: now,
-                    },
-                  },
-                },
-              });
-            }
-
-            await Promise.all([
-              ReportModel.bulkWrite(bulkReports, { ordered: false, session }),
-              ReportSettingModel.bulkWrite(bulkSettings, { ordered: false, session }),
-            ]);
-          },
-          {
-            maxCommitTimeMS: 10000,
+              },
+            });
           }
-        );
+
+          await Promise.all([
+            ReportModel.bulkWrite(
+              bulkReports,
+              txSession ? { ordered: false, session: txSession } : { ordered: false }
+            ),
+            ReportSettingModel.bulkWrite(
+              bulkSettings,
+              txSession ? { ordered: false, session: txSession } : { ordered: false }
+            ),
+          ]);
+        };
+
+        try {
+          await session.withTransaction(
+            async () => {
+              await persistOutcome(session);
+            },
+            { maxCommitTimeMS: 10000 }
+          );
+        } catch (sessionErr: any) {
+          if (
+            sessionErr?.message?.includes("replica set") ||
+            sessionErr?.message?.includes("Transaction numbers") ||
+            sessionErr?.code === 20
+          ) {
+            await persistOutcome();
+          } else {
+            throw sessionErr;
+          }
+        }
 
         processedCount++;
       } catch (error) {
-        console.log(`Failed to process report`, error);
+        console.log(`[Report Cron] Failed to process report for setting ${setting._id}:`, error);
         failedCount++;
       } finally {
         await session.endSession();
       }
     }
 
-    console.log(`✅Processed: ${processedCount} report`);
-    console.log(`❌ Failed: ${failedCount} report`);
+    console.log(`[Report Cron] Processed: ${processedCount}, Failed: ${failedCount}`);
 
     return {
       success: true,
@@ -160,10 +182,12 @@ export const processReportJob = async () => {
       failedCount,
     };
   } catch (error) {
-    console.error("Error processing reports", error);
+    console.error("[Report Cron] Error processing reports", error);
     return {
       success: false,
       error: "Report process failed",
     };
+  } finally {
+    isProcessingReports = false;
   }
 };

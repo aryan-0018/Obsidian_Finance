@@ -58,7 +58,11 @@ export const transactionColumns: ColumnDef<TransactionType>[] = [
         <ArrowUpDown className="ml-2 h-4 w-4" />
       </Button>
     ),
-    cell: ({ row }) => format(row.getValue("createdAt"), "MMM dd, yyyy"),
+    cell: ({ row }) => {
+      const raw = row.getValue("createdAt");
+      const d = raw ? new Date(String(raw)) : null;
+      return d && !Number.isNaN(d.getTime()) ? format(d, "MMM dd, yyyy") : "-";
+    },
   },
   {
     accessorKey: "title",
@@ -82,22 +86,23 @@ export const transactionColumns: ColumnDef<TransactionType>[] = [
                 <Send className="h-2.5 w-2.5 text-[#e5c158]" /> Telegram
               </span>
             )}
-            {row.original.receiptUrl && (
-              <a
-                href={row.original.receiptUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                title="View attached receipt"
-                className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] bg-[#c1a063]/10 text-[#c1a063] border border-[#c1a063]/25 hover:bg-[#c1a063]/20 shrink-0 font-normal transition-colors"
-                onClick={(e) => e.stopPropagation()}
-              >
-                <FileText className="h-2.5 w-2.5" /> Receipt
-              </a>
-            )}
+            {row.original.receiptUrl &&
+              /^https?:\/\//i.test(row.original.receiptUrl) && (
+                <a
+                  href={row.original.receiptUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title="View attached receipt"
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] bg-[#c1a063]/10 text-[#c1a063] border border-[#c1a063]/25 hover:bg-[#c1a063]/20 shrink-0 font-normal transition-colors"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <FileText className="h-2.5 w-2.5" /> Receipt
+                </a>
+              )}
           </div>
           <div className="flex items-center gap-1.5 md:hidden text-[11px] text-[#a1a1aa]">
             <span className="capitalize">{category}</span>
-            {date && (
+            {date && !Number.isNaN(new Date(date).getTime()) && (
               <>
                 <span>•</span>
                 <span>{format(new Date(date), "MMM dd")}</span>
@@ -245,11 +250,13 @@ export const transactionColumns: ColumnDef<TransactionType>[] = [
           <Icon className="h-4 w-4 text-muted-foreground" />
           <div className="flex flex-col">
             <span>{label}</span>
-            {nextDate && isRecurring && (
-              <span className="text-xs text-muted-foreground">
-                Next: {format(nextDate, "MMM dd yyyy")}
-              </span>
-            )}
+            {nextDate &&
+              isRecurring &&
+              !Number.isNaN(new Date(nextDate).getTime()) && (
+                <span className="text-xs text-muted-foreground">
+                  Next: {format(new Date(nextDate), "MMM dd yyyy")}
+                </span>
+              )}
           </div>
         </div>
       );

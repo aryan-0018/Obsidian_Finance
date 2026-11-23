@@ -42,11 +42,14 @@ const ExpensePieChart = (props: { dateRange?: DateRangeType }) => {
   const { user } = useTypedSelector((state) => state.auth);
   const currency = user?.currency || "INR";
 
-  const { data, isFetching } = useExpensePieChartBreakdownQuery({
-    preset: dateRange?.value,
-    from: dateRange?.from ? new Date(dateRange.from).toISOString() : undefined,
-    to: dateRange?.to ? new Date(dateRange.to).toISOString() : undefined,
-  });
+  const { data, isFetching } = useExpensePieChartBreakdownQuery(
+    {
+      preset: dateRange?.value,
+      from: dateRange?.from ? new Date(dateRange.from).toISOString() : undefined,
+      to: dateRange?.to ? new Date(dateRange.to).toISOString() : undefined,
+    },
+    { skip: !dateRange }
+  );
   const categories = data?.data?.breakdown || [];
   const totalSpent = data?.data?.totalSpent || 0;
 

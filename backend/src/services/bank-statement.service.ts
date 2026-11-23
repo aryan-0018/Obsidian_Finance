@@ -1,4 +1,5 @@
 import crypto from "crypto";
+import { createPartFromBase64, createUserContent } from "@google/genai";
 import { PDFParse, PasswordException } from "pdf-parse";
 import { BadRequestException } from "../utils/app-error";
 import TransactionModel, {
@@ -10,6 +11,8 @@ import { parse as csvParse } from "csv-parse/sync";
 import { computeTransactionBlockHash, getGenesisHash } from "./ledger-audit.service";
 import { convertToSmallestUnit } from "../utils/format-currency";
 import { parseBankDate } from "../utils/nlp-parser";
+import { assertValidStatementFile } from "../utils/file-validation";
+import { withUserLedgerLock } from "../utils/ledger-lock";
 
 export { parseBankDate };
 
@@ -30,7 +33,7 @@ export interface ParsedBankTransaction {
 
 export interface BankStatementParseResult {
   fileName: string;
-  fileType: "PDF" | "CSV";
+  fileType: "PDF" | "CSV" | "IMAGE";
   totalTransactions: number;
   totalIncome: number;
   totalExpense: number;
@@ -241,7 +244,9 @@ export const parseBankStatementService = async (
   password?: string,
   userId?: string
 ): Promise<BankStatementParseResult> => {
-  if (!file) throw new BadRequestException("No bank statement file uploaded");
+  if (!file || !file.buffer || file.buffer.length === 0) {
+    throw new BadRequestException("No bank statement file uploaded");
+  }
 
   const isPdf =
     file.mimetype === "application/pdf" ||
@@ -250,28 +255,39 @@ export const parseBankStatementService = async (
     file.mimetype === "text/csv" ||
     file.originalname.toLowerCase().endsWith(".csv") ||
     file.originalname.toLowerCase().endsWith(".txt");
+  const isImage =
+    /^image\/(jpe?g|png|webp|heic)$/i.test(file.mimetype || "") ||
+    /\.(jpe?g|png|webp|heic)$/i.test(file.originalname || "");
 
-  if (!isPdf && !isCsv) {
+  if (!isPdf && !isCsv && !isImage) {
     throw new BadRequestException(
-      "Unsupported file format. Please upload a PDF or CSV bank statement."
+      "Unsupported file format. Please upload a PDF, CSV, or statement screenshot image (PNG/JPG/WEBP/HEIC)."
     );
   }
 
+  assertValidStatementFile(
+    file.buffer,
+    isPdf ? "PDF" : isImage ? "IMAGE" : "CSV"
+  );
+
   let rawExtractedText = "";
-  const fileType: "PDF" | "CSV" = isPdf ? "PDF" : "CSV";
+  const fileType: "PDF" | "CSV" | "IMAGE" = isPdf
+    ? "PDF"
+    : isImage
+      ? "IMAGE"
+      : "CSV";
 
   // --- Step 1: Ingestion & Decryption ---
   if (isPdf) {
+    let pdfParser: PDFParse | null = null;
     try {
-      const pdfParser = new PDFParse({
+      pdfParser = new PDFParse({
         data: file.buffer,
         password: password?.trim() || undefined,
       });
 
       const textResult = await pdfParser.getText();
       rawExtractedText = textResult?.text || "";
-
-      await pdfParser.destroy();
     } catch (err: any) {
       const isPasswordErr =
         err instanceof PasswordException ||
@@ -291,13 +307,15 @@ export const parseBankStatementService = async (
       throw new BadRequestException(
         `Failed to parse PDF statement: ${err.message || "Invalid or corrupted PDF file"}`
       );
+    } finally {
+      await pdfParser?.destroy().catch(() => {});
     }
-  } else {
+  } else if (isCsv) {
     // CSV extraction
     rawExtractedText = file.buffer.toString("utf-8");
   }
 
-  if (!rawExtractedText.trim()) {
+  if (!isImage && !rawExtractedText.trim()) {
     throw new BadRequestException(
       "The statement contains no readable text or transactions."
     );
@@ -388,80 +406,178 @@ export const parseBankStatementService = async (
     }
   }
 
-  // --- Fast Deterministic Regex Scanner for Tabular Bank Statements ---
-  if (rawTransactions.length === 0) {
+  // --- Fast Deterministic Multi-Line Scanner for Tabular Bank Statements (HDFC/SBI/ICICI/Axis/Generic) ---
+  if (!isImage && rawTransactions.length === 0) {
     const lines = rawExtractedText.split(/\r?\n/);
-    const datePattern = /^(\d{1,2}[-/.](?:\d{1,2}|[A-Za-z]{3})[-/.]\d{2,4}|\d{4}[-/.]\d{1,2}[-/.]\d{1,2})\b/;
+    const dateStartRegex =
+      /^(\d{1,2}[-/.](?:\d{1,2}|[A-Za-z]{3})[-/.]\d{2,4}|\d{4}[-/.]\d{1,2}[-/.]\d{1,2})(?=\s|\||$)/;
+    const footerNoiseRegex =
+      /^(?:page\s+\d+\s+of\s+\d+|statement\s+summary|generated\s+on|account\s+branch|cust\s*id|micr\s*code|ifsc\s*code|\*\*end\s+of\s+statement\*\*|this\s+is\s+a\s+computer)/i;
 
-    for (const line of lines) {
-      const trimmed = line.trim();
-      const dateMatch = trimmed.match(datePattern);
-      if (!dateMatch) continue;
+    const blocks: Array<{ dateStr: string; text: string }> = [];
+    let currentBlock: { dateStr: string; lines: string[] } | null = null;
 
-      const dateStr = dateMatch[1];
-      const rest = trimmed.slice(dateMatch[0].length).trim();
+    for (const rawLine of lines) {
+      const trimmed = rawLine.trim();
+      if (!trimmed || footerNoiseRegex.test(trimmed)) {
+        if (currentBlock && currentBlock.lines.length >= 6) {
+          blocks.push({
+            dateStr: currentBlock.dateStr,
+            text: currentBlock.lines.join(" ").replace(/\s+/g, " ").trim(),
+          });
+          currentBlock = null;
+        }
+        continue;
+      }
 
-      // Find amounts in the remainder
-      const amountMatches = [
-        ...rest.matchAll(
-          /(?:(?<=\s|^)[₹$]?\s*)(\d{1,3}(?:,\d{2,3})*(?:\.\d{1,2})|\d+(?:\.\d{1,2}))(?=\s|$)/g
-        ),
-      ];
-
-      if (amountMatches.length >= 1) {
-        // Last number is often running balance, preceding number is txn amount
-        const txnAmountRaw =
-          amountMatches.length >= 2
-            ? amountMatches[amountMatches.length - 2][1]
-            : amountMatches[0][1];
-        const num = parseFloat(txnAmountRaw.replace(/,/g, ""));
-        if (!isNaN(num) && num > 0) {
-          const isCredit = /\b(cr|credit|deposit|by\s+transfer)\b/i.test(rest);
-          const firstAmtIndex = rest.indexOf(amountMatches[0][0]);
-          let narr =
-            firstAmtIndex > 0 ? rest.slice(0, firstAmtIndex).trim() : rest;
-          if (!narr || narr.length < 3) narr = "Bank Transaction";
-
-          rawTransactions.push({
-            date: dateStr,
-            narration: narr,
-            amount: num,
-            type: isCredit ? "INCOME" : "EXPENSE",
+      const dateMatch = trimmed.match(dateStartRegex);
+      if (dateMatch) {
+        if (currentBlock) {
+          blocks.push({
+            dateStr: currentBlock.dateStr,
+            text: currentBlock.lines.join(" ").replace(/\s+/g, " ").trim(),
           });
         }
+        currentBlock = {
+          dateStr: dateMatch[1],
+          lines: [trimmed.slice(dateMatch[0].length).trim()],
+        };
+      } else if (currentBlock) {
+        if (currentBlock.lines.length < 7) {
+          currentBlock.lines.push(trimmed);
+        }
       }
+    }
+    if (currentBlock) {
+      blocks.push({
+        dateStr: currentBlock.dateStr,
+        text: currentBlock.lines.join(" ").replace(/\s+/g, " ").trim(),
+      });
+    }
+
+    let prevClosingBalance: number | null = null;
+
+    for (const block of blocks) {
+      const rest = block.text;
+      if (!rest) continue;
+
+      const decimalAmountMatches = [
+        ...rest.matchAll(
+          /(?:^|[\s₹$|])(\d{1,3}(?:,\d{2,3})*\.\d{2}|\d+\.\d{2})(?:\s*(Cr|Dr|\(Cr\)|\(Dr\)))?(?=$|\s|\|)/gi
+        ),
+      ];
+      const fallbackAmountMatches =
+        decimalAmountMatches.length > 0
+          ? decimalAmountMatches
+          : [
+              ...rest.matchAll(
+                /(?:^|[\s₹$|])(\d{1,3}(?:,\d{2,3})+(?:\.\d{1,2})?|\d+\.\d{1,2})(?:\s*(Cr|Dr|\(Cr\)|\(Dr\)))?(?=$|\s|\|)/gi
+              ),
+            ];
+
+      if (fallbackAmountMatches.length === 0) continue;
+
+      const parseNum = (s: string) => parseFloat(s.replace(/,/g, ""));
+
+      // Handle Opening Balance seed row without recording it as a transaction
+      if (/^(?:opening\s*balance|b\/f|brought\s*forward)/i.test(rest)) {
+        const lastAmt = parseNum(
+          fallbackAmountMatches[fallbackAmountMatches.length - 1][1]
+        );
+        if (!Number.isNaN(lastAmt)) prevClosingBalance = lastAmt;
+        continue;
+      }
+
+      let txnMatch = fallbackAmountMatches[0];
+      let curBalance: number | null = null;
+
+      if (fallbackAmountMatches.length >= 2) {
+        txnMatch = fallbackAmountMatches[fallbackAmountMatches.length - 2];
+        const balNum = parseNum(
+          fallbackAmountMatches[fallbackAmountMatches.length - 1][1]
+        );
+        if (!Number.isNaN(balNum)) curBalance = balNum;
+      }
+
+      const num = parseNum(txnMatch[1]);
+      if (Number.isNaN(num) || num <= 0) continue;
+
+      const tag = (txnMatch[2] || "").toLowerCase();
+      let isCredit: boolean;
+
+      if (tag.includes("cr")) {
+        isCredit = true;
+      } else if (tag.includes("dr")) {
+        isCredit = false;
+      } else if (prevClosingBalance !== null && curBalance !== null) {
+        if (Math.abs(prevClosingBalance + num - curBalance) <= 0.05) {
+          isCredit = true;
+        } else if (Math.abs(prevClosingBalance - num - curBalance) <= 0.05) {
+          isCredit = false;
+        } else {
+          isCredit =
+            /\b(cr|credit|deposit|by\s+transfer|salary|refund|cashback|interest|dividend)\b/i.test(
+              rest
+            );
+        }
+      } else {
+        isCredit =
+          /\b(cr|credit|deposit|by\s+transfer|salary|refund|cashback|interest|dividend)\b/i.test(
+            rest
+          );
+      }
+
+      if (curBalance !== null) {
+        prevClosingBalance = curBalance;
+      }
+
+      const firstAmtIndex = rest.indexOf(fallbackAmountMatches[0][0]);
+      let narr =
+        firstAmtIndex > 0 ? rest.slice(0, firstAmtIndex).trim() : rest;
+      // Strip trailing value date / chq ref numbers common before withdrawal column
+      narr = narr
+        .replace(/\b\d{1,2}[-/.](?:\d{1,2}|[A-Za-z]{3})[-/.]\d{2,4}\s*$/g, "")
+        .replace(/\s+\d{10,18}\s*$/g, "")
+        .trim();
+      if (!narr || narr.length < 3) narr = "Bank Transaction";
+
+      rawTransactions.push({
+        date: block.dateStr,
+        narration: narr,
+        amount: num,
+        type: isCredit ? "INCOME" : "EXPENSE",
+      });
     }
 
     if (rawTransactions.length >= 2) {
       console.log(
-        `[Bank Parser] Extracted ${rawTransactions.length} transactions via high-speed deterministic tabular scanner.`
+        `[Bank Parser] Extracted ${rawTransactions.length} transactions via multi-line deterministic tabular scanner.`
       );
     } else {
-      // If regex found less than 2 rows, reset and use Gemini AI extraction
       rawTransactions = [];
     }
   }
 
-  // If local parsing didn't find rows or if it's a non-standard PDF layout, use Gemini Multimodal/Text Pipeline
+  // If local parsing didn't find rows, or if it's a statement image/screenshot, use Gemini Multimodal/Text Pipeline
   if (rawTransactions.length === 0) {
     const truncatedText =
       rawExtractedText.length > 50000
         ? rawExtractedText.slice(0, 50000)
         : rawExtractedText;
 
-    const parsePrompt = `
+    const baseInstructions = `
 You are an expert financial auditor and automated bank statement extraction engine.
-Analyze the following bank statement text and extract ALL individual transaction rows.
+Analyze the provided bank statement ${isImage ? "screenshot/image" : "text"} and extract ALL individual transaction rows.
 For each transaction:
 - "date": YYYY-MM-DD
 - "narration": Raw transaction description / merchant narration
 - "amount": Positive number (the transaction amount)
-- "type": "EXPENSE" for debits / withdrawals / fees; "INCOME" for credits / deposits / salary
+- "type": "EXPENSE" for debits / withdrawals / fees / DR; "INCOME" for credits / deposits / salary / CR
 - "balance": (optional running balance if present)
 
 Rules:
 1. Ignore summary headers, opening/closing balances, and page numbers.
-2. Ensure every valid transaction entry is captured.
+2. Ensure every visible transaction row in the table is captured (do not merge multiple rows into one).
 3. Return STRICTLY JSON as an array of objects:
 [
   {
@@ -470,19 +586,35 @@ Rules:
     "amount": 450.50,
     "type": "EXPENSE"
   }
-]
+]`;
 
-Statement text:
-${truncatedText}
-`;
+    const resolvedMime = (() => {
+      const m = (file.mimetype || "").toLowerCase();
+      if (m === "image/jpg") return "image/jpeg";
+      if (m.startsWith("image/")) return m;
+      const ext = file.originalname.toLowerCase();
+      if (ext.endsWith(".png")) return "image/png";
+      if (ext.endsWith(".webp")) return "image/webp";
+      if (ext.endsWith(".heic")) return "image/heic";
+      return "image/jpeg";
+    })();
+
+    const contents = isImage
+      ? createUserContent([
+          baseInstructions,
+          createPartFromBase64(file.buffer.toString("base64"), resolvedMime),
+        ])
+      : `${baseInstructions}\n\nStatement text:\n${truncatedText}\n`;
 
     try {
       const aiResponse = await generateContentWithRetry({
-        contents: parsePrompt,
+        contents,
         config: {
           temperature: 0,
           responseMimeType: "application/json",
         },
+        timeoutMs: 45000,
+        perAttemptTimeoutMs: 18000,
       });
 
       const cleaned = aiResponse.text?.replace(/```(?:json)?\n?/g, "").trim() || "[]";
@@ -504,11 +636,83 @@ ${truncatedText}
     );
   }
 
-  // --- Step 3: Fetch Existing User Transactions for SHA-256 Deduplication ---
+  // --- Step 3: Parse & Normalize Entries, then Fetch Scoped Existing Transactions ---
+  interface PreparedTx {
+    idx: number;
+    rawNarration: string;
+    parsedDate: Date;
+    isoDateStr: string;
+    txType: TransactionTypeEnum;
+    amount: number;
+    cleanName: string;
+    category: string;
+    paymentMethod: PaymentMethodEnum;
+    fingerprint: string;
+    intraBatchKey: string;
+  }
+
+  const prepared: PreparedTx[] = [];
+  let earliestDate: Date | null = null;
+  let latestDate: Date | null = null;
+
+  for (let i = 0; i < rawTransactions.length; i++) {
+    const item = rawTransactions[i];
+    const rawType = String(item.type || "").toUpperCase();
+    const txType =
+      rawType === "INCOME" || /\b(CREDIT|CR|DEPOSIT)\b/.test(rawType)
+        ? TransactionTypeEnum.INCOME
+        : TransactionTypeEnum.EXPENSE;
+    const parsedAmt =
+      typeof item.amount === "number"
+        ? item.amount
+        : parseFloat(String(item.amount || "0").replace(/[^0-9.-]/g, ""));
+    const amount = Math.abs(Number.isFinite(parsedAmt) ? parsedAmt : 0);
+    if (!amount || !Number.isFinite(amount)) continue;
+
+    const parsedDate = parseBankDate(item.date);
+    const isoDateStr = parsedDate.toISOString().split("T")[0];
+
+    if (!earliestDate || parsedDate < earliestDate) earliestDate = parsedDate;
+    if (!latestDate || parsedDate > latestDate) latestDate = parsedDate;
+
+    const { cleanName, category, paymentMethod } = cleanNarrationLocally(
+      item.narration,
+      txType
+    );
+
+    const fingerprint = generateTransactionHash(
+      isoDateStr,
+      amount,
+      txType,
+      cleanName
+    );
+
+    const intraBatchKey = `${isoDateStr}|${amount.toFixed(2)}|${txType}|${(item.narration || cleanName).toLowerCase().replace(/[^a-z0-9]/g, "")}`;
+
+    prepared.push({
+      idx: i,
+      rawNarration: item.narration,
+      parsedDate,
+      isoDateStr,
+      txType,
+      amount,
+      cleanName,
+      category,
+      paymentMethod,
+      fingerprint,
+      intraBatchKey,
+    });
+  }
+
   const existingHashes = new Set<string>();
-  if (userId) {
-    const existing = await TransactionModel.find({ userId })
-      .select("title amount type date");
+  if (userId && earliestDate && latestDate) {
+    const minQueryDate = new Date(earliestDate.getTime() - 2 * 24 * 60 * 60 * 1000);
+    const maxQueryDate = new Date(latestDate.getTime() + 2 * 24 * 60 * 60 * 1000);
+
+    const existing = await TransactionModel.find({
+      userId,
+      date: { $gte: minQueryDate, $lte: maxQueryDate },
+    }).select("title amount type date");
 
     for (const tx of existing) {
       const dStr = tx.date ? new Date(tx.date).toISOString().split("T")[0] : "";
@@ -517,84 +721,50 @@ ${truncatedText}
     }
   }
 
-  // --- Step 4: Demangle, Categorize, Fingerprint & Deduplicate ---
+  // --- Step 4: Deduplicate & Assemble Result ---
   const processedTransactions: ParsedBankTransaction[] = [];
   const seenBatchHashes = new Set<string>();
 
   let totalIncome = 0;
   let totalExpense = 0;
   let duplicateCount = 0;
-  let earliestDate: Date | null = null;
-  let latestDate: Date | null = null;
+  const batchStamp = Date.now();
 
-  for (let i = 0; i < rawTransactions.length; i++) {
-    const item = rawTransactions[i];
-    const txType =
-      item.type === "INCOME"
-        ? TransactionTypeEnum.INCOME
-        : TransactionTypeEnum.EXPENSE;
-    const amount = Math.abs(Number(item.amount) || 0);
-    if (!amount) continue;
-
-    // Sanitize Date
-    const parsedDate = parseBankDate(item.date);
-    const isoDateStr = parsedDate.toISOString().split("T")[0];
-
-    // Track date ranges
-    if (!earliestDate || parsedDate < earliestDate) earliestDate = parsedDate;
-    if (!latestDate || parsedDate > latestDate) latestDate = parsedDate;
-
-    // Demangle narration
-    const { cleanName, category, paymentMethod } = cleanNarrationLocally(
-      item.narration,
-      txType
-    );
-
-    // Compute Cryptographic Fingerprint for database deduplication
-    const fingerprint = generateTransactionHash(
-      isoDateStr,
-      amount,
-      txType,
-      cleanName
-    );
-
-    // Intra-statement specific key (incorporates narration to avoid dropping distinct payments)
-    const intraBatchKey = `${isoDateStr}|${amount.toFixed(2)}|${txType}|${(item.narration || cleanName).toLowerCase().replace(/[^a-z0-9]/g, "")}`;
-
+  for (const entry of prepared) {
     let isDuplicate = false;
     let duplicateReason: string | undefined = undefined;
 
-    if (existingHashes.has(fingerprint)) {
+    if (existingHashes.has(entry.fingerprint)) {
       isDuplicate = true;
       duplicateReason = "Matches existing transaction in your Obsidian portfolio";
       duplicateCount++;
-    } else if (seenBatchHashes.has(intraBatchKey)) {
+    } else if (seenBatchHashes.has(entry.intraBatchKey)) {
       isDuplicate = true;
       duplicateReason = "Duplicate entry inside statement";
       duplicateCount++;
     } else {
-      seenBatchHashes.add(intraBatchKey);
+      seenBatchHashes.add(entry.intraBatchKey);
     }
 
-    if (txType === TransactionTypeEnum.INCOME) {
-      totalIncome += amount;
+    if (entry.txType === TransactionTypeEnum.INCOME) {
+      totalIncome += entry.amount;
     } else {
-      totalExpense += amount;
+      totalExpense += entry.amount;
     }
 
     processedTransactions.push({
-      id: `tx-import-${i}-${Date.now()}`,
-      fingerprint,
-      title: cleanName,
-      rawNarration: item.narration,
-      amount,
-      type: txType,
-      category,
-      paymentMethod,
-      date: isoDateStr,
+      id: `tx-import-${entry.idx}-${batchStamp}`,
+      fingerprint: entry.fingerprint,
+      title: entry.cleanName,
+      rawNarration: entry.rawNarration,
+      amount: entry.amount,
+      type: entry.txType,
+      category: entry.category,
+      paymentMethod: entry.paymentMethod,
+      date: entry.isoDateStr,
       isDuplicate,
       duplicateReason,
-      selected: !isDuplicate, // Default unselect duplicates
+      selected: !isDuplicate,
     });
   }
 
@@ -624,52 +794,65 @@ export const bulkCommitBankTransactionsService = async (
     amount: number;
     type: TransactionTypeEnum;
     category: string;
-    paymentMethod: PaymentMethodEnum;
-    date: string;
+    paymentMethod?: PaymentMethodEnum;
+    date?: string | Date;
     description?: string;
+    externalRef?: string | null;
   }>
 ) => {
   if (!transactions || transactions.length === 0) {
     throw new BadRequestException("No transactions provided for import");
   }
 
-  const lastTx = await TransactionModel.findOne({ userId })
-    .sort({ createdAt: -1, _id: -1 })
-    .select("ledgerHash");
-  let runningHash = lastTx?.ledgerHash || getGenesisHash();
+  return withUserLedgerLock(userId, async () => {
+    const lastTx = await TransactionModel.findOne({ userId })
+      .sort({ createdAt: -1, _id: -1 })
+      .select("ledgerHash")
+      .lean();
+    let runningHash = lastTx?.ledgerHash || getGenesisHash();
+    const baseTime = Date.now();
 
-  const docs = transactions.map((t) => {
-    const rawAmt = Math.abs(Number(t.amount));
-    const txDate = new Date(t.date || new Date());
-    const doc = new TransactionModel({
-      userId,
-      title: t.title || "Imported Transaction",
-      amount: rawAmt,
-      type: t.type,
-      category: (t.category || "other").toLowerCase(),
-      paymentMethod: t.paymentMethod || PaymentMethodEnum.BANK_TRANSFER,
-      date: txDate,
-      description: t.description || "Imported via Bank Statement Pipeline",
-      isRecurring: false,
-      prevLedgerHash: runningHash,
+    const docs = transactions.map((t, idx) => {
+      const rawAmt = Math.abs(Number(t.amount));
+      const parsedDate = t.date ? new Date(t.date) : new Date();
+      const txDate = Number.isNaN(parsedDate.getTime())
+        ? new Date()
+        : parsedDate;
+      const stamp = new Date(baseTime + idx);
+
+      const doc = new TransactionModel({
+        userId,
+        title: t.title || "Imported Transaction",
+        amount: rawAmt,
+        type: t.type,
+        category: (t.category || "other").toLowerCase(),
+        paymentMethod: t.paymentMethod || PaymentMethodEnum.BANK_TRANSFER,
+        date: txDate,
+        description: t.description || "Imported via Bank Statement Pipeline",
+        isRecurring: false,
+        externalRef: t.externalRef ?? null,
+        prevLedgerHash: runningHash,
+        createdAt: stamp,
+        updatedAt: stamp,
+      });
+
+      runningHash = computeTransactionBlockHash(runningHash, {
+        _id: doc._id,
+        date: txDate,
+        amount: convertToSmallestUnit(rawAmt),
+        type: t.type,
+        title: doc.title,
+      });
+      doc.ledgerHash = runningHash;
+
+      return doc;
     });
 
-    runningHash = computeTransactionBlockHash(runningHash, {
-      _id: doc._id,
-      date: txDate,
-      amount: convertToSmallestUnit(rawAmt), // stored in smallest unit
-      type: t.type,
-      title: doc.title,
-    });
-    doc.ledgerHash = runningHash;
+    const inserted = await TransactionModel.insertMany(docs, { ordered: true });
 
-    return doc;
+    return {
+      success: true,
+      importedCount: inserted.length,
+    };
   });
-
-  const inserted = await TransactionModel.insertMany(docs);
-
-  return {
-    success: true,
-    importedCount: inserted.length,
-  };
 };

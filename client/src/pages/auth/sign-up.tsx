@@ -4,7 +4,7 @@ import { Sparkles, BarChart3, Lock } from "lucide-react";
 
 const SignUp = () => {
   return (
-    <div className="grid h-screen max-h-screen lg:grid-cols-2 bg-[#070709] w-full overflow-hidden">
+    <div className="grid min-h-screen lg:h-screen lg:max-h-screen lg:grid-cols-2 bg-[#070709] w-full overflow-y-auto lg:overflow-hidden">
       {/* Left Form Panel */}
       <div className="flex flex-col justify-between h-full p-4 sm:p-6 lg:p-8 w-full max-w-full overflow-hidden">
         <div className="flex justify-center md:justify-start shrink-0">

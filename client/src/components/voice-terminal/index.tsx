@@ -131,7 +131,11 @@ export function VoiceTerminalModal({
         }
 
         const trimmed = currentText.trim();
-        if (trimmed.length > 2 && !isProcessingRef.current && trimmed !== executedRef.current) {
+        if (
+          trimmed.length > 2 &&
+          !isProcessingRef.current &&
+          trimmed.toLowerCase() !== executedRef.current
+        ) {
           silenceTimerRef.current = setTimeout(() => {
             try {
               recognition.stop();
@@ -169,7 +173,7 @@ export function VoiceTerminalModal({
         if (
           finalTranscript.length > 2 &&
           !isProcessingRef.current &&
-          finalTranscript !== executedRef.current
+          finalTranscript.toLowerCase() !== executedRef.current
         ) {
           handleExecuteRef.current(finalTranscript);
         }
@@ -261,6 +265,9 @@ export function VoiceTerminalModal({
         osc.start(now);
         osc.stop(now + 0.22);
       }
+      osc.onended = () => {
+        ctx.close().catch(() => {});
+      };
     } catch {
       // AudioContext not allowed before user gesture
     }
@@ -309,7 +316,8 @@ export function VoiceTerminalModal({
     }
 
     isProcessingRef.current = true;
-    executedRef.current = textToRun;
+    executedRef.current = textToRun.toLowerCase();
+    transcriptRef.current = "";
     setExecutingQuery(textToRun);
     setTranscript(textToRun);
     setManualInput("");
@@ -395,7 +403,7 @@ export function VoiceTerminalModal({
       setExecutingQuery("");
       setTimeout(() => {
         executedRef.current = "";
-      }, 500);
+      }, 3000);
     }
   };
 

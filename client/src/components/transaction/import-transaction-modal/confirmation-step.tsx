@@ -11,15 +11,33 @@ import { useBulkImportTransactionMutation } from "@/features/transaction/transac
 
 const parseCustomDate = (dateStr: string) => {
   if (!dateStr) return new Date();
-  const parts = dateStr.match(/(\d+)[-/](\d+)[-/](\d+)/);
+  const trimmed = String(dateStr).trim();
+  const parts = trimmed.match(/^(\d{1,4})[-/](\d{1,2})[-/](\d{1,4})$/);
   if (parts) {
-    if (parts[1].length === 4) return new Date(dateStr);
-    const day = parts[1].padStart(2, "0");
-    const month = parts[2].padStart(2, "0");
-    const year = parts[3].length === 2 ? `20${parts[3]}` : parts[3];
-    return new Date(`${year}-${month}-${day}`);
+    if (parts[1].length === 4) {
+      const y = Number(parts[1]);
+      const m = Number(parts[2]) - 1;
+      const d = Number(parts[3]);
+      const dt = new Date(Date.UTC(y, m, d, 12, 0, 0));
+      if (dt.getUTCFullYear() === y && dt.getUTCMonth() === m && dt.getUTCDate() === d) {
+        return dt;
+      }
+      return new Date(NaN);
+    }
+    const day = Number(parts[1]);
+    const month = Number(parts[2]) - 1;
+    const year = parts[3].length === 2 ? Number(`20${parts[3]}`) : Number(parts[3]);
+    const dt = new Date(Date.UTC(year, month, day, 12, 0, 0));
+    if (
+      dt.getUTCFullYear() === year &&
+      dt.getUTCMonth() === month &&
+      dt.getUTCDate() === day
+    ) {
+      return dt;
+    }
+    return new Date(NaN);
   }
-  return new Date(dateStr);
+  return new Date(trimmed);
 };
 
 const normalizePaymentMethod = (method: string) => {
@@ -65,6 +83,7 @@ const transactionSchema = z.object({
   category: z.string({
     required_error: "Category is required",
   }),
+  description: z.string().optional(),
   paymentMethod: z
     .union([
       z.literal(""),
@@ -124,13 +143,13 @@ const ConfirmationStep = ({
         if (transactionField === "Skip" || row[csvColumn] === undefined) return;
         transaction[transactionField] =
           transactionField === "amount"
-            ? Number(row[csvColumn])
+            ? Number(String(row[csvColumn]).replace(/[^0-9.-]+/g, ""))
             : transactionField === "date"
               ? parseCustomDate(row[csvColumn])
               : transactionField === "paymentMethod"
                 ? normalizePaymentMethod(row[csvColumn])
                 : transactionField === "type"
-                  ? row[csvColumn]?.toUpperCase()
+                  ? String(row[csvColumn]).trim().toUpperCase()
                   : row[csvColumn];
       });
 
@@ -176,7 +195,7 @@ const ConfirmationStep = ({
     const { transactions, hasValidationErrors } =
       getAssignFieldToMappedTransactions();
 
-    if (hasErrors || hasValidationErrors) return;
+    if (hasValidationErrors) return;
 
     if (transactions.length > MAX_IMPORT_LIMIT) {
       toast.error(`Cannot import more than ${MAX_IMPORT_LIMIT} transactions`);
@@ -199,18 +218,18 @@ const ConfirmationStep = ({
       .then(() => {
         updateProgress(100);
         toast.success(`Successfully imported ${transactions.length} transactions`);
-      })
-      .catch((error) => {
-        resetProgress();
-        toast.error(error.data?.message || "Failed to import transactions");
-      })
-      .finally(() => {
-        clearInterval(interval);
         setTimeout(() => {
           doneProgress();
           resetProgress();
           onComplete();
-        }, 500);
+        }, 400);
+      })
+      .catch((error) => {
+        resetProgress();
+        toast.error(error?.data?.message || "Failed to import transactions");
+      })
+      .finally(() => {
+        clearInterval(interval);
       });
   };
 

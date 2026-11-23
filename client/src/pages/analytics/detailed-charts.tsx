@@ -18,15 +18,23 @@ interface ChartDataPoint {
     [key: string]: string | number | Date;
 }
 
+const safeFormatDate = (val: unknown, pattern: string) => {
+    const d = new Date(String(val));
+    return Number.isNaN(d.getTime()) ? String(val ?? "") : format(d, pattern);
+};
+
 const DetailedCharts: React.FC<DetailedChartsProps> = ({ dateRange }) => {
     const { user } = useTypedSelector((state) => state.auth);
     const currency = user?.currency || "INR";
 
-    const { data, isFetching } = useChartAnalyticsQuery({
-        preset: dateRange?.value,
-        from: dateRange?.from ? new Date(dateRange.from).toISOString() : undefined,
-        to: dateRange?.to ? new Date(dateRange.to).toISOString() : undefined,
-    });
+    const { data, isFetching } = useChartAnalyticsQuery(
+        {
+            preset: dateRange?.value,
+            from: dateRange?.from ? new Date(dateRange.from).toISOString() : undefined,
+            to: dateRange?.to ? new Date(dateRange.to).toISOString() : undefined,
+        },
+        { skip: !dateRange }
+    );
 
     const chartData = data?.data?.chartData || [];
 
@@ -71,13 +79,13 @@ const DetailedCharts: React.FC<DetailedChartsProps> = ({ dateRange }) => {
                                 </linearGradient>
                             </defs>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.04)" />
-                            <XAxis dataKey="date" tickLine={false} axisLine={false} tick={{ fill: "#8e8e93", fontSize: 11 }} dy={8} tickFormatter={(val) => format(new Date(val), "MMM d")} />
+                            <XAxis dataKey="date" tickLine={false} axisLine={false} tick={{ fill: "#8e8e93", fontSize: 11 }} dy={8} tickFormatter={(val) => safeFormatDate(val, "MMM d")} />
                             <YAxis tickLine={false} axisLine={false} tick={{ fill: "#8e8e93", fontSize: 11 }} tickFormatter={(val) => formatCurrency(val, { currency, compact: true, decimalPlaces: 0 })} />
                             <Tooltip
                                 contentStyle={{ backgroundColor: "rgba(14, 14, 19, 0.92)", backdropFilter: "blur(24px) saturate(160%)", borderColor: "rgba(255,255,255,0.12)", borderRadius: "16px", color: "#fff", boxShadow: "0 20px 40px -15px rgba(0,0,0,0.8)", padding: "10px 14px" }}
                                 itemStyle={{ color: "#e5c158", fontVariantNumeric: "tabular-nums" }}
                                 formatter={(value: number) => formatCurrency(value, { currency })}
-                                labelFormatter={(label) => format(new Date(label), "MMMM d, yyyy")}
+                                labelFormatter={(label) => safeFormatDate(label, "MMMM d, yyyy")}
                             />
                             <Area type="monotone" dataKey="netFlow" stroke="#e5c158" strokeWidth={2.5} fillOpacity={1} fill="url(#netFlowGrad)" />
                         </AreaChart>
@@ -85,7 +93,7 @@ const DetailedCharts: React.FC<DetailedChartsProps> = ({ dateRange }) => {
                 </div>
             </div>
 
-            {/* Chart 2: Stacked Bar Chart for Income/Expense Intensity */}
+            {/* Chart 2: Side-by-side Bar Chart for Income/Expense Intensity */}
             <div className="obsidian-card rounded-2xl bg-[#0e0e13]/80 backdrop-blur-2xl border border-white/[0.08] overflow-hidden relative">
                 <div className="border-b border-white/[0.06] p-5 pb-3">
                     <h3 className="text-base font-semibold text-white tracking-tight">Cash Flow Volume</h3>
@@ -95,16 +103,16 @@ const DetailedCharts: React.FC<DetailedChartsProps> = ({ dateRange }) => {
                     <ResponsiveContainer width="100%" height="100%">
                         <BarChart data={advancedData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(255,255,255,0.04)" />
-                            <XAxis dataKey="date" tickLine={false} axisLine={false} tick={{ fill: "#8e8e93", fontSize: 11 }} dy={8} tickFormatter={(val) => format(new Date(val), "MMM d")} />
+                            <XAxis dataKey="date" tickLine={false} axisLine={false} tick={{ fill: "#8e8e93", fontSize: 11 }} dy={8} tickFormatter={(val) => safeFormatDate(val, "MMM d")} />
                             <YAxis tickLine={false} axisLine={false} tick={{ fill: "#8e8e93", fontSize: 11 }} tickFormatter={(val) => formatCurrency(val, { currency, compact: true, decimalPlaces: 0 })} />
                             <Tooltip
                                 contentStyle={{ backgroundColor: "rgba(14, 14, 19, 0.92)", backdropFilter: "blur(24px) saturate(160%)", borderColor: "rgba(255,255,255,0.12)", borderRadius: "16px", color: "#fff", boxShadow: "0 20px 40px -15px rgba(0,0,0,0.8)", padding: "10px 14px" }}
                                 formatter={(value: number) => formatCurrency(value, { currency })}
-                                labelFormatter={(label) => format(new Date(label), "MMMM d, yyyy")}
+                                labelFormatter={(label) => safeFormatDate(label, "MMMM d, yyyy")}
                                 cursor={{ fill: "rgba(255,255,255,0.04)" }}
                             />
-                            <Bar dataKey="income" stackId="a" fill="#30d158" radius={[0, 0, 4, 4]} />
-                            <Bar dataKey="expenses" stackId="a" fill="#ff453a" radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="income" fill="#30d158" radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="expenses" fill="#ff453a" radius={[4, 4, 0, 0]} />
                         </BarChart>
                     </ResponsiveContainer>
                 </div>

@@ -33,8 +33,9 @@ export default function EditableBalanceCard() {
     const [updateUser] = useUpdateUserMutation();
 
     const handleSave = async () => {
+        const prevBase = baseBalance;
         let newBase = parseFloat(inputValue);
-        if (isNaN(newBase)) {
+        if (!Number.isFinite(newBase)) {
             newBase = 0;
         }
 
@@ -47,6 +48,7 @@ export default function EditableBalanceCard() {
             await updateUser(formData).unwrap();
             toast.success("Balance updated successfully");
         } catch {
+            dispatch(setPortfolioBalance(prevBase));
             toast.error("Failed to save portfolio balance to server");
         }
     };

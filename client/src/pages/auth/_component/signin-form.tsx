@@ -21,9 +21,11 @@ import { useAppDispatch } from "@/app/hook";
 import { setCredentials } from "@/features/auth/authSlice";
 import { GoogleLogin } from "@react-oauth/google";
 
+const hasGoogleOAuth = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim());
+
 const schema = z.object({
   email: z.string().email("Invalid email address"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
+  password: z.string().min(1, "Password is required"),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -51,13 +53,10 @@ const SignInForm = ({
       .then((data) => {
         dispatch(setCredentials(data));
         toast.success("Login successful");
-        setTimeout(() => {
-          navigate(PROTECTED_ROUTES.OVERVIEW);
-        }, 1000);
+        navigate(PROTECTED_ROUTES.OVERVIEW, { replace: true });
       })
       .catch((error) => {
-        console.log(error);
-        toast.error(error.data?.message || "Failed to login");
+        toast.error(error?.data?.message || "Failed to login");
       });
   };
 
@@ -126,34 +125,44 @@ const SignInForm = ({
               Sign In
             </Button>
 
-            <div className="relative border-b border-white/[0.08] my-1">
-              <span className="absolute bg-[#0e0e13] px-2 text-[10px] text-[#8e8e93] uppercase tracking-widest top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-                OR
-              </span>
-            </div>
+            {hasGoogleOAuth && (
+              <>
+                <div className="relative border-b border-white/[0.08] my-1">
+                  <span className="absolute bg-[#0e0e13] px-2 text-[10px] text-[#8e8e93] uppercase tracking-widest top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                    OR
+                  </span>
+                </div>
 
-            <div className="flex justify-center">
-              <GoogleLogin
-                onSuccess={(credentialResponse) => {
-                  googleLogin({ token: credentialResponse.credential })
-                    .unwrap()
-                    .then((data) => {
-                      dispatch(setCredentials(data));
-                      toast.success("Login with Google successful");
-                      setTimeout(() => navigate(PROTECTED_ROUTES.OVERVIEW), 1000);
-                    })
-                    .catch((error) => {
-                      toast.error(error.data?.message || "Google Login processing failed");
-                    });
-                }}
-                onError={() => {
-                  toast.error("Google authentication failed");
-                }}
-                theme="filled_black"
-                shape="pill"
-                width="300"
-              />
-            </div>
+                <div className="flex justify-center">
+                  <GoogleLogin
+                    onSuccess={(credentialResponse) => {
+                      if (!credentialResponse.credential) {
+                        toast.error("Google credential token missing");
+                        return;
+                      }
+                      googleLogin({ token: credentialResponse.credential })
+                        .unwrap()
+                        .then((data) => {
+                          dispatch(setCredentials(data));
+                          toast.success("Login with Google successful");
+                          navigate(PROTECTED_ROUTES.OVERVIEW, { replace: true });
+                        })
+                        .catch((error) => {
+                          toast.error(
+                            error?.data?.message || "Google Login processing failed"
+                          );
+                        });
+                    }}
+                    onError={() => {
+                      toast.error("Google authentication failed");
+                    }}
+                    theme="filled_black"
+                    shape="pill"
+                    width="300"
+                  />
+                </div>
+              </>
+            )}
           </div>
         </div>
         <div className="text-center text-xs text-[#8e8e93] pt-0.5">

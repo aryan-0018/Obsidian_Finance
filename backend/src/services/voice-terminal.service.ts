@@ -26,6 +26,20 @@ import {
 import { generateContentWithRetry } from "../config/google-ai.config";
 import UserModel from "../models/user.model";
 import { BadRequestException } from "../utils/app-error";
+import { escapeRegex } from "../utils/security";
+
+const ALLOWED_NAVIGATE_PATHS = new Set([
+  "/overview",
+  "/transactions",
+  "/reports",
+  "/analytics",
+  "/settings",
+  "/settings/account",
+  "/settings/security",
+  "/settings/billing",
+  "/settings/copilot",
+  "/settings/sms-sync",
+]);
 import {
   VALID_CATEGORIES,
   parseWordsToNumber,
@@ -326,7 +340,7 @@ export const processVoiceCommandService = async (
           keyword.toLowerCase()
         )
       ) {
-        query.title = { $regex: keyword, $options: "i" };
+        query.title = { $regex: escapeRegex(keyword), $options: "i" };
       }
 
       const candidate = await TransactionModel.findOne(query).sort({
@@ -703,7 +717,7 @@ export const processVoiceCommandService = async (
         type: TransactionTypeEnum.EXPENSE,
         $or: [
           { category: category !== "other" ? category : queryCategoryWord },
-          { title: { $regex: queryCategoryWord, $options: "i" } },
+          { title: { $regex: escapeRegex(queryCategoryWord), $options: "i" } },
         ],
       };
       if (dateFilter) {
@@ -871,18 +885,12 @@ Output strictly valid JSON:
 }
 `;
 
-    // 3500ms timeout race to ensure zero hanging or slow response
-    const aiTimeoutPromise = new Promise<never>((_, reject) =>
-      setTimeout(() => reject(new Error("AI_TIMEOUT")), 3500)
-    );
-
-    const aiRes = await Promise.race([
-      generateContentWithRetry({
-        contents: semanticPrompt,
-        config: { responseMimeType: "application/json", temperature: 0 },
-      }),
-      aiTimeoutPromise,
-    ]);
+    const aiRes = await generateContentWithRetry({
+      contents: semanticPrompt,
+      config: { responseMimeType: "application/json", temperature: 0 },
+      timeoutMs: 20000,
+      perAttemptTimeoutMs: 10000,
+    });
 
     const parsed = JSON.parse(
       aiRes.text?.replace(/```(?:json)?\n?/g, "").trim() || "{}"
@@ -972,7 +980,7 @@ Output strictly valid JSON:
       const keyword = (parsed.keyword || "").trim();
       const query: any = { userId: new mongoose.Types.ObjectId(userId) };
       if (keyword && !["last", "transaction", "expense"].includes(keyword.toLowerCase())) {
-        query.title = { $regex: keyword, $options: "i" };
+        query.title = { $regex: escapeRegex(keyword), $options: "i" };
       }
       const candidate = await TransactionModel.findOne(query).sort({ date: -1, createdAt: -1 });
       if (candidate) {
@@ -1005,13 +1013,18 @@ Output strictly valid JSON:
       };
     }
 
-    if (["NAVIGATE", "GO_TO"].includes(rawAction) && parsed.path) {
+    if (
+      ["NAVIGATE", "GO_TO"].includes(rawAction) &&
+      typeof parsed.path === "string" &&
+      ALLOWED_NAVIGATE_PATHS.has(parsed.path.trim())
+    ) {
+      const safePath = parsed.path.trim();
       return {
         action: "NAVIGATE",
-        path: parsed.path,
-        speechReply: parsed.conversationalReply || `Opening ${parsed.path}.`,
+        path: safePath,
+        speechReply: parsed.conversationalReply || `Opening ${safePath}.`,
         displayHeadline: "Navigating",
-        displayText: `Opening ${parsed.path}...`,
+        displayText: `Opening ${safePath}...`,
       };
     }
 

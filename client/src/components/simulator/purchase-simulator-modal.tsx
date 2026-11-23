@@ -21,6 +21,7 @@ import { useSimulatePurchaseMutation } from "@/features/analytics/analyticsAPI";
 import { PurchaseSimulationResponse } from "@/features/analytics/anayticsType";
 import { formatCurrency } from "@/lib/format-currency";
 import { useTypedSelector } from "@/app/hook";
+import { toast } from "sonner";
 
 interface Props {
   trigger?: React.ReactNode;
@@ -74,8 +75,9 @@ export default function PurchaseSimulatorModal({ trigger, defaultOpen = false }:
         title: title.trim() || "Item",
       }).unwrap();
       setResult(res.data);
-    } catch (err) {
-      console.error("Affordability check failed:", err);
+    } catch (err: unknown) {
+      const error = err as { data?: { message?: string } };
+      toast.error(error?.data?.message || "Failed to run purchase affordability simulation");
     }
   };
 

@@ -1,11 +1,15 @@
 import { Request, Response } from "express";
 import { asyncHandler } from "../middlewares/asyncHandler.middlerware";
 import { HTTPSTATUS } from "../config/http.config";
+import { Env } from "../config/env.config";
+import { BadRequestException } from "../utils/app-error";
 import {
+  bulkCommitBankTransactionsSchema,
   bulkDeleteTransactionSchema,
   bulkTransactionSchema,
   createTransactionSchema,
   transactionIdSchema,
+  transactionQuerySchema,
   updateTransactionSchema,
 } from "../validators/transaction.validator";
 import {
@@ -27,10 +31,19 @@ import {
 import { verifyLedgerIntegrityService } from "../services/ledger-audit.service";
 import { TransactionTypeEnum } from "../models/transaction.model";
 
+const parseOptionalDate = (raw: unknown, fieldName: string): Date | undefined => {
+  if (raw === undefined || raw === null || raw === "") return undefined;
+  const parsed = new Date(String(raw));
+  if (Number.isNaN(parsed.getTime())) {
+    throw new BadRequestException(`Invalid '${fieldName}' date`);
+  }
+  return parsed;
+};
+
 export const createTransactionController = asyncHandler(
   async (req: Request, res: Response) => {
     const body = createTransactionSchema.parse(req.body);
-    const userId = req.user?._id;
+    const userId = String(req.user?._id);
 
     const transaction = await createTransactionService(body, userId);
 
@@ -43,23 +56,21 @@ export const createTransactionController = asyncHandler(
 
 export const getAllTransactionController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id;
+    const userId = String(req.user?._id);
+    const query = transactionQuerySchema.parse(req.query);
 
     const filters = {
-      keyword: req.query.keyword as string | undefined,
-      type: req.query.type as keyof typeof TransactionTypeEnum | undefined,
-      category: req.query.category as string | undefined,
-      fromDate: req.query.from ? new Date(req.query.from as string) : undefined,
-      toDate: req.query.to ? new Date(req.query.to as string) : undefined,
-      recurringStatus: req.query.recurringStatus as
-        | "RECURRING"
-        | "NON_RECURRING"
-        | undefined,
+      keyword: query.keyword,
+      type: query.type as keyof typeof TransactionTypeEnum | undefined,
+      category: query.category,
+      fromDate: parseOptionalDate(req.query.from, "from"),
+      toDate: parseOptionalDate(req.query.to, "to"),
+      recurringStatus: query.recurringStatus,
     };
 
     const pagination = {
-      pageSize: parseInt(req.query.pageSize as string) || 20,
-      pageNumber: parseInt(req.query.pageNumber as string) || 1,
+      pageSize: query.pageSize,
+      pageNumber: query.pageNumber,
     };
 
     const result = await getAllTransactionService(userId, filters, pagination);
@@ -73,7 +84,7 @@ export const getAllTransactionController = asyncHandler(
 
 export const getTransactionByIdController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id;
+    const userId = String(req.user?._id);
     const transactionId = transactionIdSchema.parse(req.params.id);
 
     const transaction = await getTransactionByIdService(userId, transactionId);
@@ -87,7 +98,7 @@ export const getTransactionByIdController = asyncHandler(
 
 export const duplicateTransactionController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id;
+    const userId = String(req.user?._id);
     const transactionId = transactionIdSchema.parse(req.params.id);
 
     const transaction = await duplicateTransactionService(
@@ -104,7 +115,7 @@ export const duplicateTransactionController = asyncHandler(
 
 export const updateTransactionController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id;
+    const userId = String(req.user?._id);
     const transactionId = transactionIdSchema.parse(req.params.id);
     const body = updateTransactionSchema.parse(req.body);
 
@@ -118,7 +129,7 @@ export const updateTransactionController = asyncHandler(
 
 export const deleteTransactionController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id;
+    const userId = String(req.user?._id);
     const transactionId = transactionIdSchema.parse(req.params.id);
 
     await deleteTransactionService(userId, transactionId);
@@ -131,7 +142,7 @@ export const deleteTransactionController = asyncHandler(
 
 export const bulkDeleteTransactionController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id;
+    const userId = String(req.user?._id);
     const { transactionIds } = bulkDeleteTransactionSchema.parse(req.body);
 
     const result = await bulkDeleteTransactionService(userId, transactionIds);
@@ -145,7 +156,7 @@ export const bulkDeleteTransactionController = asyncHandler(
 
 export const bulkTransactionController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id;
+    const userId = String(req.user?._id);
     const { transactions } = bulkTransactionSchema.parse(req.body);
 
     const result = await bulkTransactionService(userId, transactions);
@@ -169,17 +180,19 @@ export const scanReceiptController = asyncHandler(
     });
   }
 );
+
 export const exportTransactionsEmailController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id;
+    const userId = String(req.user?._id);
     const userEmail = req.user?.email;
+    const query = transactionQuerySchema.partial().parse(req.query);
 
     const filters = {
-      keyword: req.query.keyword as string | undefined,
-      type: req.query.type as keyof typeof TransactionTypeEnum | undefined,
-      category: req.query.category as string | undefined,
-      fromDate: req.query.from ? new Date(req.query.from as string) : undefined,
-      toDate: req.query.to ? new Date(req.query.to as string) : undefined,
+      keyword: query.keyword,
+      type: query.type as keyof typeof TransactionTypeEnum | undefined,
+      category: query.category,
+      fromDate: parseOptionalDate(req.query.from, "from"),
+      toDate: parseOptionalDate(req.query.to, "to"),
     };
 
     await exportTransactionsEmailService(userId, userEmail as string, filters);
@@ -193,8 +206,9 @@ export const exportTransactionsEmailController = asyncHandler(
 export const parseBankStatementController = asyncHandler(
   async (req: Request, res: Response) => {
     const file = req.file;
-    const password = req.body?.password;
-    const userId = req.user?._id?.toString();
+    const password =
+      typeof req.body?.password === "string" ? req.body.password : undefined;
+    const userId = String(req.user?._id);
 
     const result = await parseBankStatementService(file, password, userId);
 
@@ -207,8 +221,8 @@ export const parseBankStatementController = asyncHandler(
 
 export const bulkCommitBankTransactionsController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id?.toString();
-    const transactions = req.body?.transactions;
+    const userId = String(req.user?._id);
+    const { transactions } = bulkCommitBankTransactionsSchema.parse(req.body);
 
     const result = await bulkCommitBankTransactionsService(
       userId,
@@ -224,11 +238,23 @@ export const bulkCommitBankTransactionsController = asyncHandler(
 
 export const ledgerAuditController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id?.toString();
-    const simulateTamper =
-      req.query.simulateTamper !== undefined
-        ? Number(req.query.simulateTamper)
-        : undefined;
+    const userId = String(req.user?._id);
+    let simulateTamper: number | undefined;
+
+    if (req.query.simulateTamper !== undefined) {
+      if (Env.NODE_ENV === "production") {
+        throw new BadRequestException(
+          "Tamper simulation is disabled in production"
+        );
+      }
+      const parsed = Number(req.query.simulateTamper);
+      if (!Number.isInteger(parsed) || parsed < 0) {
+        throw new BadRequestException(
+          "simulateTamper must be a non-negative integer"
+        );
+      }
+      simulateTamper = parsed;
+    }
 
     const result = await verifyLedgerIntegrityService(userId, simulateTamper);
 
@@ -238,5 +264,3 @@ export const ledgerAuditController = asyncHandler(
     });
   }
 );
-
-

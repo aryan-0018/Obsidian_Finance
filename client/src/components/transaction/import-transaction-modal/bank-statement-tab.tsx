@@ -30,6 +30,8 @@ import {
   BankStatementParseResponse,
   ParsedBankTransaction,
 } from "@/features/transaction/transationType";
+import { useTypedSelector } from "@/app/hook";
+import { formatCurrency } from "@/lib/format-currency";
 
 interface BankStatementTabProps {
   onSuccess: () => void;
@@ -38,6 +40,8 @@ interface BankStatementTabProps {
 }
 
 export default function BankStatementTab({ onSuccess, onStepChange, onCancel }: BankStatementTabProps) {
+  const { user } = useTypedSelector((state) => state.auth);
+  const currency = user?.currency || "INR";
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [password, setPassword] = useState("");
@@ -90,13 +94,26 @@ export default function BankStatementTab({ onSuccess, onStepChange, onCancel }: 
   };
 
   const validateAndSetFile = (file: File) => {
+    const allowedMimes = [
+      "application/pdf",
+      "text/csv",
+      "text/plain",
+      "application/csv",
+      "application/vnd.ms-excel",
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "image/webp",
+      "image/heic",
+    ];
     const isAllowed =
-      file.type === "application/pdf" ||
-      file.type === "text/csv" ||
-      file.name.match(/\.(pdf|csv|txt)$/i);
+      allowedMimes.includes((file.type || "").toLowerCase()) ||
+      /\.(pdf|csv|txt|png|jpe?g|webp|heic)$/i.test(file.name || "");
 
     if (!isAllowed) {
-      toast.error("Please upload a PDF or CSV bank statement.");
+      toast.error(
+        "Please upload a PDF, CSV, or bank statement screenshot (PNG/JPG/WEBP)."
+      );
       return;
     }
 
@@ -295,7 +312,7 @@ export default function BankStatementTab({ onSuccess, onStepChange, onCancel }: 
             <input
               ref={fileInputRef}
               type="file"
-              accept=".pdf,.csv,.txt"
+              accept=".pdf,.csv,.txt,.png,.jpg,.jpeg,.webp,.heic"
               onChange={handleFileSelect}
               className="hidden"
             />
@@ -319,7 +336,7 @@ export default function BankStatementTab({ onSuccess, onStepChange, onCancel }: 
               <div className="space-y-1">
                 <p className="text-sm font-semibold text-white">Select a bank statement</p>
                 <p className="text-xs text-[#8e8e93]">
-                  PDF or CSV from any bank (HDFC, SBI, ICICI, Axis, Chase, etc.)
+                  PDF, CSV, or statement screenshot (PNG/JPG/WEBP) from any bank
                 </p>
               </div>
             )}
@@ -505,7 +522,7 @@ export default function BankStatementTab({ onSuccess, onStepChange, onCancel }: 
                 <TrendingUp className="size-3" /> Total Credits
               </p>
               <p className="text-xl font-bold text-[#f5cf6d] tabular-nums mt-0.5">
-                +₹{parseResult.totalIncome.toLocaleString("en-IN")}
+                +{formatCurrency(parseResult.totalIncome, { currency })}
               </p>
             </div>
             <div className="rounded-2xl border border-rose-500/20 bg-rose-500/[0.03] p-3.5 text-center">
@@ -513,7 +530,7 @@ export default function BankStatementTab({ onSuccess, onStepChange, onCancel }: 
                 <TrendingDown className="size-3" /> Total Debits
               </p>
               <p className="text-xl font-bold text-rose-400 tabular-nums mt-0.5">
-                -₹{parseResult.totalExpense.toLocaleString("en-IN")}
+                -{formatCurrency(parseResult.totalExpense, { currency })}
               </p>
             </div>
             <div className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-3.5 text-center">
@@ -597,11 +614,10 @@ export default function BankStatementTab({ onSuccess, onStepChange, onCancel }: 
                 <tr className="text-[#8e8e93] text-xs font-medium">
                   <th className="p-3 pl-3.5 w-9">
                     <Checkbox
-                      checked={
-                        selectedCount > 0 &&
-                        selectedCount ===
-                          transactions.filter((t) => !t.isDuplicate).length
-                      }
+                      checked={(() => {
+                        const nonDups = transactions.filter((t) => !t.isDuplicate);
+                        return nonDups.length > 0 && nonDups.every((t) => t.selected);
+                      })()}
                       onCheckedChange={(checked) => selectAllNew(!!checked)}
                       title="Select / Unselect All New"
                     />
@@ -675,10 +691,8 @@ export default function BankStatementTab({ onSuccess, onStepChange, onCancel }: 
                           tx.type === "INCOME" ? "text-[#f5cf6d]" : "text-rose-400"
                         }`}
                       >
-                        {tx.type === "INCOME" ? "+" : "-"}₹
-                        {tx.amount.toLocaleString("en-IN", {
-                          minimumFractionDigits: 2,
-                        })}
+                        {tx.type === "INCOME" ? "+" : "-"}
+                        {formatCurrency(tx.amount, { currency })}
                       </button>
                     </td>
                     <td className="p-3 text-center whitespace-nowrap">

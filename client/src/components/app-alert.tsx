@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Check, Info, X, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -56,18 +55,16 @@ export const AppAlert = ({
   className,
   showDismissButton = true,
 }: AppAlertProps) => {
-  const [_, setShowError] = useState(isError);
+  const [showError, setShowError] = useState(isError);
 
   useEffect(() => {
-    if (isError) {
-      setShowError(true);
-      if (autoHideDuration > 0) {
-        const timer = setTimeout(() => {
-          setShowError(false);
-          onDismiss?.();
-        }, autoHideDuration);
-        return () => clearTimeout(timer);
-      }
+    setShowError(isError);
+    if (isError && autoHideDuration > 0) {
+      const timer = setTimeout(() => {
+        setShowError(false);
+        onDismiss?.();
+      }, autoHideDuration);
+      return () => clearTimeout(timer);
     }
   }, [isError, autoHideDuration, onDismiss]);
 
@@ -75,6 +72,8 @@ export const AppAlert = ({
     setShowError(false);
     onDismiss?.();
   };
+
+  if (!showError) return null;
 
   return (
     <div className={cn("max-w-[calc(100%-2rem)] w-full", className)}>
@@ -93,6 +92,7 @@ export const AppAlert = ({
         </div>
         {showDismissButton && (
           <button
+            type="button"
             onClick={handleDismiss}
             className="absolute right-3 top-3 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
           >

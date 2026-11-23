@@ -267,8 +267,8 @@ const SummaryCard: FC<SummaryCardProps> = ({
             end={value}
             duration={0.6}
             preserveValue
-            decimals={2}
-            decimalPlaces={2}
+            decimals={isPercentageValue ? 1 : 2}
+            decimalPlaces={isPercentageValue ? 1 : 2}
             formattingFn={formatCountupValue}
           />
         </div>
@@ -311,15 +311,17 @@ const SummaryCard: FC<SummaryCardProps> = ({
                     className="h-6 w-6 bg-[#e5c158] hover:bg-[#c1a063] text-black rounded"
                     onClick={() => {
                       const newLimit = parseFloat(editBudgetValue);
-                      if (!isNaN(newLimit)) {
-                        updateBudget({ limit: Math.round(newLimit) })
-                          .unwrap()
-                          .then(() => {
-                            toast.success("Budget limit updated");
-                            setIsEditingBudget(false);
-                          })
-                          .catch(() => toast.error("Failed to update budget"));
+                      if (!Number.isFinite(newLimit) || newLimit < 0) {
+                        toast.error("Budget limit must be zero or positive");
+                        return;
                       }
+                      updateBudget({ limit: Math.round(newLimit) })
+                        .unwrap()
+                        .then(() => {
+                          toast.success("Budget limit updated");
+                          setIsEditingBudget(false);
+                        })
+                        .catch(() => toast.error("Failed to update budget"));
                     }}
                   >
                     <Check className="size-3" />

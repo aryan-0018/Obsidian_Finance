@@ -31,10 +31,14 @@ export function TelegramCopilotButton({
   variant = "outline",
   size = "sm",
   className = "",
+  headless = false,
+  listenGlobal = false,
 }: {
   variant?: "outline" | "default" | "ghost" | "secondary";
   size?: "sm" | "default" | "lg" | "icon";
   className?: string;
+  headless?: boolean;
+  listenGlobal?: boolean;
 }) {
   const { data: statusData, isLoading, refetch } = useGetTelegramStatusQuery();
   const [generatePairCode, { isLoading: isGenerating }] = useGenerateTelegramPairCodeMutation();
@@ -42,6 +46,7 @@ export function TelegramCopilotButton({
   const [isOpen, setIsOpen] = useState(false);
 
   useEffect(() => {
+    if (!listenGlobal) return;
     const handleOpen = (e: Event) => {
       const customEvent = e as CustomEvent<{ modal?: string }>;
       if (customEvent.detail?.modal === "TELEGRAM_COPILOT") {
@@ -50,7 +55,7 @@ export function TelegramCopilotButton({
     };
     window.addEventListener("obsidian:open-modal", handleOpen);
     return () => window.removeEventListener("obsidian:open-modal", handleOpen);
-  }, []);
+  }, [listenGlobal]);
 
   const [pairingInfo, setPairingInfo] = useState<{
     code: string;
@@ -93,22 +98,24 @@ export function TelegramCopilotButton({
 
   return (
     <Dialog open={isOpen} onOpenChange={setIsOpen}>
-      <DialogTrigger asChild>
-        <Button
-          variant={variant}
-          size={size}
-          className={`flex items-center gap-2 rounded-xl border-white/[0.10] bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/[0.16] text-white active:scale-[0.98] transition-all cursor-pointer ${className}`}
-        >
-          <Send className="h-4 w-4 text-[#e5c158]" />
-          <span className="text-xs font-medium hidden sm:inline">
-            {isLoading
-              ? "Telegram..."
-              : isConnected
-              ? `@${telegramUsername || "Telegram"}`
-              : "Telegram"}
-          </span>
-        </Button>
-      </DialogTrigger>
+      {!headless && (
+        <DialogTrigger asChild>
+          <Button
+            variant={variant}
+            size={size}
+            className={`flex items-center gap-2 rounded-xl border-white/[0.10] bg-white/[0.03] hover:bg-white/[0.06] hover:border-white/[0.16] text-white active:scale-[0.98] transition-all cursor-pointer ${className}`}
+          >
+            <Send className="h-4 w-4 text-[#e5c158]" />
+            <span className="text-xs font-medium hidden sm:inline">
+              {isLoading
+                ? "Telegram..."
+                : isConnected
+                ? `@${telegramUsername || "Telegram"}`
+                : "Telegram"}
+            </span>
+          </Button>
+        </DialogTrigger>
+      )}
 
       <DialogContent className="w-[calc(100vw-2rem)] sm:max-w-md obsidian-card bg-[#0e0e13]/95 backdrop-blur-2xl border-white/[0.09] text-[#f5f5f7] p-6 sm:p-7 rounded-3xl shadow-[0_32px_64px_rgba(0,0,0,0.85),inset_0_1px_0_rgba(255,255,255,0.12)]">
         <DialogHeader className="pb-3 border-b border-white/[0.08]">

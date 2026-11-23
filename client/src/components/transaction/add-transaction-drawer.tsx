@@ -12,10 +12,19 @@ import { PlusIcon, XIcon, Send } from "lucide-react";
 import { useState, useEffect } from "react";
 import TransactionForm from "./transaction-form";
 
-const AddTransactionDrawer = () => {
+interface AddTransactionDrawerProps {
+  headless?: boolean;
+  listenGlobal?: boolean;
+}
+
+const AddTransactionDrawer = ({
+  headless = false,
+  listenGlobal = false,
+}: AddTransactionDrawerProps) => {
   const [open, setOpen] = useState(false);
 
   useEffect(() => {
+    if (!listenGlobal) return;
     const handleOpen = (e: Event) => {
       const customEvent = e as CustomEvent<{ modal?: string }>;
       if (
@@ -27,21 +36,22 @@ const AddTransactionDrawer = () => {
     };
     window.addEventListener("obsidian:open-modal", handleOpen);
     return () => window.removeEventListener("obsidian:open-modal", handleOpen);
-  }, []);
+  }, [listenGlobal]);
 
   const onCloseDrawer = () => {
     setOpen(false);
   };
 
-
   return (
     <Drawer direction="right" open={open} onOpenChange={setOpen}>
-      <DrawerTrigger asChild>
-        <Button className="!cursor-pointer font-semibold shadow-[0_2px_12px_rgba(193,160,99,0.3)]">
-          <PlusIcon className="h-4 w-4" />
-          Add Transaction
-        </Button>
-      </DrawerTrigger>
+      {!headless && (
+        <DrawerTrigger asChild>
+          <Button className="!cursor-pointer font-semibold shadow-[0_2px_12px_rgba(193,160,99,0.3)]">
+            <PlusIcon className="h-4 w-4" />
+            Add Transaction
+          </Button>
+        </DrawerTrigger>
+      )}
       <DrawerContent className="inset-y-0 right-0 h-full w-full sm:max-w-md overflow-y-auto bg-[#0e0e12] border-l border-white/[0.08]">
         <DrawerHeader className="relative pb-3 pt-5 border-b border-white/[0.06]">
           <div>

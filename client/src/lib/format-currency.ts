@@ -6,6 +6,8 @@ const currencyLocaleMap: Record<string, string> = {
   CAD: "en-CA",
   AUD: "en-AU",
   JPY: "ja-JP",
+  AED: "en-AE",
+  SGD: "en-SG",
 };
 
 export const formatCurrency = (

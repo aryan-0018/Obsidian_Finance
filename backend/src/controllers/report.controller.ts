@@ -8,16 +8,18 @@ import {
   resendReportService,
   createInstantReportService,
 } from "../services/report.service";
-import { updateReportSettingSchema } from "../validators/report.validator";
+import {
+  generateReportQuerySchema,
+  instantReportBodySchema,
+  reportIdParamSchema,
+  reportPaginationQuerySchema,
+  updateReportSettingSchema,
+} from "../validators/report.validator";
 
 export const getAllReportsController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id;
-
-    const pagination = {
-      pageSize: parseInt(req.query.pageSize as string) || 20,
-      pageNumber: parseInt(req.query.pageNumber as string) || 1,
-    };
+    const userId = String(req.user?._id);
+    const pagination = reportPaginationQuerySchema.parse(req.query);
 
     const result = await getAllReportsService(userId, pagination);
 
@@ -30,7 +32,7 @@ export const getAllReportsController = asyncHandler(
 
 export const updateReportSettingController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id;
+    const userId = String(req.user?._id);
     const body = updateReportSettingSchema.parse(req.body);
 
     await updateReportSettingService(userId, body);
@@ -43,10 +45,10 @@ export const updateReportSettingController = asyncHandler(
 
 export const generateReportController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id;
-    const { from, to } = req.query;
-    const fromDate = new Date(from as string);
-    const toDate = new Date(to as string);
+    const userId = String(req.user?._id);
+    const { from, to } = generateReportQuerySchema.parse(req.query);
+    const fromDate = new Date(from);
+    const toDate = new Date(to);
 
     const result = await generateReportService(userId, fromDate, toDate);
 
@@ -59,8 +61,8 @@ export const generateReportController = asyncHandler(
 
 export const resendReportController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id;
-    const reportId = req.params.id;
+    const userId = String(req.user?._id);
+    const reportId = reportIdParamSchema.parse(req.params.id);
 
     const result = await resendReportService(userId, reportId);
 
@@ -73,10 +75,12 @@ export const resendReportController = asyncHandler(
 
 export const createInstantReportController = asyncHandler(
   async (req: Request, res: Response) => {
-    const userId = req.user?._id;
-    const { from, to, sendEmail } = req.body;
-    const fromDate = from ? new Date(from as string) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
-    const toDate = to ? new Date(to as string) : new Date();
+    const userId = String(req.user?._id);
+    const { from, to, sendEmail } = instantReportBodySchema.parse(req.body);
+    const toDate = to ? new Date(to) : new Date();
+    const fromDate = from
+      ? new Date(from)
+      : new Date(toDate.getTime() - 30 * 24 * 60 * 60 * 1000);
     const shouldSendEmail = sendEmail === true || sendEmail === "true";
 
     const result = await createInstantReportService(

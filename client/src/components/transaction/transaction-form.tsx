@@ -44,8 +44,8 @@ import { toast } from "sonner";
 
 const formSchema = z.object({
   title: z.string().min(2, { message: "Title must be at least 2 characters." }),
-  amount: z.string().refine((val) => !isNaN(Number(val)) && Number(val) > 0, {
-    message: "Amount must be a positive number.",
+  amount: z.string().refine((val) => !isNaN(Number(val)) && Number(val) >= 0.01, {
+    message: "Amount must be at least 0.01.",
   }),
   type: z.enum([_TRANSACTION_TYPE.INCOME, _TRANSACTION_TYPE.EXPENSE]),
   category: z.string().min(1, { message: "Please select a category." }),
@@ -177,8 +177,11 @@ const TransactionForm = (props: {
 
   // Handle form submission
   const onSubmit = (values: FormValues) => {
-    // if (isCreating || isUpdating) return;
-    console.log("Form submitted:", values);
+    const d = new Date(values.date);
+    const utcNoonIso = new Date(
+      Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0)
+    ).toISOString();
+
     const payload = {
       title: values.title,
       type: values.type,
@@ -186,13 +189,9 @@ const TransactionForm = (props: {
       paymentMethod: values.paymentMethod,
       description: values.description || "",
       amount: Number(values.amount),
-      date: (() => {
-        const d = new Date(values.date);
-        d.setHours(12, 0, 0, 0);
-        return d.toISOString();
-      })(),
+      date: utcNoonIso,
       isRecurring: values.isRecurring || false,
-      recurringInterval: values.frequency || null,
+      recurringInterval: values.isRecurring ? values.frequency || null : null,
       receiptUrl: values.receiptUrl || undefined,
     };
     if (isEdit && transactionId) {
@@ -203,7 +202,7 @@ const TransactionForm = (props: {
           toast.success("Transaction updated successfully");
         })
         .catch((error) => {
-          toast.error(error.data.message || "Failed to update transaction");
+          toast.error(error?.data?.message || "Failed to update transaction");
         });
       return;
     }
@@ -215,7 +214,7 @@ const TransactionForm = (props: {
         toast.success("Transaction created successfully");
       })
       .catch((error) => {
-        toast.error(error.data.message || "Failed to create transaction");
+        toast.error(error?.data?.message || "Failed to create transaction");
       });
   };
 
@@ -491,7 +490,7 @@ const TransactionForm = (props: {
                     <FormLabel>Frequency</FormLabel>
                     <Select
                       onValueChange={field.onChange}
-                      defaultValue={field.value ?? undefined}
+                      value={field.value ?? undefined}
                       disabled={isScanning}
                     >
                       <FormControl className="w-full">

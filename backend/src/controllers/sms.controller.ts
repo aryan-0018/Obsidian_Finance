@@ -6,21 +6,28 @@ import { authenticateApiKey } from "../services/api-key.service";
 import { parseBankSms, checkDuplicateSmsTransaction } from "../services/sms-parser.service";
 import { createTransactionService } from "../services/transaction.service";
 import { getTelegramBotInstance } from "../services/telegram.service";
+import { escapeHtml } from "../utils/security";
 
 export const ingestSmsController = asyncHandler(
   async (req: Request, res: Response) => {
     // 1. Authenticate via private API Key header
-    const rawApiKey = (req.headers["x-api-key"] || req.headers["authorization"]?.replace(/^Bearer\s+/i, "")) as string | undefined;
+    const rawApiKey = (req.headers["x-api-key"] ||
+      req.headers["authorization"]?.replace(/^Bearer\s+/i, "")) as
+      | string
+      | undefined;
     const user = await authenticateApiKey(rawApiKey);
 
     // 2. Extract and validate incoming payload
     const { message, sender } = req.body;
     if (!message || typeof message !== "string" || message.trim().length === 0) {
-      throw new BadRequestException("Field 'message' is required and must be non-empty text");
+      throw new BadRequestException(
+        "Field 'message' is required and must be non-empty text"
+      );
     }
 
-    const cleanMessage = message.trim();
-    const cleanSender = typeof sender === "string" ? sender.trim() : undefined;
+    const cleanMessage = message.trim().slice(0, 2000);
+    const cleanSender =
+      typeof sender === "string" ? sender.trim().slice(0, 120) : undefined;
 
     // 3. Parse SMS with zero-latency deterministic regex + AI fallback
     const parsed = await parseBankSms(cleanMessage, cleanSender);
@@ -48,7 +55,7 @@ export const ingestSmsController = asyncHandler(
       });
     }
 
-    // 5. Commit clean transaction to ledger and balance (only essential fields)
+    // 5. Commit clean transaction to ledger and balance (with externalRef deduplication)
     const transaction = await createTransactionService(
       {
         title: parsed.title,
@@ -56,8 +63,9 @@ export const ingestSmsController = asyncHandler(
         type: parsed.type,
         category: parsed.category,
         paymentMethod: parsed.paymentMethod,
-        date: new Date(),
+        date: parsed.date || new Date(),
         description: `Automated SMS Ingest: ${parsed.title}`,
+        externalRef: parsed.externalRef || null,
         isRecurring: false,
       },
       user._id.toString()
@@ -69,21 +77,27 @@ export const ingestSmsController = asyncHandler(
         const bot = getTelegramBotInstance();
         if (bot) {
           const typeIcon = parsed.type === "INCOME" ? "📈" : "📉";
-          const formattedAmt = new Intl.NumberFormat("en-IN", {
-            style: "currency",
-            currency: "INR",
-          }).format(parsed.amount);
+          const currency = user.currency || "INR";
+          const formattedAmt = new Intl.NumberFormat(
+            currency === "INR" ? "en-IN" : "en-US",
+            {
+              style: "currency",
+              currency,
+            }
+          ).format(parsed.amount);
 
           const alertMsg =
-            `📲 *SMS Auto-Logged*\n\n` +
-            `${typeIcon} *${parsed.title}*\n` +
-            `💰 *Amount:* ${formattedAmt}\n` +
-            `🏷️ *Category:* ${parsed.category.toUpperCase()}\n\n` +
-            `_Synced dynamically with your Obsidian ledger._`;
+            `📲 <b>SMS Auto-Logged</b>\n\n` +
+            `${typeIcon} <b>${escapeHtml(parsed.title)}</b>\n` +
+            `💰 <b>Amount:</b> ${escapeHtml(formattedAmt)}\n` +
+            `🏷️ <b>Category:</b> ${escapeHtml(parsed.category.toUpperCase())}\n\n` +
+            `<i>Synced dynamically with your Obsidian ledger.</i>`;
 
-          bot.telegram.sendMessage(user.telegramChatId, alertMsg, {
-            parse_mode: "Markdown",
-          }).catch(() => {});
+          bot.telegram
+            .sendMessage(user.telegramChatId, alertMsg, {
+              parse_mode: "HTML",
+            })
+            .catch(() => {});
         }
       } catch {
         // Silently continue if Telegram ping fails

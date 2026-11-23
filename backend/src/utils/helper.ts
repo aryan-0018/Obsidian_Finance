@@ -6,7 +6,7 @@ export function calulateNextReportDate(lastSentDate?: Date): Date {
   const lastSent = lastSentDate || now;
 
   const nextDate = startOfMonth(addMonths(lastSent, 1));
-  nextDate.setHours(0, 0, 0, 0);
+  nextDate.setUTCHours(0, 0, 0, 0);
 
   return nextDate;
 }
@@ -16,7 +16,7 @@ export function calculateNextOccurrence(
   recurringInterval: keyof typeof RecurringIntervalEnum
 ) {
   const base = new Date(date);
-  base.setHours(0, 0, 0, 0);
+  base.setUTCHours(0, 0, 0, 0);
 
   switch (recurringInterval) {
     case RecurringIntervalEnum.DAILY:

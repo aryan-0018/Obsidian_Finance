@@ -2,12 +2,21 @@ import { v2 as cloudinary } from "cloudinary";
 import { CloudinaryStorage } from "multer-storage-cloudinary";
 import { Env } from "./env.config";
 import multer from "multer";
+import { BadRequestException } from "../utils/app-error";
 
-cloudinary.config({
-  cloud_name: Env.CLOUDINARY_CLOUD_NAME,
-  api_key: Env.CLOUDINARY_API_KEY,
-  api_secret: Env.CLOUDINARY_API_SECRET,
-});
+const isCloudinaryConfigured = Boolean(
+  Env.CLOUDINARY_CLOUD_NAME &&
+    Env.CLOUDINARY_API_KEY &&
+    Env.CLOUDINARY_API_SECRET
+);
+
+if (isCloudinaryConfigured) {
+  cloudinary.config({
+    cloud_name: Env.CLOUDINARY_CLOUD_NAME,
+    api_key: Env.CLOUDINARY_API_KEY,
+    api_secret: Env.CLOUDINARY_API_SECRET,
+  });
+}
 
 const STORAGE_PARAMS = {
   folder: "images",
@@ -16,20 +25,27 @@ const STORAGE_PARAMS = {
   quality: "auto:good" as const,
 };
 
-const storage = new CloudinaryStorage({
-  cloudinary,
-  params: () => ({
-    ...STORAGE_PARAMS,
-  }),
-});
+const storage = isCloudinaryConfigured
+  ? new CloudinaryStorage({
+      cloudinary,
+      params: () => ({
+        ...STORAGE_PARAMS,
+      }),
+    })
+  : multer.memoryStorage();
 
 export const upload = multer({
   storage,
   limits: { fileSize: 5 * 1024 * 1024, files: 1 },
   fileFilter: (_, file, cb) => {
-    const isValid = /^image\/(jpe?g|png)$/i.test(file.mimetype);
-    if (!isValid) {
-      cb(new Error("Invalid file format. Only JPG, JPEG, and PNG are allowed."));
+    const extValid = /\.(jpe?g|png)$/i.test(file.originalname || "");
+    const mimeValid = /^image\/(jpe?g|png)$/i.test(file.mimetype || "");
+    if (!extValid || !mimeValid) {
+      cb(
+        new BadRequestException(
+          "Invalid file format. Only JPG, JPEG, and PNG images are allowed."
+        )
+      );
       return;
     }
 
@@ -41,18 +57,17 @@ export const uploadBufferToCloudinary = async (
   buffer: Buffer,
   folder: string = "receipts"
 ): Promise<string> => {
-  if (
-    !Env.CLOUDINARY_CLOUD_NAME ||
-    !Env.CLOUDINARY_API_KEY ||
-    !Env.CLOUDINARY_API_SECRET
-  ) {
+  if (!isCloudinaryConfigured) {
     return "";
   }
   return new Promise((resolve) => {
-    const timer = setTimeout(() => {
-      console.warn("[Cloudinary] Upload timed out after 6000ms");
-      resolve("");
-    }, 6000);
+    let settled = false;
+    const finish = (url: string) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timer);
+      resolve(url);
+    };
 
     const uploadStream = cloudinary.uploader.upload_stream(
       {
@@ -60,15 +75,25 @@ export const uploadBufferToCloudinary = async (
         resource_type: "auto",
       },
       (error, result) => {
-        clearTimeout(timer);
         if (error || !result) {
           console.warn("[Cloudinary] Upload notice:", error?.message || error);
-          resolve("");
+          finish("");
         } else {
-          resolve(result.secure_url || "");
+          finish(result.secure_url || "");
         }
       }
     );
+
+    const timer = setTimeout(() => {
+      console.warn("[Cloudinary] Upload timed out after 6000ms");
+      try {
+        uploadStream.destroy();
+      } catch {
+        // ignore
+      }
+      finish("");
+    }, 6000);
+
     uploadStream.end(buffer);
   });
 };

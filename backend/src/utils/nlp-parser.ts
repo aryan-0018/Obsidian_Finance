@@ -22,6 +22,33 @@ export const VALID_CATEGORIES = [
  * Universal Multi-format Date Parser for Global & Indian Bank Statements and Receipts
  * Supports: DD/MM/YYYY, DD-MM-YYYY, DD.MM.YYYY, 2-digit years (15/01/26), DD-MMM-YYYY (24-OCT-26, 01-Mar-2026), YYYY-MM-DD
  */
+const makeValidatedUtcDate = (
+  year: number,
+  monthZeroBased: number,
+  day: number
+): Date | null => {
+  if (
+    monthZeroBased < 0 ||
+    monthZeroBased > 11 ||
+    day < 1 ||
+    day > 31 ||
+    year < 1970 ||
+    year > 2100
+  ) {
+    return null;
+  }
+  const d = new Date(Date.UTC(year, monthZeroBased, day));
+  if (
+    Number.isNaN(d.getTime()) ||
+    d.getUTCFullYear() !== year ||
+    d.getUTCMonth() !== monthZeroBased ||
+    d.getUTCDate() !== day
+  ) {
+    return null;
+  }
+  return d;
+};
+
 export const parseBankDate = (raw: string | undefined): Date => {
   if (!raw) return new Date();
   const trimmed = String(raw).trim();
@@ -33,14 +60,13 @@ export const parseBankDate = (raw: string | undefined): Date => {
     const month = parseInt(dmyMatch[2], 10) - 1;
     let year = parseInt(dmyMatch[3], 10);
     if (year < 100) year += 2000;
-    const d = new Date(Date.UTC(year, month, day));
-    if (!isNaN(d.getTime())) return d;
+    return makeValidatedUtcDate(year, month, day) ?? new Date();
   }
 
   // 2. DD-MMM-YYYY or DD/MMM/YYYY or DD-MMM-YY e.g. 15-Jan-2026, 24/OCT/26
   const monthNames: Record<string, number> = {
     jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
-    jul: 6, aug: 7, sep: 8, sept: 8, oct: 9, nov: 10, dec: 11
+    jul: 6, aug: 7, sep: 8, sept: 8, oct: 9, nov: 10, dec: 11,
   };
   const dMmmYMatch = trimmed.match(/^(\d{1,2})[-/. ]([A-Za-z]{3,4})[-/. ](\d{2,4})$/);
   if (dMmmYMatch) {
@@ -50,9 +76,9 @@ export const parseBankDate = (raw: string | undefined): Date => {
     let year = parseInt(dMmmYMatch[3], 10);
     if (year < 100) year += 2000;
     if (month !== undefined) {
-      const d = new Date(Date.UTC(year, month, day));
-      if (!isNaN(d.getTime())) return d;
+      return makeValidatedUtcDate(year, month, day) ?? new Date();
     }
+    return new Date();
   }
 
   // 3. YYYY-MM-DD
@@ -61,8 +87,7 @@ export const parseBankDate = (raw: string | undefined): Date => {
     const year = parseInt(ymdMatch[1], 10);
     const month = parseInt(ymdMatch[2], 10) - 1;
     const day = parseInt(ymdMatch[3], 10);
-    const d = new Date(Date.UTC(year, month, day));
-    if (!isNaN(d.getTime())) return d;
+    return makeValidatedUtcDate(year, month, day) ?? new Date();
   }
 
   const fallback = new Date(trimmed);
@@ -184,11 +209,131 @@ export const parseWordsToNumber = (text: string): number | null => {
   return found && total > 0 ? total : null;
 };
 
+const NUMBER_SCALE_MAP: Record<string, number> = {
+  sau: 100,
+  hundred: 100,
+  hundreds: 100,
+  hazaar: 1000,
+  hazar: 1000,
+  thousand: 1000,
+  thousands: 1000,
+  k: 1000,
+  lakh: 100000,
+  lakhs: 100000,
+  lac: 100000,
+  lacs: 100000,
+  l: 100000,
+  crore: 10000000,
+  crores: 10000000,
+  cr: 10000000,
+};
+
+/**
+ * Extracts composite numeric phrases that mix digits and Indian number words,
+ * e.g. "1 lakh 70 thousand", "one lakh 70,000", "2 crore 5 lakh", "1.7L", "25k".
+ * Returns the first high-confidence scaled phrase if present.
+ */
+const parseCompositeIndianPhrase = (text: string): number | null => {
+  const expanded = text
+    .toLowerCase()
+    .replace(/,/g, "")
+    .replace(/(\d+(?:\.\d+)?)(crores?|cr|lakhs?|lacs?|lac|l|thousands?|hazaar|hazar|k|hundreds?|sau)\b/gi, "$1 $2")
+    .replace(/[^a-z0-9.\s]/g, " ");
+
+  const tokens = expanded.split(/\s+/).filter(Boolean);
+
+  let total = 0;
+  let current = 0;
+  let inPhrase = false;
+  let hasScale = false;
+  const results: Array<{ value: number; hasScale: boolean }> = [];
+
+  const flushPhrase = () => {
+    const val = Math.round((total + current) * 100) / 100;
+    if (inPhrase && val > 0) {
+      results.push({ value: val, hasScale });
+    }
+    total = 0;
+    current = 0;
+    inPhrase = false;
+    hasScale = false;
+  };
+
+  for (let i = 0; i < tokens.length; i++) {
+    const t = tokens[i];
+
+    if (t === "and" && inPhrase) {
+      const next = tokens[i + 1];
+      if (
+        next &&
+        (/^\d+(?:\.\d+)?$/.test(next) ||
+          NUMBER_WORDS_MAP[next] !== undefined ||
+          NUMBER_SCALE_MAP[next] !== undefined)
+      ) {
+        continue;
+      }
+    }
+
+    const scale = NUMBER_SCALE_MAP[t];
+    if (scale !== undefined) {
+      if (!inPhrase && scale === 1000 && t === "k") {
+        // Standalone "k" without leading number is not a number
+        flushPhrase();
+        continue;
+      }
+      inPhrase = true;
+      hasScale = true;
+      if (scale === 100) {
+        current = (current === 0 ? 1 : current) * 100;
+      } else {
+        total += (current === 0 ? 1 : current) * scale;
+        current = 0;
+      }
+      continue;
+    }
+
+    if (/^\d+(?:\.\d+)?$/.test(t)) {
+      const num = parseFloat(t);
+      if (!Number.isNaN(num)) {
+        inPhrase = true;
+        current += num;
+        continue;
+      }
+    }
+
+    if (NUMBER_WORDS_MAP[t] !== undefined) {
+      const val = NUMBER_WORDS_MAP[t];
+      inPhrase = true;
+      if (val === 100) {
+        current = (current === 0 ? 1 : current) * 100;
+      } else if (val >= 1000) {
+        hasScale = true;
+        total += (current === 0 ? 1 : current) * val;
+        current = 0;
+      } else {
+        current += val;
+      }
+      continue;
+    }
+
+    flushPhrase();
+  }
+  flushPhrase();
+
+  const scaled = results.find((r) => r.hasScale && r.value > 0);
+  return scaled ? scaled.value : null;
+};
+
 /**
  * Universal Indian & Global Currency Expression Parser
  */
 export const parseIndianCurrencyExpression = (text: string): number | null => {
-  const clean = text.toLowerCase().replace(/,/g, "");
+  // Collapse comma separators and Web Speech space-separated digit groups (e.g. "70 000" -> "70000", "1 70000" -> "170000")
+  const clean = text
+    .toLowerCase()
+    .replace(/,/g, "")
+    .replace(/\b(\d+)\s+(\d{3})\b/g, "$1$2")
+    .replace(/\b(\d{1,2})\s+(\d{5})\b/g, "$1$2");
 
   // 1. Dedicated Hindi / Hinglish colloquial composite phrases
   if (/\bdedh\s*sau\b/i.test(clean)) return 150;
@@ -198,31 +343,13 @@ export const parseIndianCurrencyExpression = (text: string): number | null => {
   if (/\bdedh\s*(?:lakh|lac|l)\b/i.test(clean)) return 150000;
   if (/\bdh?ai\s*(?:lakh|lac|l)\b/i.test(clean)) return 250000;
 
-  // 2. Crores e.g. "1.5 crore", "2 cr"
-  const crMatch = clean.match(/(\d+(?:\.\d+)?)\s*(?:crores?|cr\b)/i);
-  if (crMatch) {
-    return Math.round(parseFloat(crMatch[1]) * 10000000);
+  // 2. Composite scaled Indian/word phrases ("1 lakh 70 thousand", "1 lakh 70,000", "one lakh seventy thousand", "25k")
+  const compositeScaled = parseCompositeIndianPhrase(clean);
+  if (compositeScaled !== null && compositeScaled > 0) {
+    return compositeScaled;
   }
 
-  // 3. Lakhs e.g. "1.5 lakh", "2.5 lakh", "1 lac", "3L"
-  const lakhMatch = clean.match(/(\d+(?:\.\d+)?)\s*(?:lakhs?|lacs?|lac\b|l\b)/i);
-  if (lakhMatch) {
-    return Math.round(parseFloat(lakhMatch[1]) * 100000);
-  }
-
-  // 4. Thousands / K / Hazaar e.g. "25k", "50 k", "10 hazaar", "5 thousand"
-  const kMatch = clean.match(/(\d+(?:\.\d+)?)\s*(?:k\b|kilo\b|thousands?|hazaar|hazar)/i);
-  if (kMatch) {
-    return Math.round(parseFloat(kMatch[1]) * 1000);
-  }
-
-  // 5. Hundreds / Sau e.g. "500 bucks", "5 sau"
-  const sauMatch = clean.match(/(\d+(?:\.\d+)?)\s*(?:sau\b)/i);
-  if (sauMatch) {
-    return Math.round(parseFloat(sauMatch[1]) * 100);
-  }
-
-  // 6. Explicit currency with symbols or currency units
+  // 3. Explicit currency with symbols or currency units
   const explicitCurrencyMatch = clean.match(
     /(?:₹|rs\.?|inr|\$)\s*(\d+(?:\.\d+)?)|(\d+(?:\.\d+)?)\s*(?:rupees?|rupaye|rs\.?|bucks|inr)\b/i
   );
@@ -414,10 +541,17 @@ export const detectIndianMerchantAndCategory = (
     };
   }
 
-  // Shopping & E-Commerce
-  if (/\b(amazon|flipkart|myntra|meesho|ajio|nykaa|zara|h&m|hnm|uniqlo|shopping|mall|clothes|shoes|sneakers|shirt|dress|jeans|electronics|gadget|watch)\b/i.test(lower)) {
+  // Shopping & E-Commerce & Electronics
+  if (/\b(amazon|flipkart|myntra|meesho|ajio|nykaa|zara|h&m|hnm|uniqlo|shopping|mall|clothes|shoes|sneakers|shirt|dress|jeans|electronics|gadget|watch|iphone|ipad|macbook|apple|airpods|laptop|mobile|smartphone|phone|headphones|earbuds|tv|television|camera|tablet|console|ps5|xbox)\b/i.test(lower)) {
     let title = "Shopping";
-    if (/\bamazon\b/i.test(lower)) title = "Amazon";
+    if (/\biphone\b/i.test(lower)) title = "iPhone";
+    else if (/\bmacbook\b/i.test(lower)) title = "MacBook";
+    else if (/\bipad\b/i.test(lower)) title = "iPad";
+    else if (/\bairpods\b/i.test(lower)) title = "AirPods";
+    else if (/\blaptop\b/i.test(lower)) title = "Laptop";
+    else if (/\bsmartphone|mobile|phone\b/i.test(lower)) title = "Smartphone";
+    else if (/\bheadphones|earbuds\b/i.test(lower)) title = "Headphones";
+    else if (/\bamazon\b/i.test(lower)) title = "Amazon";
     else if (/\bflipkart\b/i.test(lower)) title = "Flipkart";
     else if (/\bmyntra\b/i.test(lower)) title = "Myntra";
     else if (/\bshoes|sneakers\b/i.test(lower)) title = "Shoes / Footwear";
@@ -494,9 +628,13 @@ export const detectIndianMerchantAndCategory = (
   }
 
   // Generic extraction of title from remaining meaningful words
+  const numberWordKeys = Object.keys(NUMBER_WORDS_MAP).join("|");
   const cleaned = lower
     .replace(
-      /\b(spent|spend|paid|pay|bought|buy|ordered|cost|gave|got|received|credited|debited|earned|transferred|added|add|record|log|entry|expense|income|yesterday|today|last|night|morning|evening|afternoon|please|can|you|for|on|in|towards|at|via|with|bucks|rs|rupees|rupaye|inr|thousand|hundred|lakh|crore)\b/gi,
+      new RegExp(
+        `\\b(spent|spend|paid|pay|bought|buy|ordered|purchased|cost|gave|got|received|earned|credited|debited|earned|transferred|added|add|record|log|entry|expense|income|yesterday|today|last|night|morning|evening|afternoon|please|can|you|forr|for|of|on|in|towards|to|the|an|my|this|that|worth|approx|around|about|just|at|via|with|bucks|rs|rupees|rupaye|inr|thousand|thousands|hundred|hundreds|lakhs?|lacs?|crores?|sau|hazaar|hazar|${numberWordKeys})\\b`,
+        "gi"
+      ),
       ""
     )
     .replace(/[0-9₹$,.]/g, "")

@@ -23,6 +23,8 @@ export interface SummaryAnalyticsResponse {
   message: string;
   data: {
     availableBalance: number;
+    totalPortfolioBalance?: number;
+    basePortfolioBalance?: number;
     remainingBudget?: number;
     budgetLimit?: number;
     totalIncome: number;

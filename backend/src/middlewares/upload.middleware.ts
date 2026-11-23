@@ -1,4 +1,5 @@
 import multer from "multer";
+import { BadRequestException } from "../utils/app-error";
 
 const memoryStorage = multer.memoryStorage();
 
@@ -9,16 +10,26 @@ export const statementUpload = multer({
     files: 1,
   },
   fileFilter: (_, file, cb) => {
-    const isAllowed =
-      file.mimetype === "application/pdf" ||
-      file.mimetype === "text/csv" ||
-      file.mimetype === "application/vnd.ms-excel" ||
-      file.originalname.match(/\.(pdf|csv|txt)$/i);
+    const extAllowed = /\.(pdf|csv|txt|png|jpe?g|webp|heic)$/i.test(
+      file.originalname || ""
+    );
+    const mimeAllowed = [
+      "application/pdf",
+      "text/csv",
+      "text/plain",
+      "application/csv",
+      "application/vnd.ms-excel",
+      "image/jpeg",
+      "image/jpg",
+      "image/png",
+      "image/webp",
+      "image/heic",
+    ].includes((file.mimetype || "").toLowerCase());
 
-    if (!isAllowed) {
+    if (!extAllowed || !mimeAllowed) {
       return cb(
-        new Error(
-          "Invalid statement format. Please upload a PDF or CSV bank statement."
+        new BadRequestException(
+          "Invalid statement format. Please upload a PDF, CSV, or statement screenshot image (PNG/JPG/WEBP/HEIC)."
         )
       );
     }
@@ -33,19 +44,20 @@ export const receiptMemoryUpload = multer({
     files: 1,
   },
   fileFilter: (_, file, cb) => {
-    const isImageOrPdf =
-      /^image\/(jpe?g|png|webp|heic)$/i.test(file.mimetype) ||
-      file.mimetype === "application/pdf" ||
-      file.originalname.match(/\.(jpe?g|png|webp|heic|pdf)$/i);
+    const extAllowed = /\.(jpe?g|png|webp|heic|pdf)$/i.test(
+      file.originalname || ""
+    );
+    const mimeAllowed =
+      /^image\/(jpe?g|png|webp|heic)$/i.test(file.mimetype || "") ||
+      (file.mimetype || "").toLowerCase() === "application/pdf";
 
-    if (!isImageOrPdf) {
+    if (!extAllowed || !mimeAllowed) {
       return cb(
-        new Error(
-          "Invalid receipt format. Please upload a JPG, PNG, WEBP, or PDF receipt."
+        new BadRequestException(
+          "Invalid receipt format. Please upload a valid JPG, PNG, WEBP, HEIC, or PDF receipt."
         )
       );
     }
     cb(null, true);
   },
 });
-

@@ -20,10 +20,12 @@ import { GoogleLogin } from "@react-oauth/google";
 import { useAppDispatch } from "@/app/hook";
 import { setCredentials } from "@/features/auth/authSlice";
 import { PROTECTED_ROUTES } from "@/routes/common/routePath";
+const hasGoogleOAuth = Boolean(import.meta.env.VITE_GOOGLE_CLIENT_ID?.trim());
+
 const schema = z.object({
-  name: z.string().min(2, "Name must be at least 2 characters"),
+  name: z.string().trim().min(2, "Name must be at least 2 characters"),
   email: z.string().email("Invalid email address"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
+  password: z.string().min(8, "Password must be at least 8 characters"),
 });
 
 type FormValues = z.infer<typeof schema>;
@@ -51,8 +53,7 @@ const SignUpForm = () => {
         navigate(AUTH_ROUTES.SIGN_IN);
       })
       .catch((error) => {
-        console.log(error);
-        toast.error(error.data?.message || "Failed to sign up");
+        toast.error(error?.data?.message || "Failed to sign up");
       });
   };
 
@@ -113,7 +114,7 @@ const SignUpForm = () => {
                 <FormControl>
                   <Input
                     type="password"
-                    placeholder="Min. 6 characters"
+                    placeholder="Min. 8 characters"
                     autoComplete="new-password"
                     className="h-10 text-sm rounded-xl bg-white/[0.04] border-white/[0.08] text-[#e5b83b] caret-[#e5b83b] focus-visible:ring-[#e5b83b]/30 focus-visible:border-[#e5b83b]/60 auth-input"
                     {...field}
@@ -133,35 +134,45 @@ const SignUpForm = () => {
               Create Account
             </Button>
 
-            <div className="relative border-b border-white/[0.08] my-1">
-              <span className="absolute bg-[#0e0e13] px-2 text-[10px] text-[#8e8e93] uppercase tracking-widest top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
-                OR
-              </span>
-            </div>
+            {hasGoogleOAuth && (
+              <>
+                <div className="relative border-b border-white/[0.08] my-1">
+                  <span className="absolute bg-[#0e0e13] px-2 text-[10px] text-[#8e8e93] uppercase tracking-widest top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2">
+                    OR
+                  </span>
+                </div>
 
-            <div className="flex justify-center">
-              <GoogleLogin
-                onSuccess={(credentialResponse) => {
-                  googleLogin({ token: credentialResponse.credential })
-                    .unwrap()
-                    .then((data) => {
-                      dispatch(setCredentials(data));
-                      toast.success("Account created via Google successfully");
-                      setTimeout(() => navigate(PROTECTED_ROUTES.OVERVIEW), 1000);
-                    })
-                    .catch((error) => {
-                      toast.error(error.data?.message || "Google Signup processing failed");
-                    });
-                }}
-                onError={() => {
-                  toast.error("Google authentication failed");
-                }}
-                theme="filled_black"
-                shape="pill"
-                width="300"
-                text="signup_with"
-              />
-            </div>
+                <div className="flex justify-center">
+                  <GoogleLogin
+                    onSuccess={(credentialResponse) => {
+                      if (!credentialResponse.credential) {
+                        toast.error("Google credential token missing");
+                        return;
+                      }
+                      googleLogin({ token: credentialResponse.credential })
+                        .unwrap()
+                        .then((data) => {
+                          dispatch(setCredentials(data));
+                          toast.success("Account created via Google successfully");
+                          navigate(PROTECTED_ROUTES.OVERVIEW, { replace: true });
+                        })
+                        .catch((error) => {
+                          toast.error(
+                            error?.data?.message || "Google Signup processing failed"
+                          );
+                        });
+                    }}
+                    onError={() => {
+                      toast.error("Google authentication failed");
+                    }}
+                    theme="filled_black"
+                    shape="pill"
+                    width="300"
+                    text="signup_with"
+                  />
+                </div>
+              </>
+            )}
           </div>
         </div>
         <div className="text-center text-xs text-[#8e8e93] pt-0.5">

@@ -132,7 +132,7 @@ export interface BankStatementParseResponse {
   message: string;
   data: {
     fileName: string;
-    fileType: "PDF" | "CSV";
+    fileType: "PDF" | "CSV" | "IMAGE";
     totalTransactions: number;
     totalIncome: number;
     totalExpense: number;

@@ -63,7 +63,8 @@ export const AmountCell = ({
 export const EditableDateCell = ({ row }: { row: any }) => {
   const transaction = row.original;
   const transactionId = transaction._id || transaction.id;
-  const currentDate = new Date(transaction.date);
+  const parsedDate = transaction.date ? new Date(transaction.date) : new Date();
+  const currentDate = Number.isNaN(parsedDate.getTime()) ? new Date() : parsedDate;
   const [open, setOpen] = useState(false);
   const [updateTransaction, { isLoading }] = useUpdateTransactionMutation();
 
@@ -71,15 +72,16 @@ export const EditableDateCell = ({ row }: { row: any }) => {
     if (!newDate) return;
     setOpen(false);
     try {
-      const d = new Date(newDate);
-      d.setHours(12, 0, 0, 0);
+      const utcNoon = new Date(
+        Date.UTC(newDate.getFullYear(), newDate.getMonth(), newDate.getDate(), 12, 0, 0)
+      );
       await updateTransaction({
         id: transactionId,
         transaction: {
-          date: d.toISOString(),
+          date: utcNoon.toISOString(),
         },
       }).unwrap();
-      toast.success(`Date updated to ${format(d, "MMM dd, yyyy")}`);
+      toast.success(`Date updated to ${format(newDate, "MMM dd, yyyy")}`);
     } catch (err: any) {
       toast.error(err?.data?.message || "Failed to update date");
     }
@@ -181,16 +183,17 @@ export const ActionsCell = ({ row }: { row: any }) => {
           <Pencil className="mr-2 h-3.5 w-3.5 text-[#c1a063]" />
           Edit
         </DropdownMenuItem>
-        {row.original.receiptUrl && (
-          <DropdownMenuItem
-            asChild
-            className="rounded-xl cursor-pointer hover:bg-white/5 focus:bg-white/10 text-xs"
-          >
-            <a
-              href={row.original.receiptUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex items-center"
+        {row.original.receiptUrl &&
+          /^https?:\/\//i.test(row.original.receiptUrl) && (
+            <DropdownMenuItem
+              asChild
+              className="rounded-xl cursor-pointer hover:bg-white/5 focus:bg-white/10 text-xs"
+            >
+              <a
+                href={row.original.receiptUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center"
             >
               <FileText className="mr-2 h-3.5 w-3.5 text-[#c1a063]" />
               View Receipt

@@ -1,7 +1,7 @@
 import { DataTable } from "@/components/data-table";
 import { transactionColumns } from "./column";
 import { _TRANSACTION_TYPE, _TransactionType, CATEGORIES } from "@/constant";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import useDebouncedSearch from "@/hooks/use-debounce-search";
 import {
@@ -182,16 +182,21 @@ const TransactionTable = (props: {
       });
   };
 
+  const initialFilters = useMemo(
+    () => ({
+      ...(urlType ? { type: urlType } : {}),
+      ...(urlCategory ? { category: urlCategory } : {}),
+    }),
+    [urlType, urlCategory]
+  );
+
   return (
     <DataTable
       data={transactions}
       columns={transactionColumns}
       searchPlaceholder="Search transactions..."
       initialSearchTerm={urlKeyword}
-      initialFilters={{
-        ...(urlType ? { type: urlType } : {}),
-        ...(urlCategory ? { category: urlCategory } : {}),
-      }}
+      initialFilters={initialFilters}
       isLoading={isFetching}
       isBulkDeleting={isBulkDeleting}
       isShowPagination={props.isShowPagination}
