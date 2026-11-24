@@ -66,8 +66,14 @@ export const parseDeterministicIndianSms = (
   }
 
   // 1. Transaction Intent Detection & Directional Ownership Analysis
-  const hasDebit = /\b(debited|paid|spent|sent|transferred|withdrawn|purchase|deducted|debit|dr|dr\.)\b/i.test(lower);
-  const hasCredit = /\b(credited|received|deposit|deposited|refund|refunded|cashback|credit|cr|cr\.)\b/i.test(lower);
+  const hasDebit =
+    /\b(debited|paid|spent|sent|transferred|withdrawn|purchase|purchased|deducted|debit|dr|dr\.|used for|used at|was used)\b/i.test(
+      lower
+    );
+  const hasCredit =
+    /\b(credited|received|deposit|deposited|refund|refunded|cashback|cr|cr\.)\b/i.test(
+      lower
+    ) || /\bcredit\b(?!\s+(?:card|limit))/i.test(lower);
 
   // If neither intent is present, ignore
   if (!hasDebit && !hasCredit) return null;
@@ -75,15 +81,21 @@ export const parseDeterministicIndianSms = (
   // Resolve type: Check directional grammar relative to user's Account / Card
   let type: TransactionTypeEnum = TransactionTypeEnum.EXPENSE;
 
-  // Case A: Clear Debit from user's account (e.g. "Dr. from A/C", "debited from a/c", "A/C ... Dr", "spent on card")
+  // Case A: Clear Debit from user's account (e.g. "Dr. from A/C", "debited from a/c", "A/C ... Dr", "spent on card", "Card ... was used")
   const isDebitFromUser =
-    /\b(?:dr\.?|debited|spent|paid|withdrawn)\s+(?:from|on|by)?\s*(?:a\/c|acct|card)\b/i.test(lower) ||
-    /\b(?:a\/c|acct|card)\s*[^.]*?\b(?:dr\.?|debited)\b/i.test(lower) ||
+    /\b(?:dr\.?|debited|spent|paid|withdrawn|used)\s+(?:from|on|by|at|for)?\s*(?:a\/c|acct|card)\b/i.test(
+      lower
+    ) ||
+    /\b(?:a\/c|acct|card)\s*[^.]*?\b(?:dr\.?|debited|used for|used at|was used)\b/i.test(
+      lower
+    ) ||
     /\bdr\.?\s+from\b/i.test(lower);
 
   // Case B: Clear Credit to user's account (e.g. "Cr. to A/C", "credited to a/c", "A/C ... Cr", "deposited in a/c")
   const isCreditToUser =
-    /\b(?:cr\.?|credited|deposited|received|refunded)\s+(?:to|in|into)?\s*(?:a\/c|acct|card)\b/i.test(lower) ||
+    /\b(?:cr\.?|credited|deposited|received|refunded)\s+(?:to|in|into)?\s*(?:a\/c|acct|card)\b/i.test(
+      lower
+    ) ||
     /\b(?:a\/c|acct|card)\s*[^.]*?\b(?:cr\.?|credited)\b/i.test(lower) ||
     /\bcr\.?\s+to\s+(?:a\/c|acct)\b/i.test(lower);
 
