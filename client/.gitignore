@@ -25,6 +25,7 @@ dist-ssr/
 
 # Testing & Coverage
 coverage/
+tests/
 *.test.js
 *.test.ts
 *.spec.js

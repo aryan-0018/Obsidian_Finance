@@ -5,6 +5,8 @@ node_modules/
 .pnp.js
 
 # Testing, Coverage & Test Runners
+tests/
+*/tests/
 coverage/
 *.lcov
 .nyc_output

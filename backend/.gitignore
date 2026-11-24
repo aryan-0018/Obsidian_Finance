@@ -8,6 +8,7 @@ Thumbs.db
 *.log
 *.log.*
 coverage/
+tests/
 test-dist/
 test-*.js
 test-*.ts
