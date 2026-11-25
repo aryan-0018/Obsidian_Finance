@@ -249,10 +249,10 @@ export default function TelegramCopilotSettings() {
         <div className="obsidian-card rounded-2xl p-5 bg-white/[0.02] border border-white/[0.06] space-y-2">
           <div className="flex items-center gap-2 text-[#e5c158] font-medium text-xs">
             <Sparkles className="h-4 w-4" />
-            <span>Account Inquiries</span>
+            <span>Commands &amp; Alerts</span>
           </div>
           <p className="text-[11px] text-[#8e8e93] font-normal leading-relaxed">
-            Quickly query your finances with &ldquo;What is my balance?&rdquo; or &ldquo;How much did I spend this week?&rdquo;.
+            Use <span className="text-white">/accounts</span>, <span className="text-white">/splits</span>, <span className="text-white">/subscriptions</span>, or <span className="text-white">/digest</span> anytime, plus automatic budget alerts (80% / 100%) and 24h bill reminders.
           </p>
         </div>
       </div>

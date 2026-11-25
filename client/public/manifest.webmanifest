@@ -37,9 +37,15 @@
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     },
     {
-      "name": "AI Analytics",
-      "short_name": "Analytics",
-      "url": "/analytics",
+      "name": "Accounts",
+      "short_name": "Accounts",
+      "url": "/accounts",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
+    },
+    {
+      "name": "Planning",
+      "short_name": "Planning",
+      "url": "/planning",
       "icons": [{ "src": "/icon-192.png", "sizes": "192x192" }]
     }
   ]

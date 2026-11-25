@@ -58,10 +58,19 @@ const Help = () => {
 
               <AccordionItem value="dash-2" className="border-white/[0.06]">
                 <AccordionTrigger className="text-white hover:text-[#e5c158] hover:no-underline font-medium text-[15px] py-4">
-                  Setting Your Spending Budget & Monthly Limits
+                  Setting Monthly &amp; Category Budgets, Goals, and Recurring Bills
                 </AccordionTrigger>
                 <AccordionContent className="text-[#8e8e93] leading-relaxed font-normal text-xs pb-4">
-                  On the <strong>Remaining Budget</strong> card on your dashboard, locate the target spending limit. Click the edit icon to adjust your monthly limit. The progress bar and remaining amount update instantly across the entire application.
+                  Open the <strong>Planning</strong> page to set both your overall monthly budget and per-category caps, track Savings Goals, view detected Recurring Bills, and send a Weekly Summary to Telegram. Telegram notifications fire automatically when a budget reaches 80% or 100%, or 24 hours before a recurring bill is due.
+                </AccordionContent>
+              </AccordionItem>
+
+              <AccordionItem value="dash-4" className="border-white/[0.06]">
+                <AccordionTrigger className="text-white hover:text-[#e5c158] hover:no-underline font-medium text-[15px] py-4">
+                  Multi-Account Balances, Transfers &amp; Shared Expenses
+                </AccordionTrigger>
+                <AccordionContent className="text-[#8e8e93] leading-relaxed font-normal text-xs pb-4">
+                  Use the <strong>Accounts</strong> page to add bank accounts, credit cards, wallets, or cash balances. Adding the last 4 digits automatically links incoming SMS alerts to the matching account. Use <strong>Transfer</strong> to move funds or pay card bills without inflating income or expenses, and track IOUs under <strong>Shared Expenses</strong>.
                 </AccordionContent>
               </AccordionItem>
 
