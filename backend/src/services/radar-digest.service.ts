@@ -356,24 +356,24 @@ export const formatWeeklyDigestHtml = (
       : "First week tracked";
 
   let msg =
-    `📊 <b>Obsidian Weekly Wealth Digest</b>\n` +
-    `Hello, <b>${escapeHtml(digest.userName)}</b>! Here is your 7-day pulse:\n\n` +
-    `💸 <b>7-Day Spend:</b> ${escapeHtml(fmt(digest.thisWeekExpenses))} (${trendIcon} ${escapeHtml(trendText)})\n` +
+    `📊 <b>Weekly Summary</b>\n` +
+    `Hello, <b>${escapeHtml(digest.userName)}</b>. Here is your 7-day overview:\n\n` +
+    `💸 <b>7-Day Spending:</b> ${escapeHtml(fmt(digest.thisWeekExpenses))} (${trendIcon} ${escapeHtml(trendText)})\n` +
     `💰 <b>7-Day Income:</b> ${escapeHtml(fmt(digest.thisWeekIncome))}\n`;
 
   if (digest.accountsSummary.accountCount > 0) {
-    msg += `🏦 <b>Accounts Net Balance:</b> ${escapeHtml(fmt(digest.accountsSummary.netBalance))}\n`;
+    msg += `🏦 <b>Net Account Balance:</b> ${escapeHtml(fmt(digest.accountsSummary.netBalance))}\n`;
   }
 
   if (digest.topCategories.length > 0) {
-    msg += `\n🔥 <b>Top Spending Leaks:</b>\n`;
+    msg += `\n📌 <b>Top Categories:</b>\n`;
     for (const c of digest.topCategories) {
       msg += `  • ${escapeHtml(c.category.toUpperCase())}: ${escapeHtml(fmt(c.amount))}\n`;
     }
   }
 
   if (digest.upcomingRenewals.length > 0) {
-    msg += `\n⏰ <b>Upcoming Renewals (Next 7 Days):</b>\n`;
+    msg += `\n⏰ <b>Upcoming Bills (Next 7 Days):</b>\n`;
     for (const sub of digest.upcomingRenewals) {
       const dueStr =
         sub.daysUntilDue === 0

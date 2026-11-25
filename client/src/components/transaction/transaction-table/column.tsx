@@ -177,7 +177,7 @@ export const transactionColumns: ColumnDef<TransactionType>[] = [
               isIncome
                 ? "bg-[#e5c158]/10 text-[#e5c158] border-[#e5c158]/25"
                 : isTransfer
-                  ? "bg-sky-400/10 text-sky-400 border-sky-400/25"
+                  ? "bg-white/[0.06] text-[#d4d4d8] border-white/[0.12]"
                   : "bg-[#f43f5e]/10 text-[#f43f5e] border-[#f43f5e]/25"
             }`}
           >

@@ -52,9 +52,9 @@ export const AmountCell = ({
     <div
       className={`text-right font-medium tracking-tight text-sm tabular-nums ${
         isIncome
-          ? "text-emerald-400"
+          ? "text-[#e5c158]"
           : isTransfer
-            ? "text-sky-400"
+            ? "text-[#a1a1aa]"
             : "text-white/85"
       }`}
     >

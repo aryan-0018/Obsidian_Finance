@@ -5,7 +5,8 @@ const SignIn = lazy(() => import("@/pages/auth/sign-in"));
 const SignUp = lazy(() => import("@/pages/auth/sign-up"));
 const Dashboard = lazy(() => import("@/pages/dashboard"));
 const Transactions = lazy(() => import("@/pages/transactions"));
-const Wallets = lazy(() => import("@/pages/wallets"));
+const Accounts = lazy(() => import("@/pages/accounts"));
+const Planning = lazy(() => import("@/pages/planning"));
 const Reports = lazy(() => import("@/pages/reports"));
 const Analytics = lazy(() => import("@/pages/analytics"));
 const About = lazy(() => import("@/pages/about"));
@@ -25,7 +26,8 @@ export const authenticationRoutePaths = [
 export const protectedRoutePaths = [
   { path: PROTECTED_ROUTES.OVERVIEW, element: <Dashboard /> },
   { path: PROTECTED_ROUTES.TRANSACTIONS, element: <Transactions /> },
-  { path: PROTECTED_ROUTES.WALLETS, element: <Wallets /> },
+  { path: PROTECTED_ROUTES.ACCOUNTS, element: <Accounts /> },
+  { path: PROTECTED_ROUTES.PLANNING, element: <Planning /> },
   { path: PROTECTED_ROUTES.REPORTS, element: <Reports /> },
   { path: PROTECTED_ROUTES.ANALYTICS, element: <Analytics /> },
   { path: PROTECTED_ROUTES.ABOUT, element: <About /> },

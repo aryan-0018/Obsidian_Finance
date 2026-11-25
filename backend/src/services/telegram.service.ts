@@ -397,8 +397,8 @@ export const initTelegramBot = async () => {
           }).format(val);
 
         let msg =
-          `📡 <b>Subscription &amp; EMI Radar</b>\n` +
-          `Monthly Recurring Burn: <b>${escapeHtml(fmt(radar.summary.totalMonthlyRecurring))}</b>\n\n`;
+          `📡 <b>Recurring Bills &amp; Subscriptions</b>\n` +
+          `Est. Monthly Total: <b>${escapeHtml(fmt(radar.summary.totalMonthlyRecurring))}</b>\n\n`;
 
         for (const sub of radar.subscriptions.slice(0, 8)) {
           const dueLabel =

@@ -1,15 +1,7 @@
 import { useState } from "react";
-import {
-  ArrowDownLeft,
-  ArrowUpRight,
-  CheckCircle2,
-  Handshake,
-  Loader2,
-  Plus,
-  Trash2,
-} from "lucide-react";
+import { CheckCircle2, Handshake, Loader2, Plus, Trash2 } from "lucide-react";
 import { toast } from "sonner";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -40,7 +32,7 @@ import {
 } from "@/features/split/splitAPI";
 import { useGetAllAccountsQuery } from "@/features/account/accountAPI";
 
-export default function SplitsTab() {
+export default function SharedExpensesSection() {
   const { user } = useTypedSelector((state) => state.auth);
   const currency = user?.currency || "INR";
 
@@ -64,7 +56,6 @@ export default function SplitsTab() {
   const [counterpartyShare, setCounterpartyShare] = useState("");
   const [notes, setNotes] = useState("");
 
-  // Settle dialog
   const [settleId, setSettleId] = useState<string | null>(null);
   const [settleAccountId, setSettleAccountId] = useState("none");
   const [logLedgerTx, setLogLedgerTx] = useState(true);
@@ -78,7 +69,7 @@ export default function SplitsTab() {
       return;
     }
     if (share > total) {
-      toast.error("Owed share cannot exceed total bill amount");
+      toast.error("Their share cannot exceed the total bill");
       return;
     }
 
@@ -91,7 +82,7 @@ export default function SplitsTab() {
         counterpartyShare: share,
         notes: notes.trim(),
       }).unwrap();
-      toast.success("Split / IOU added");
+      toast.success("Shared expense added");
       setOpen(false);
       setTitle("");
       setCounterpartyName("");
@@ -99,7 +90,7 @@ export default function SplitsTab() {
       setCounterpartyShare("");
       setNotes("");
     } catch (err: unknown) {
-      toast.error(getApiErrorMessage(err, "Failed to add split"));
+      toast.error(getApiErrorMessage(err, "Failed to save record"));
     }
   };
 
@@ -112,7 +103,7 @@ export default function SplitsTab() {
         accountId: settleAccountId === "none" ? null : settleAccountId,
         logTransaction: logLedgerTx,
       }).unwrap();
-      toast.success("Settled cleanly!");
+      toast.success("Marked as settled");
       setSettleId(null);
       setSettleAccountId("none");
     } catch (err: unknown) {
@@ -123,106 +114,67 @@ export default function SplitsTab() {
   const handleDelete = async (id: string) => {
     try {
       await deleteSplit(id).unwrap();
-      toast.success("Split removed");
+      toast.success("Record removed");
     } catch (err: unknown) {
       toast.error(getApiErrorMessage(err, "Delete failed"));
     }
   };
 
   return (
-    <div className="space-y-6">
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <Card className="bg-[#0e0e13]/85 border-white/[0.08] rounded-2xl">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-medium text-[#8e8e93]">
-              Owed To You
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-emerald-400 tabular-nums">
-              +{formatCurrency(summary?.totalOwedToMe || 0, { currency })}
-            </div>
-            <p className="text-[11px] text-[#8e8e93] mt-1">
-              Money friends owe you
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-[#0e0e13]/85 border-white/[0.08] rounded-2xl">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-medium text-[#8e8e93]">
-              You Owe Others
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-rose-400 tabular-nums">
-              -{formatCurrency(summary?.totalIOwe || 0, { currency })}
-            </div>
-            <p className="text-[11px] text-[#8e8e93] mt-1">
-              Pending amounts you owe
-            </p>
-          </CardContent>
-        </Card>
-
-        <Card className="bg-[#0e0e13]/85 border-white/[0.08] rounded-2xl">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-xs font-medium text-[#8e8e93]">
-              Net Receivable Position
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-[#e5c158] tabular-nums">
-              {formatCurrency(summary?.netReceivable || 0, { currency })}
-            </div>
-            <p className="text-[11px] text-[#8e8e93] mt-1">
-              {summary?.pendingCount || 0} open items
-            </p>
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Header + Add Split */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
+    <section className="space-y-6 pt-4 border-t border-white/[0.06]">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
-          <h3 className="text-sm font-semibold text-white">
-            Split Bills &amp; IOUs
-          </h3>
-          <p className="text-xs text-[#8e8e93]">
-            Track shared dinners, trips, and personal loans with 1-click ledger settlement.
+          <h2 className="text-base font-semibold text-[#fcfcfc] tracking-tight">
+            Shared Expenses &amp; IOUs
+          </h2>
+          <p className="text-xs text-[#8e8e93] mt-0.5">
+            Owed to you:{" "}
+            <span className="text-[#e5c158] font-medium">
+              {formatCurrency(summary?.totalOwedToMe || 0, { currency })}
+            </span>
+            {"  •  "}
+            You owe:{" "}
+            <span className="text-[#fcfcfc] font-medium">
+              {formatCurrency(summary?.totalIOwe || 0, { currency })}
+            </span>
           </p>
         </div>
 
         <Dialog open={open} onOpenChange={setOpen}>
           <DialogTrigger asChild>
-            <Button size="sm" className="rounded-xl cursor-pointer">
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-xl border-white/[0.10] bg-white/[0.03] text-[#fcfcfc] hover:text-[#e5c158] hover:border-[#c1a063]/40 cursor-pointer"
+            >
               <Plus className="h-4 w-4 mr-1" />
-              New Split / IOU
+              Add Split
             </Button>
           </DialogTrigger>
-          <DialogContent className="bg-[#0e0e13] border-white/[0.1] text-white sm:max-w-md">
+          <DialogContent className="bg-[#0e0e13] border-white/[0.08] text-[#fcfcfc] sm:max-w-md">
             <DialogHeader>
-              <DialogTitle>Record Split Expense or IOU</DialogTitle>
+              <DialogTitle>New Shared Expense</DialogTitle>
               <DialogDescription className="text-[#8e8e93]">
-                Track who owes whom without skewing your personal spend analytics.
+                Track a shared bill or personal loan cleanly.
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleCreate} className="space-y-4">
               <div className="space-y-1.5">
-                <Label className="text-xs text-[#a1a1aa]">Direction</Label>
+                <Label className="text-xs text-[#a1a1aa]">Type</Label>
                 <Select
                   value={direction}
                   onValueChange={(v) => setDirection(v as "OWED_TO_ME" | "I_OWE")}
                 >
-                  <SelectTrigger className="bg-black/40 border-white/[0.1]">
+                  <SelectTrigger className="bg-black/40 border-white/[0.08]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="OWED_TO_ME">
-                      They owe me (I paid / lent)
+                      Owed to me (I paid)
                     </SelectItem>
                     <SelectItem value="I_OWE">
-                      I owe them (They paid / I borrowed)
+                      I owe (Someone else paid)
                     </SelectItem>
                   </SelectContent>
                 </Select>
@@ -230,22 +182,22 @@ export default function SplitsTab() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-[#a1a1aa]">Title</Label>
+                  <Label className="text-xs text-[#a1a1aa]">Description</Label>
                   <Input
-                    placeholder="Goa Dinner Split"
+                    placeholder="Dinner"
                     value={title}
                     onChange={(e) => setTitle(e.target.value)}
-                    className="bg-black/40 border-white/[0.1]"
+                    className="bg-black/40 border-white/[0.08]"
                     required
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-[#a1a1aa]">Person Name</Label>
+                  <Label className="text-xs text-[#a1a1aa]">Person</Label>
                   <Input
                     placeholder="Rohan"
                     value={counterpartyName}
                     onChange={(e) => setCounterpartyName(e.target.value)}
-                    className="bg-black/40 border-white/[0.1]"
+                    className="bg-black/40 border-white/[0.08]"
                     required
                   />
                 </div>
@@ -253,9 +205,7 @@ export default function SplitsTab() {
 
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-[#a1a1aa]">
-                    Total Bill Amount
-                  </Label>
+                  <Label className="text-xs text-[#a1a1aa]">Total Bill</Label>
                   <Input
                     type="number"
                     step="0.01"
@@ -263,14 +213,12 @@ export default function SplitsTab() {
                     placeholder="3000"
                     value={totalAmount}
                     onChange={(e) => setTotalAmount(e.target.value)}
-                    className="bg-black/40 border-white/[0.1]"
+                    className="bg-black/40 border-white/[0.08]"
                     required
                   />
                 </div>
                 <div className="space-y-1.5">
-                  <Label className="text-xs text-[#a1a1aa]">
-                    Owed Share
-                  </Label>
+                  <Label className="text-xs text-[#a1a1aa]">Share Amount</Label>
                   <Input
                     type="number"
                     step="0.01"
@@ -278,18 +226,18 @@ export default function SplitsTab() {
                     placeholder="1500"
                     value={counterpartyShare}
                     onChange={(e) => setCounterpartyShare(e.target.value)}
-                    className="bg-black/40 border-white/[0.1]"
+                    className="bg-black/40 border-white/[0.08]"
                   />
                 </div>
               </div>
 
               <div className="space-y-1.5">
-                <Label className="text-xs text-[#a1a1aa]">Notes (Optional)</Label>
+                <Label className="text-xs text-[#a1a1aa]">Note</Label>
                 <Input
-                  placeholder="Split 50/50"
+                  placeholder="Optional note"
                   value={notes}
                   onChange={(e) => setNotes(e.target.value)}
-                  className="bg-black/40 border-white/[0.1]"
+                  className="bg-black/40 border-white/[0.08]"
                 />
               </div>
 
@@ -302,7 +250,7 @@ export default function SplitsTab() {
                   {isCreating && (
                     <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
                   )}
-                  Save Split / IOU
+                  Save Record
                 </Button>
               </DialogFooter>
             </form>
@@ -312,16 +260,16 @@ export default function SplitsTab() {
 
       {/* Splits List */}
       {isLoading ? (
-        <div className="text-xs text-[#8e8e93]">Loading splits...</div>
+        <div className="text-xs text-[#8e8e93]">Loading records...</div>
       ) : splits.length === 0 ? (
-        <Card className="bg-[#0e0e13]/60 border-dashed border-white/[0.12] rounded-2xl">
+        <Card className="obsidian-card rounded-2xl bg-[#0e0e13]/60 border-dashed border-white/[0.10]">
           <CardContent className="py-10 text-center space-y-2">
-            <Handshake className="h-7 w-7 mx-auto text-[#e5c158]/70" />
-            <div className="text-sm font-medium text-white">
-              All settled — zero open IOUs
-            </div>
+            <Handshake className="h-6 w-6 mx-auto text-[#e5c158]/80" />
+            <p className="text-sm font-medium text-[#fcfcfc]">
+              No pending shared expenses
+            </p>
             <p className="text-xs text-[#8e8e93]">
-              Add shared bills or loans to track repayments cleanly.
+              Keep track of split bills and personal loans here.
             </p>
           </CardContent>
         </Card>
@@ -338,90 +286,60 @@ export default function SplitsTab() {
             return (
               <Card
                 key={s._id}
-                className="bg-[#0e0e13]/85 border-white/[0.08] rounded-2xl"
+                className="obsidian-card rounded-2xl bg-[#0e0e13]/80 backdrop-blur-2xl border border-white/[0.08]"
               >
-                <CardContent className="py-4 px-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                  <div className="flex items-start gap-3">
-                    <div
-                      className={`h-9 w-9 rounded-xl flex items-center justify-center shrink-0 border ${
-                        isSettled
-                          ? "bg-white/[0.04] border-white/[0.1] text-[#8e8e93]"
+                <CardContent className="py-4 px-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2.5">
+                      <span className="font-medium text-sm text-[#fcfcfc]">
+                        {s.title}
+                      </span>
+                      <span className="text-[11px] text-[#8e8e93]">
+                        {isSettled
+                          ? "• Settled"
                           : isOwedToMe
-                            ? "bg-emerald-500/15 border-emerald-500/30 text-emerald-400"
-                            : "bg-rose-500/15 border-rose-500/30 text-rose-400"
-                      }`}
-                    >
-                      {isSettled ? (
-                        <CheckCircle2 className="h-4 w-4" />
-                      ) : isOwedToMe ? (
-                        <ArrowDownLeft className="h-4 w-4" />
-                      ) : (
-                        <ArrowUpRight className="h-4 w-4" />
-                      )}
+                            ? `• ${s.counterpartyName} owes you`
+                            : `• You owe ${s.counterpartyName}`}
+                      </span>
                     </div>
-
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-semibold text-sm text-white">
-                          {s.title}
-                        </span>
-                        <span
-                          className={`text-[10px] px-1.5 py-0.5 rounded-full border ${
-                            isSettled
-                              ? "bg-white/[0.05] text-[#8e8e93] border-white/[0.1]"
-                              : isOwedToMe
-                                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/25"
-                                : "bg-rose-500/10 text-rose-400 border-rose-500/25"
-                          }`}
-                        >
-                          {isSettled
-                            ? "Settled"
-                            : isOwedToMe
-                              ? `${s.counterpartyName} owes you`
-                              : `You owe ${s.counterpartyName}`}
-                        </span>
-                      </div>
-                      <p className="text-xs text-[#8e8e93] mt-0.5">
-                        Total Bill: {formatCurrency(s.totalAmount, { currency })} •
-                        Share: {formatCurrency(s.counterpartyShare, { currency })}
-                        {s.notes ? ` • ${s.notes}` : ""}
-                      </p>
-                    </div>
+                    <p className="text-xs text-[#8e8e93]">
+                      Bill total {formatCurrency(s.totalAmount, { currency })}
+                      {s.notes ? ` • ${s.notes}` : ""}
+                    </p>
                   </div>
 
                   <div className="flex items-center gap-3 self-end sm:self-center">
-                    <div className="text-right">
-                      <div
-                        className={`text-base font-bold tabular-nums ${
-                          isSettled
-                            ? "text-[#8e8e93] line-through"
-                            : isOwedToMe
-                              ? "text-emerald-400"
-                              : "text-rose-400"
-                        }`}
-                      >
-                        {formatCurrency(
-                          isSettled ? s.counterpartyShare : remaining,
-                          { currency }
-                        )}
-                      </div>
-                    </div>
+                    <span
+                      className={`text-base font-semibold tabular-nums ${
+                        isSettled
+                          ? "text-[#8e8e93] line-through"
+                          : isOwedToMe
+                            ? "text-[#e5c158]"
+                            : "text-[#f43f5e]"
+                      }`}
+                    >
+                      {formatCurrency(
+                        isSettled ? s.counterpartyShare : remaining,
+                        { currency }
+                      )}
+                    </span>
 
                     {!isSettled && (
                       <Button
                         size="sm"
                         variant="outline"
                         onClick={() => setSettleId(s._id)}
-                        className="rounded-xl border-[#e5c158]/30 bg-[#e5c158]/10 text-[#e5c158] hover:bg-[#e5c158]/20 text-xs cursor-pointer"
+                        className="rounded-xl border-white/[0.10] bg-white/[0.03] text-[#fcfcfc] hover:text-[#e5c158] hover:border-[#c1a063]/40 text-xs cursor-pointer"
                       >
-                        Settle Up
+                        <CheckCircle2 className="h-3.5 w-3.5 mr-1" />
+                        Settle
                       </Button>
                     )}
 
                     <button
                       type="button"
                       onClick={() => handleDelete(s._id)}
-                      className="p-1.5 rounded-lg text-[#8e8e93] hover:text-rose-400 hover:bg-white/[0.06] cursor-pointer"
+                      className="p-1.5 rounded-lg text-[#8e8e93] hover:text-[#f43f5e] hover:bg-white/[0.05] cursor-pointer transition-colors"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
@@ -438,11 +356,11 @@ export default function SplitsTab() {
         open={Boolean(settleId)}
         onOpenChange={(v) => !v && setSettleId(null)}
       >
-        <DialogContent className="bg-[#0e0e13] border-white/[0.1] text-white sm:max-w-sm">
+        <DialogContent className="bg-[#0e0e13] border-white/[0.08] text-[#fcfcfc] sm:max-w-sm">
           <DialogHeader>
-            <DialogTitle>Confirm Settlement</DialogTitle>
+            <DialogTitle>Mark as Settled</DialogTitle>
             <DialogDescription className="text-[#8e8e93]">
-              Mark this IOU settled and optionally log the settlement to your ledger.
+              Optionally record this settlement in your transaction history.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={handleSettle} className="space-y-4">
@@ -453,19 +371,17 @@ export default function SplitsTab() {
                 onChange={(e) => setLogLedgerTx(e.target.checked)}
                 className="rounded border-white/20"
               />
-              Record settlement transaction in cryptographic ledger
+              Record settlement as a transaction
             </label>
 
             {logLedgerTx && accounts.length > 0 && (
               <div className="space-y-1.5">
-                <Label className="text-xs text-[#a1a1aa]">
-                  Linked Account (Optional)
-                </Label>
+                <Label className="text-xs text-[#a1a1aa]">Account</Label>
                 <Select
                   value={settleAccountId}
                   onValueChange={setSettleAccountId}
                 >
-                  <SelectTrigger className="bg-black/40 border-white/[0.1]">
+                  <SelectTrigger className="bg-black/40 border-white/[0.08]">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -489,12 +405,12 @@ export default function SplitsTab() {
                 {isSettling && (
                   <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
                 )}
-                Mark as Settled
+                Confirm Settlement
               </Button>
             </DialogFooter>
           </form>
         </DialogContent>
       </Dialog>
-    </div>
+    </section>
   );
 }

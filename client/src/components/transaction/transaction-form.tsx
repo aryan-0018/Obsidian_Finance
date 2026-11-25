@@ -324,7 +324,7 @@ const TransactionForm = (props: {
                       className={cn(
                         "flex-1 py-2 text-xs font-semibold rounded-lg transition-all duration-150 cursor-pointer flex items-center justify-center gap-1.5 active:scale-[0.98]",
                         field.value === _TRANSACTION_TYPE.TRANSFER
-                          ? "bg-sky-500 text-white shadow-[0_2px_10px_rgba(14,165,233,0.35)] font-semibold"
+                          ? "bg-white/[0.14] text-[#fcfcfc] border border-white/[0.18]"
                           : "text-[#8e8e93] hover:text-white hover:bg-white/5"
                       )}
                     >
