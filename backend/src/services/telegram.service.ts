@@ -32,7 +32,10 @@ import {
   checkDuplicateSmsTransaction,
 } from "./sms-parser.service";
 import { escapeHtml, isSafeHttpUrl } from "../utils/security";
-import { getAllAccountsService } from "./account.service";
+import {
+  getAllAccountsService,
+  resolveAccountForSmsService,
+} from "./account.service";
 import { getAllSplitsService } from "./split.service";
 import {
   formatWeeklyDigestHtml,
@@ -178,6 +181,8 @@ export const initTelegramBot = async () => {
               `• <b>Voice Logging:</b> Hold the mic and speak any expense or question 🎙️\n` +
               `• <b>Anti-Regret Simulator:</b> /afford &lt;amount&gt; &lt;item&gt; <i>(e.g. /afford 45000 iPhone)</i>\n` +
               `• <b>Freedom Clock:</b> /freedom <i>(check your exact time-to-independence)</i>\n` +
+              `• <b>Accounts &amp; Splits:</b> /accounts or /splits\n` +
+              `• <b>Recurring Bills &amp; Digest:</b> /subscriptions or /digest\n` +
               `• <b>Live Stats:</b> /balance or /stats\n\n` +
               `Your Obsidian web dashboard will synchronize in real time! ⚡`,
             { parse_mode: "HTML" }
@@ -1084,6 +1089,11 @@ If the message is an analytical or advisory question (e.g., "what's my balance?"
             );
           }
 
+          const matchedAccount = await resolveAccountForSmsService(
+            user._id.toString(),
+            deterministicSms.accountMask
+          );
+
           const created = await createTransactionService(
             {
               title: deterministicSms.title,
@@ -1094,6 +1104,7 @@ If the message is an analytical or advisory question (e.g., "what's my balance?"
               date: deterministicSms.date || new Date(),
               description: `Bank SMS: ${deterministicSms.title}`,
               externalRef: deterministicSms.externalRef || null,
+              accountId: matchedAccount?._id?.toString() || null,
               isRecurring: false,
             },
             user._id.toString()

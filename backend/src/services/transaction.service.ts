@@ -32,7 +32,10 @@ import { assertValidReceiptFile } from "../utils/file-validation";
 import { withUserLedgerLock } from "../utils/ledger-lock";
 import { escapeHtml, escapeRegex, sanitizeCsvCell } from "../utils/security";
 import AccountModel from "../models/account.model";
-import { applyAccountBalanceDelta } from "./account.service";
+import {
+  applyAccountBalanceDelta,
+  resolveAccountForSmsService,
+} from "./account.service";
 import { checkAndNotifyBudgetThresholds } from "./budget.service";
 
 const assertOwnedAccounts = async (
@@ -68,9 +71,18 @@ export const createTransactionService = async (
   userId: string
 ) => {
   return withUserLedgerLock(userId, async () => {
+    let resolvedAccountId = body.accountId;
+    if (
+      resolvedAccountId === undefined &&
+      body.type !== TransactionTypeEnum.TRANSFER
+    ) {
+      const defaultAcc = await resolveAccountForSmsService(userId);
+      resolvedAccountId = defaultAcc?._id?.toString() || null;
+    }
+
     await assertOwnedAccounts(
       userId,
-      body.accountId,
+      resolvedAccountId,
       body.toAccountId,
       body.type
     );
@@ -100,6 +112,7 @@ export const createTransactionService = async (
 
     const transaction = await TransactionModel.create({
       ...body,
+      accountId: resolvedAccountId ?? null,
       userId,
       category: body.category,
       amount: Number(body.amount),
@@ -918,9 +931,12 @@ export const exportTransactionsEmailService = async (
     if (toDate) filterConditions.date.$lte = toDate;
   }
 
-  const transactions = await TransactionModel.find(filterConditions).sort({
-    date: -1,
-  });
+  const transactions = await TransactionModel.find(filterConditions)
+    .populate("accountId", "name")
+    .populate("toAccountId", "name")
+    .sort({
+      date: -1,
+    });
 
   if (transactions.length === 0) {
     throw new BadRequestException(
@@ -935,22 +951,36 @@ export const exportTransactionsEmailService = async (
     "Category",
     `Amount (${userCurrency})`,
     "Payment Method",
+    "Account",
     "Description",
   ];
 
-  const rows = transactions.map((t) => [
-    sanitizeCsvCell(new Date(t.date).toISOString().split("T")[0]),
-    sanitizeCsvCell(t.title),
-    sanitizeCsvCell(t.type),
-    sanitizeCsvCell(
-      t.category
-        ? t.category.charAt(0).toUpperCase() + t.category.slice(1)
-        : "Other"
-    ),
-    sanitizeCsvCell(Math.abs(t.amount)),
-    sanitizeCsvCell(t.paymentMethod || "CARD"),
-    sanitizeCsvCell(t.description || ""),
-  ]);
+  const rows = transactions.map((t) => {
+    const fromAcc =
+      t.accountId && typeof t.accountId === "object"
+        ? (t.accountId as any).name
+        : "";
+    const toAcc =
+      t.toAccountId && typeof t.toAccountId === "object"
+        ? (t.toAccountId as any).name
+        : "";
+    const accLabel = fromAcc && toAcc ? `${fromAcc} -> ${toAcc}` : fromAcc || "";
+
+    return [
+      sanitizeCsvCell(new Date(t.date).toISOString().split("T")[0]),
+      sanitizeCsvCell(t.title),
+      sanitizeCsvCell(t.type),
+      sanitizeCsvCell(
+        t.category
+          ? t.category.charAt(0).toUpperCase() + t.category.slice(1)
+          : "Other"
+      ),
+      sanitizeCsvCell(Math.abs(t.amount)),
+      sanitizeCsvCell(t.paymentMethod || "CARD"),
+      sanitizeCsvCell(accLabel),
+      sanitizeCsvCell(t.description || ""),
+    ];
+  });
 
   const csvContent = [headers.join(","), ...rows.map((r) => r.join(","))].join(
     "\r\n"

@@ -228,6 +228,24 @@ export function CommandPalette() {
             </CommandItem>
 
             <CommandItem
+              onSelect={() =>
+                runCommand(() => navigate(PROTECTED_ROUTES.ACCOUNTS))
+              }
+            >
+              <Coins className="mr-2 h-4 w-4 text-[#e5c158]" />
+              <span>Accounts &amp; Shared Expenses</span>
+            </CommandItem>
+
+            <CommandItem
+              onSelect={() =>
+                runCommand(() => navigate(PROTECTED_ROUTES.PLANNING))
+              }
+            >
+              <ShieldCheck className="mr-2 h-4 w-4 text-[#e5c158]" />
+              <span>Planning (Budgets, Goals &amp; Bills)</span>
+            </CommandItem>
+
+            <CommandItem
               onSelect={() => runCommand(() => navigate(PROTECTED_ROUTES.ANALYTICS))}
             >
               <LineChart className="mr-2 h-4 w-4 text-[#e5c158]" />

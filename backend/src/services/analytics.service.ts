@@ -51,6 +51,10 @@ import {
 } from "./transaction.service";
 import { createInstantReportService } from "./report.service";
 import UserModel from "../models/user.model";
+import { getAllAccountsService } from "./account.service";
+import { getAllGoalsService } from "./goal.service";
+import { getAllSplitsService } from "./split.service";
+import { getSubscriptionRadarService } from "./radar-digest.service";
 
 export const summaryAnalyticsService = async (
   userId: string,
@@ -855,6 +859,10 @@ export const chatWithAiFinancialAdvisorService = async (
     currentBreakdown,
     budget,
     transactions,
+    accountsData,
+    goalsData,
+    splitsData,
+    recurringData,
   ] = await Promise.all([
     summaryAnalyticsService(userId, DateRangeEnum.ALL_TIME),
     expensePieChartBreakdownService(userId, DateRangeEnum.ALL_TIME),
@@ -881,6 +889,10 @@ export const chatWithAiFinancialAdvisorService = async (
       .sort({ date: -1 })
       .limit(100)
       .lean(),
+    getAllAccountsService(userId),
+    getAllGoalsService(userId),
+    getAllSplitsService(userId),
+    getSubscriptionRadarService(userId),
   ]);
 
   // 2. User base wealth & true portfolio balance
@@ -970,12 +982,45 @@ PORTFOLIO INTELLIGENCE & MULTI-PERIOD METRICS:
         .join(", ") || "None recorded in this period"
     }
 
-4. MONTHLY BUDGET:
-- Monthly Budget Limit: ₹${budgetLimit.toLocaleString("en-IN")}
+4. MONTHLY BUDGET & CATEGORY LIMITS:
+- Monthly Global Budget Limit: ₹${budgetLimit.toLocaleString("en-IN")}
 - Current Month Spending: ₹${currentMonthSpent.toLocaleString("en-IN")}
 - Remaining Budget: ₹${remainingBudget.toLocaleString("en-IN")}
+- Category Budgets: ${
+    (budget?.categoryProgress || [])
+      .map(
+        (c) =>
+          `${c.category}: ₹${c.spent.toLocaleString("en-IN")} / ₹${c.limit.toLocaleString("en-IN")} (${c.percentUsed}%)`
+      )
+      .join(", ") || "None configured"
+  }
 
-5. WEALTH PACE & RUNWAY:
+5. ACCOUNTS, GOALS, SHARED IOUs & RECURRING BILLS:
+- Accounts (${accountsData.summary.accountCount}, Net Balance ₹${accountsData.summary.netBalance.toLocaleString("en-IN")}): ${
+    accountsData.accounts
+      .map(
+        (a) =>
+          `${a.name} [${a.type}${a.accountMask ? ` ••${a.accountMask}` : ""}]: ₹${Number(a.balance).toLocaleString("en-IN")}`
+      )
+      .join(", ") || "None added"
+  }
+- Savings Goals (${goalsData.summary.totalGoals}, Saved ₹${goalsData.summary.totalSaved.toLocaleString("en-IN")} / ₹${goalsData.summary.totalTarget.toLocaleString("en-IN")}): ${
+    goalsData.goals
+      .map(
+        (g) =>
+          `${g.title}: ₹${Number(g.currentAmount).toLocaleString("en-IN")} / ₹${Number(g.targetAmount).toLocaleString("en-IN")} (${g.status})`
+      )
+      .join(", ") || "None added"
+  }
+- Shared Expenses & IOUs: Owed to user ₹${splitsData.summary.totalOwedToMe.toLocaleString("en-IN")}, User owes ₹${splitsData.summary.totalIOwe.toLocaleString("en-IN")} (${splitsData.summary.pendingCount} open)
+- Recurring Bills & Subscriptions (${recurringData.summary.count}, Monthly total ₹${recurringData.summary.totalMonthlyRecurring.toLocaleString("en-IN")}): ${
+    recurringData.subscriptions
+      .slice(0, 8)
+      .map((s) => `${s.title} ₹${s.amount.toLocaleString("en-IN")} (${s.interval}, due in ${s.daysUntilDue}d)`)
+      .join(", ") || "None detected"
+  }
+
+6. WEALTH PACE & RUNWAY:
 - Daily Spending Pace: ₹${currentSummary.runwayMetrics?.dailyBurnRate || 0}/day
 - Projected Monthly Spend: ₹${currentSummary.runwayMetrics?.projectedMonthlyExpense || 0}
 - Runway (How long savings will last): ${currentSummary.runwayMetrics?.runwayMonths || "Perpetual"}

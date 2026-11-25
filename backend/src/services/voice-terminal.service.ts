@@ -8,7 +8,10 @@ import {
   summaryAnalyticsService,
   chatWithAiFinancialAdvisorService,
 } from "./analytics.service";
-import { updateBudgetService } from "./budget.service";
+import { updateBudgetService, getBudgetService } from "./budget.service";
+import { getAllAccountsService } from "./account.service";
+import { getAllGoalsService } from "./goal.service";
+import { getAllSplitsService } from "./split.service";
 import {
   createTransactionService,
   exportTransactionsEmailService,
@@ -31,6 +34,8 @@ import { escapeRegex } from "../utils/security";
 const ALLOWED_NAVIGATE_PATHS = new Set([
   "/overview",
   "/transactions",
+  "/accounts",
+  "/planning",
   "/reports",
   "/analytics",
   "/settings",
@@ -398,8 +403,24 @@ export const processVoiceCommandService = async (
   // =========================================================================
   if (
     /\b(go to|open|show|navigate to|view|take me to|switch to)\b/i.test(lower) ||
-    /^(analytics|charts|graphs|reports|transactions|expenses|ledger|settings|dashboard|overview|home)$/i.test(lower)
+    /^(analytics|charts|graphs|reports|transactions|expenses|ledger|accounts|wallets|cards|planning|budgets|goals|splits|recurring|settings|dashboard|overview|home)$/i.test(lower)
   ) {
+    if (/\b(accounts|wallets|bank accounts|cards|shared expenses|splits|ious)\b/i.test(lower) && !/\bsettings\b/i.test(lower)) {
+      return {
+        action: "NAVIGATE",
+        path: "/accounts",
+        speechReply: "Opening Accounts.",
+        displayText: "Opening Accounts...",
+      };
+    }
+    if (/\b(planning|budgets|category budgets|savings goals|goals|recurring bills|subscriptions)\b/i.test(lower)) {
+      return {
+        action: "NAVIGATE",
+        path: "/planning",
+        speechReply: "Opening Planning.",
+        displayText: "Opening Planning...",
+      };
+    }
     if (/\b(analytics|charts|graphs|breakdown)\b/i.test(lower)) {
       return {
         action: "NAVIGATE",
@@ -825,11 +846,15 @@ export const processVoiceCommandService = async (
   try {
     let financialContext = "";
     try {
-      const [summary, allTime, lastMonth, thisYear] = await Promise.all([
+      const [summary, allTime, lastMonth, thisYear, accountsData, budgetData, goalsData, splitsData] = await Promise.all([
         summaryAnalyticsService(userId, DateRangeEnum.THIS_MONTH),
         summaryAnalyticsService(userId, DateRangeEnum.ALL_TIME),
         summaryAnalyticsService(userId, DateRangeEnum.LAST_MONTH),
         summaryAnalyticsService(userId, DateRangeEnum.THIS_YEAR),
+        getAllAccountsService(userId),
+        getBudgetService(userId),
+        getAllGoalsService(userId),
+        getAllSplitsService(userId),
       ]);
       const userDoc = await UserModel.findById(userId).select("portfolioBalance");
       const baseWealth = Number(userDoc?.portfolioBalance) || 0;
@@ -837,6 +862,10 @@ export const processVoiceCommandService = async (
 
       financialContext = `User Financial Standing:
 - TRUE TOTAL PORTFOLIO BALANCE: ₹${Math.round(totalPortfolioBalance).toLocaleString("en-IN")} (Base: ₹${Math.round(baseWealth).toLocaleString("en-IN")}, All-time net cash flow: ${allTime.availableBalance >= 0 ? "+" : ""}₹${Math.round(allTime.availableBalance).toLocaleString("en-IN")})
+- Accounts (${accountsData.summary.accountCount}, Net: ₹${Math.round(accountsData.summary.netBalance).toLocaleString("en-IN")}): ${accountsData.accounts.map((a) => `${a.name}: ₹${Math.round(Number(a.balance)).toLocaleString("en-IN")}`).join(", ") || "None"}
+- Category Budgets: ${(budgetData.categoryProgress || []).map((c) => `${c.category}: ₹${c.spent}/₹${c.limit}`).join(", ") || "None"}
+- Savings Goals: ${goalsData.goals.map((g) => `${g.title}: ₹${g.currentAmount}/₹${g.targetAmount}`).join(", ") || "None"}
+- Shared IOUs: Owed to user ₹${splitsData.summary.totalOwedToMe}, User owes ₹${splitsData.summary.totalIOwe}
 - This Month's Income: ₹${Math.round(summary.totalIncome).toLocaleString("en-IN")}
 - This Month's Expenses: ₹${Math.round(summary.totalExpenses).toLocaleString("en-IN")}
 - This Month's Net Cash Flow: ${summary.availableBalance >= 0 ? "+" : ""}₹${Math.round(summary.availableBalance).toLocaleString("en-IN")}
