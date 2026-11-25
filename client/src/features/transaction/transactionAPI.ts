@@ -21,7 +21,7 @@ export const transactionApi = apiClient.injectEndpoints({
         method: "POST",
         body: body,
       }),
-      invalidatesTags: ["transactions", "analytics"],
+      invalidatesTags: ["transactions", "analytics", "accounts", "budget", "subscriptions"],
     }),
 
     aiScanReceipt: builder.mutation<AIScanReceiptResponse, FormData>({
@@ -78,7 +78,7 @@ export const transactionApi = apiClient.injectEndpoints({
         url: `/transaction/duplicate/${id}`,
         method: "PUT",
       }),
-      invalidatesTags: ["transactions", "analytics"],
+      invalidatesTags: ["transactions", "analytics", "accounts", "budget", "subscriptions"],
     }),
 
     updateTransaction: builder.mutation<void, UpdateTransactionPayload>({
@@ -87,7 +87,7 @@ export const transactionApi = apiClient.injectEndpoints({
         method: "PUT",
         body: transaction,
       }),
-      invalidatesTags: ["transactions", "analytics"],
+      invalidatesTags: ["transactions", "analytics", "accounts", "budget", "subscriptions"],
     }),
 
     bulkImportTransaction: builder.mutation<void, BulkImportTransactionPayload>(
@@ -97,7 +97,7 @@ export const transactionApi = apiClient.injectEndpoints({
           method: "POST",
           body,
         }),
-        invalidatesTags: ["transactions", "analytics"],
+        invalidatesTags: ["transactions", "analytics", "accounts", "budget", "subscriptions"],
       }
     ),
 
@@ -106,7 +106,7 @@ export const transactionApi = apiClient.injectEndpoints({
         url: `/transaction/delete/${id}`,
         method: "DELETE",
       }),
-      invalidatesTags: ["transactions", "analytics"],
+      invalidatesTags: ["transactions", "analytics", "accounts", "budget", "subscriptions"],
     }),
 
     bulkDeleteTransaction: builder.mutation<void, string[]>({
@@ -117,7 +117,7 @@ export const transactionApi = apiClient.injectEndpoints({
           transactionIds,
         },
       }),
-      invalidatesTags: ["transactions", "analytics"],
+      invalidatesTags: ["transactions", "analytics", "accounts", "budget", "subscriptions"],
     }),
 
     exportTransactionsEmail: builder.mutation<
@@ -148,7 +148,7 @@ export const transactionApi = apiClient.injectEndpoints({
         method: "POST",
         body,
       }),
-      invalidatesTags: ["transactions", "analytics"],
+      invalidatesTags: ["transactions", "analytics", "accounts", "budget", "subscriptions"],
     }),
 
     verifyLedgerAudit: builder.query<

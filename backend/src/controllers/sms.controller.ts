@@ -7,6 +7,7 @@ import { parseBankSms, checkDuplicateSmsTransaction } from "../services/sms-pars
 import { createTransactionService } from "../services/transaction.service";
 import { getTelegramBotInstance } from "../services/telegram.service";
 import { escapeHtml } from "../utils/security";
+import { resolveAccountForSmsService } from "../services/account.service";
 
 export const ingestSmsController = asyncHandler(
   async (req: Request, res: Response) => {
@@ -55,7 +56,13 @@ export const ingestSmsController = asyncHandler(
       });
     }
 
-    // 5. Commit clean transaction to ledger and balance (with externalRef deduplication)
+    // 5. Auto-match bank/card account by SMS accountMask (or default account)
+    const matchedAccount = await resolveAccountForSmsService(
+      user._id.toString(),
+      parsed.accountMask
+    );
+
+    // 6. Commit clean transaction to ledger and balance (with externalRef deduplication)
     const transaction = await createTransactionService(
       {
         title: parsed.title,
@@ -66,12 +73,13 @@ export const ingestSmsController = asyncHandler(
         date: parsed.date || new Date(),
         description: `Automated SMS Ingest: ${parsed.title}`,
         externalRef: parsed.externalRef || null,
+        accountId: matchedAccount?._id?.toString() || null,
         isRecurring: false,
       },
       user._id.toString()
     );
 
-    // 6. Proactive sync alert to Telegram if user has Telegram Copilot paired
+    // 7. Proactive sync alert to Telegram if user has Telegram Copilot paired
     if (user.telegramChatId) {
       try {
         const bot = getTelegramBotInstance();
@@ -86,10 +94,15 @@ export const ingestSmsController = asyncHandler(
             }
           ).format(parsed.amount);
 
+          const accountLine = matchedAccount
+            ? `🏦 <b>Account:</b> ${escapeHtml(matchedAccount.name)}\n`
+            : "";
+
           const alertMsg =
             `📲 <b>SMS Auto-Logged</b>\n\n` +
             `${typeIcon} <b>${escapeHtml(parsed.title)}</b>\n` +
             `💰 <b>Amount:</b> ${escapeHtml(formattedAmt)}\n` +
+            accountLine +
             `🏷️ <b>Category:</b> ${escapeHtml(parsed.category.toUpperCase())}\n\n` +
             `<i>Synced dynamically with your Obsidian ledger.</i>`;
 

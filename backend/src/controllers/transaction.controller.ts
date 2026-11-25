@@ -66,6 +66,7 @@ export const getAllTransactionController = asyncHandler(
       fromDate: parseOptionalDate(req.query.from, "from"),
       toDate: parseOptionalDate(req.query.to, "to"),
       recurringStatus: query.recurringStatus,
+      accountId: query.accountId,
     };
 
     const pagination = {

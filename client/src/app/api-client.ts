@@ -93,6 +93,10 @@ export const apiClient = createApi({
     "user",
     "telegram",
     "apiKey",
+    "accounts",
+    "goals",
+    "splits",
+    "subscriptions",
   ],
   endpoints: () => ({}),
 });

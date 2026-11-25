@@ -9,6 +9,9 @@ import {
   getFreedomMetricsController,
   simulatePurchaseController,
   getLiquidityRadarController,
+  getSubscriptionRadarController,
+  getWeeklyDigestController,
+  sendWeeklyDigestController,
 } from "../controllers/analytics.controller";
 import { aiLimiter } from "../middlewares/rateLimiter.middleware";
 
@@ -20,6 +23,9 @@ analyticsRoutes.get("/expense-breakdown", expensePieChartBreakdownController);
 analyticsRoutes.get("/ai-insights", aiLimiter, generateAiInsightsController);
 analyticsRoutes.get("/freedom-clock", getFreedomMetricsController);
 analyticsRoutes.get("/liquidity-radar", getLiquidityRadarController);
+analyticsRoutes.get("/subscriptions", getSubscriptionRadarController);
+analyticsRoutes.get("/weekly-digest", getWeeklyDigestController);
+analyticsRoutes.post("/send-digest", sendWeeklyDigestController);
 analyticsRoutes.post("/simulate-purchase", simulatePurchaseController);
 analyticsRoutes.post("/ai-chat", aiLimiter, chatAiAdvisorController);
 analyticsRoutes.post("/voice-command", aiLimiter, voiceTerminalCommandController);

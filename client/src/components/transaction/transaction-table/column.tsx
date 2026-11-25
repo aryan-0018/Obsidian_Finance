@@ -86,6 +86,25 @@ export const transactionColumns: ColumnDef<TransactionType>[] = [
                 <Send className="h-2.5 w-2.5 text-[#e5c158]" /> Telegram
               </span>
             )}
+            {row.original.accountId &&
+              typeof row.original.accountId === "object" && (
+                <span
+                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] bg-white/[0.04] text-[#d4d4d8] border border-white/[0.08] shrink-0 font-normal"
+                  title="Linked account"
+                >
+                  <span
+                    className="h-1.5 w-1.5 rounded-full"
+                    style={{
+                      backgroundColor:
+                        row.original.accountId.color || "#e5c158",
+                    }}
+                  />
+                  {row.original.accountId.name}
+                  {row.original.toAccountId &&
+                    typeof row.original.toAccountId === "object" &&
+                    ` → ${row.original.toAccountId.name}`}
+                </span>
+              )}
             {row.original.receiptUrl &&
               /^https?:\/\//i.test(row.original.receiptUrl) && (
                 <a
@@ -148,17 +167,21 @@ export const transactionColumns: ColumnDef<TransactionType>[] = [
       </Button>
     ),
     cell: ({ row }) => {
-      const isIncome = row.getValue("type") === _TRANSACTION_TYPE.INCOME;
+      const typeVal = row.getValue("type") as string;
+      const isIncome = typeVal === _TRANSACTION_TYPE.INCOME;
+      const isTransfer = typeVal === _TRANSACTION_TYPE.TRANSFER;
       return (
         <div className="capitalize">
           <span
             className={`inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] font-medium tracking-wide ${
               isIncome
                 ? "bg-[#e5c158]/10 text-[#e5c158] border-[#e5c158]/25"
-                : "bg-[#f43f5e]/10 text-[#f43f5e] border-[#f43f5e]/25"
+                : isTransfer
+                  ? "bg-sky-400/10 text-sky-400 border-sky-400/25"
+                  : "bg-[#f43f5e]/10 text-[#f43f5e] border-[#f43f5e]/25"
             }`}
           >
-            {row.getValue("type")}
+            {typeVal}
           </span>
         </div>
       );

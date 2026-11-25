@@ -17,6 +17,7 @@ export enum RecurringIntervalEnum {
 export enum TransactionTypeEnum {
   INCOME = "INCOME",
   EXPENSE = "EXPENSE",
+  TRANSFER = "TRANSFER",
 }
 
 export enum PaymentMethodEnum {
@@ -44,6 +45,8 @@ export interface TransactionDocument extends Document {
   status: keyof typeof TransactionStatusEnum;
   paymentMethod: keyof typeof PaymentMethodEnum;
   externalRef?: string | null;
+  accountId?: mongoose.Types.ObjectId | null;
+  toAccountId?: mongoose.Types.ObjectId | null;
   ledgerHash?: string | null;
   prevLedgerHash?: string | null;
   createdAt: Date;
@@ -116,6 +119,16 @@ const transactionSchema = new Schema<TransactionDocument>(
     },
     externalRef: {
       type: String,
+      default: null,
+    },
+    accountId: {
+      type: Schema.Types.ObjectId,
+      ref: "Account",
+      default: null,
+    },
+    toAccountId: {
+      type: Schema.Types.ObjectId,
+      ref: "Account",
       default: null,
     },
     ledgerHash: {

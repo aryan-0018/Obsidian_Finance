@@ -16,11 +16,18 @@ export const transactionIdSchema = objectIdSchema;
 export const baseTransactionSchema = z.object({
   title: z.string().trim().min(1, "Title is required").max(200),
   description: z.string().trim().max(2000).optional(),
-  type: z.enum([TransactionTypeEnum.INCOME, TransactionTypeEnum.EXPENSE], {
-    errorMap: () => ({
-      message: "Transaction type must either INCOME or EXPENSE",
-    }),
-  }),
+  type: z.enum(
+    [
+      TransactionTypeEnum.INCOME,
+      TransactionTypeEnum.EXPENSE,
+      TransactionTypeEnum.TRANSFER,
+    ],
+    {
+      errorMap: () => ({
+        message: "Transaction type must be INCOME, EXPENSE, or TRANSFER",
+      }),
+    }
+  ),
   amount: z.coerce
     .number()
     .finite("Amount must be a valid number")
@@ -55,6 +62,8 @@ export const baseTransactionSchema = z.object({
     )
     .optional(),
   externalRef: z.string().trim().max(255).nullable().optional(),
+  accountId: objectIdSchema.nullable().optional(),
+  toAccountId: objectIdSchema.nullable().optional(),
   paymentMethod: z
     .enum([
       PaymentMethodEnum.CARD,
@@ -114,11 +123,16 @@ export const bulkCommitBankTransactionsSchema = z.object({
 export const transactionQuerySchema = z.object({
   keyword: z.string().trim().max(120).optional(),
   type: z
-    .enum([TransactionTypeEnum.INCOME, TransactionTypeEnum.EXPENSE])
+    .enum([
+      TransactionTypeEnum.INCOME,
+      TransactionTypeEnum.EXPENSE,
+      TransactionTypeEnum.TRANSFER,
+    ])
     .optional(),
   recurringStatus: z.enum(["RECURRING", "NON_RECURRING"]).optional(),
   category: z.string().trim().max(100).optional(),
   paymentMethod: z.string().trim().max(60).optional(),
+  accountId: objectIdSchema.optional(),
   pageSize: z.coerce.number().int().min(1).max(200).default(20),
   pageNumber: z.coerce.number().int().min(1).max(10000).default(1),
 });

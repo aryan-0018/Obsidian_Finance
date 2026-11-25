@@ -21,6 +21,9 @@ import reportRoutes from "./routes/report.route";
 import analyticsRoutes from "./routes/analytics.route";
 import budgetRoutes from "./routes/budget.route";
 import smsRoutes from "./routes/sms.route";
+import accountRoutes from "./routes/account.route";
+import goalRoutes from "./routes/goal.route";
+import splitRoutes from "./routes/split.route";
 import { initTelegramBot } from "./services/telegram.service";
 import {
   authLimiter,
@@ -97,6 +100,9 @@ app.use(`${BASE_PATH}/transaction`, passportAuthenticateJwt, transactionRoutes);
 app.use(`${BASE_PATH}/report`, passportAuthenticateJwt, reportRoutes);
 app.use(`${BASE_PATH}/analytics`, passportAuthenticateJwt, analyticsRoutes);
 app.use(`${BASE_PATH}/budget`, passportAuthenticateJwt, budgetRoutes);
+app.use(`${BASE_PATH}/account`, passportAuthenticateJwt, accountRoutes);
+app.use(`${BASE_PATH}/goal`, passportAuthenticateJwt, goalRoutes);
+app.use(`${BASE_PATH}/split`, passportAuthenticateJwt, splitRoutes);
 app.use(`${BASE_PATH}/sms`, smsWebhookLimiter, smsRoutes);
 
 app.use(errorHandler);

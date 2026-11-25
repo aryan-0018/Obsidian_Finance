@@ -40,6 +40,7 @@ import {
   useGetSingleTransactionQuery,
   useUpdateTransactionMutation,
 } from "@/features/transaction/transactionAPI";
+import { useGetAllAccountsQuery } from "@/features/account/accountAPI";
 import { toast } from "sonner";
 
 const formSchema = z.object({
@@ -47,7 +48,11 @@ const formSchema = z.object({
   amount: z.string().refine((val) => !isNaN(Number(val)) && Number(val) >= 0.01, {
     message: "Amount must be at least 0.01.",
   }),
-  type: z.enum([_TRANSACTION_TYPE.INCOME, _TRANSACTION_TYPE.EXPENSE]),
+  type: z.enum([
+    _TRANSACTION_TYPE.INCOME,
+    _TRANSACTION_TYPE.EXPENSE,
+    _TRANSACTION_TYPE.TRANSFER,
+  ]),
   category: z.string().min(1, { message: "Please select a category." }),
   date: z.date({
     required_error: "Please select a date.",
@@ -55,6 +60,8 @@ const formSchema = z.object({
   paymentMethod: z
     .string()
     .min(1, { message: "Please select a payment method." }),
+  accountId: z.string().nullable().optional(),
+  toAccountId: z.string().nullable().optional(),
   isRecurring: z.boolean(),
   frequency: z
     .enum([
@@ -87,6 +94,9 @@ const TransactionForm = (props: {
   );
   const editData = data?.transaction;
 
+  const { data: accountsData } = useGetAllAccountsQuery();
+  const accounts = accountsData?.accounts || [];
+
   const [createTransaction, { isLoading: isCreating }] =
     useCreateTransactionMutation();
 
@@ -102,6 +112,8 @@ const TransactionForm = (props: {
       category: "",
       date: new Date(),
       paymentMethod: "",
+      accountId: null,
+      toAccountId: null,
       isRecurring: false,
       frequency: null,
       description: "",
@@ -109,8 +121,19 @@ const TransactionForm = (props: {
     },
   });
 
+  const watchedType = form.watch("type");
+
   useEffect(() => {
     if (isEdit && transactionId && editData) {
+      const accId =
+        editData.accountId && typeof editData.accountId === "object"
+          ? editData.accountId._id
+          : (editData.accountId as string | null) || null;
+      const toAccId =
+        editData.toAccountId && typeof editData.toAccountId === "object"
+          ? editData.toAccountId._id
+          : (editData.toAccountId as string | null) || null;
+
       form.reset({
         title: editData?.title,
         amount: editData.amount.toString(),
@@ -118,6 +141,8 @@ const TransactionForm = (props: {
         category: editData.category?.toLowerCase(),
         date: new Date(editData.date),
         paymentMethod: editData.paymentMethod,
+        accountId: accId,
+        toAccountId: toAccId,
         isRecurring: editData.isRecurring,
         frequency: editData.recurringInterval,
         description: editData.description,
@@ -182,6 +207,17 @@ const TransactionForm = (props: {
       Date.UTC(d.getFullYear(), d.getMonth(), d.getDate(), 12, 0, 0)
     ).toISOString();
 
+    if (values.type === _TRANSACTION_TYPE.TRANSFER) {
+      if (!values.accountId || !values.toAccountId) {
+        toast.error("Please select both source and destination accounts");
+        return;
+      }
+      if (values.accountId === values.toAccountId) {
+        toast.error("Source and destination accounts must be different");
+        return;
+      }
+    }
+
     const payload = {
       title: values.title,
       type: values.type,
@@ -190,6 +226,11 @@ const TransactionForm = (props: {
       description: values.description || "",
       amount: Number(values.amount),
       date: utcNoonIso,
+      accountId: values.accountId || null,
+      toAccountId:
+        values.type === _TRANSACTION_TYPE.TRANSFER
+          ? values.toAccountId || null
+          : null,
       isRecurring: values.isRecurring || false,
       recurringInterval: values.isRecurring ? values.frequency || null : null,
       receiptUrl: values.receiptUrl || undefined,
@@ -268,11 +309,110 @@ const TransactionForm = (props: {
                     >
                       <span>+ Income</span>
                     </button>
+                    <button
+                      type="button"
+                      disabled={isScanning}
+                      onClick={() => {
+                        field.onChange(_TRANSACTION_TYPE.TRANSFER);
+                        if (!form.getValues("category")) {
+                          form.setValue("category", "transfer");
+                        }
+                        if (!form.getValues("paymentMethod")) {
+                          form.setValue("paymentMethod", "BANK_TRANSFER");
+                        }
+                      }}
+                      className={cn(
+                        "flex-1 py-2 text-xs font-semibold rounded-lg transition-all duration-150 cursor-pointer flex items-center justify-center gap-1.5 active:scale-[0.98]",
+                        field.value === _TRANSACTION_TYPE.TRANSFER
+                          ? "bg-sky-500 text-white shadow-[0_2px_10px_rgba(14,165,233,0.35)] font-semibold"
+                          : "text-[#8e8e93] hover:text-white hover:bg-white/5"
+                      )}
+                    >
+                      <span>⇄ Transfer</span>
+                    </button>
                   </div>
                   <FormMessage />
                 </FormItem>
               )}
             />
+
+            {/* Optional Linked Account / Transfer Wallets */}
+            {accounts.length > 0 && (
+              <div className={cn("grid gap-3", watchedType === _TRANSACTION_TYPE.TRANSFER ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1")}>
+                <FormField
+                  control={form.control}
+                  name="accountId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs text-[#8e8e93]">
+                        {watchedType === _TRANSACTION_TYPE.TRANSFER
+                          ? "From Account"
+                          : "Account / Wallet (Optional)"}
+                      </FormLabel>
+                      <Select
+                        value={field.value || "none"}
+                        onValueChange={(val) =>
+                          field.onChange(val === "none" ? null : val)
+                        }
+                        disabled={isScanning}
+                      >
+                        <FormControl>
+                          <SelectTrigger className="bg-black/40 border-white/[0.08]">
+                            <SelectValue placeholder="Select account" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          {watchedType !== _TRANSACTION_TYPE.TRANSFER && (
+                            <SelectItem value="none">No linked account</SelectItem>
+                          )}
+                          {accounts.map((acc) => (
+                            <SelectItem key={acc._id} value={acc._id}>
+                              {acc.name}
+                              {acc.accountMask ? ` (••${acc.accountMask})` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </FormItem>
+                  )}
+                />
+
+                {watchedType === _TRANSACTION_TYPE.TRANSFER && (
+                  <FormField
+                    control={form.control}
+                    name="toAccountId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs text-[#8e8e93]">
+                          To Account
+                        </FormLabel>
+                        <Select
+                          value={field.value || "none"}
+                          onValueChange={(val) =>
+                            field.onChange(val === "none" ? null : val)
+                          }
+                          disabled={isScanning}
+                        >
+                          <FormControl>
+                            <SelectTrigger className="bg-black/40 border-white/[0.08]">
+                              <SelectValue placeholder="Select destination" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {accounts.map((acc) => (
+                              <SelectItem key={acc._id} value={acc._id}>
+                                {acc.name}
+                                {acc.accountMask ? ` (••${acc.accountMask})` : ""}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </FormItem>
+                    )}
+                  />
+                )}
+              </div>
+            )}
 
             {/* Title */}
             <FormField

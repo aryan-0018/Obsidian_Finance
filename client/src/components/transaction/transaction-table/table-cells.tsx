@@ -45,16 +45,20 @@ export const AmountCell = ({
   const { user } = useTypedSelector((state) => state.auth);
   const currency = user?.currency || "INR";
   const absAmount = Math.abs(amount || 0);
+  const isIncome = type === _TRANSACTION_TYPE.INCOME;
+  const isTransfer = type === _TRANSACTION_TYPE.TRANSFER;
 
   return (
     <div
       className={`text-right font-medium tracking-tight text-sm tabular-nums ${
-        type === _TRANSACTION_TYPE.INCOME
+        isIncome
           ? "text-emerald-400"
-          : "text-white/85"
+          : isTransfer
+            ? "text-sky-400"
+            : "text-white/85"
       }`}
     >
-      {type === _TRANSACTION_TYPE.EXPENSE ? "-" : "+"}
+      {isTransfer ? "⇄ " : type === _TRANSACTION_TYPE.EXPENSE ? "-" : "+"}
       {formatCurrency(absAmount, { currency })}
     </div>
   );

@@ -46,9 +46,18 @@ export type TransactionFrequencyType = keyof typeof _TRANSACTION_FREQUENCY;
 export const _TRANSACTION_TYPE = {
   INCOME: "INCOME",
   EXPENSE: "EXPENSE",
+  TRANSFER: "TRANSFER",
 } as const;
 
 export type _TransactionType = keyof typeof _TRANSACTION_TYPE;
+
+export const ACCOUNT_TYPES = [
+  { value: "BANK", label: "Bank Account" },
+  { value: "CREDIT_CARD", label: "Credit Card" },
+  { value: "WALLET", label: "Digital Wallet / UPI" },
+  { value: "CASH", label: "Cash" },
+  { value: "INVESTMENT", label: "Investment / Brokerage" },
+] as const;
 
 export const _TRANSACTION_STATUS = {
   PENDING: "PENDING",

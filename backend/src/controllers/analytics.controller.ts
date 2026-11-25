@@ -15,6 +15,12 @@ import {
   getLiquidityRadarService,
 } from "../services/analytics.service";
 import { processVoiceCommandService } from "../services/voice-terminal.service";
+import {
+  formatWeeklyDigestHtml,
+  generateWeeklyDigestService,
+  getSubscriptionRadarService,
+  sendWeeklyDigestToTelegramService,
+} from "../services/radar-digest.service";
 
 const validPresets = new Set<string>(Object.values(DateRangeEnum));
 
@@ -251,6 +257,47 @@ export const getLiquidityRadarController = asyncHandler(
     return res.status(HTTPSTATUS.OK).json({
       message: "30-day liquidity radar calculated",
       data,
+    });
+  }
+);
+
+export const getSubscriptionRadarController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = String(req.user?._id);
+    const data = await getSubscriptionRadarService(userId);
+
+    return res.status(HTTPSTATUS.OK).json({
+      message: "Subscription and EMI radar calculated",
+      data,
+    });
+  }
+);
+
+export const getWeeklyDigestController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = String(req.user?._id);
+    const digest = await generateWeeklyDigestService(userId);
+
+    return res.status(HTTPSTATUS.OK).json({
+      message: "Weekly digest generated",
+      data: {
+        ...digest,
+        htmlPreview: formatWeeklyDigestHtml(digest),
+      },
+    });
+  }
+);
+
+export const sendWeeklyDigestController = asyncHandler(
+  async (req: Request, res: Response) => {
+    const userId = String(req.user?._id);
+    const result = await sendWeeklyDigestToTelegramService(userId);
+
+    return res.status(HTTPSTATUS.OK).json({
+      message: result.sent
+        ? "Weekly digest dispatched to your Telegram Copilot"
+        : result.reason,
+      ...result,
     });
   }
 );

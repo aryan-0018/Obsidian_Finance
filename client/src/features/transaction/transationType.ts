@@ -9,6 +9,14 @@ type RecurringIntervalType =
 type PaymentMethodType =
   (typeof PAYMENT_METHODS_ENUM)[keyof typeof PAYMENT_METHODS_ENUM];
 
+export interface AccountRef {
+  _id: string;
+  name: string;
+  type: string;
+  accountMask?: string | null;
+  color?: string;
+}
+
 export interface CreateTransactionBody {
   title: string;
   type: _TransactionType;
@@ -20,6 +28,8 @@ export interface CreateTransactionBody {
   recurringInterval?: RecurringIntervalType | null;
   paymentMethod: string;
   receiptUrl?: string;
+  accountId?: string | null;
+  toAccountId?: string | null;
 }
 
 export interface GetAllTransactionParams {
@@ -29,6 +39,7 @@ export interface GetAllTransactionParams {
   from?: string;
   to?: string;
   recurringStatus?: "RECURRING" | "NON_RECURRING";
+  accountId?: string;
   pageNumber?: number;
   pageSize?: number;
 }
@@ -49,6 +60,8 @@ export interface TransactionType {
   status: string;
   paymentMethod: string;
   receiptUrl?: string;
+  accountId?: AccountRef | string | null;
+  toAccountId?: AccountRef | string | null;
   createdAt: string;
   updatedAt: string;
   id?: string;
