@@ -13,6 +13,10 @@ import { convertToSmallestUnit } from "../utils/format-currency";
 import { parseBankDate } from "../utils/nlp-parser";
 import { assertValidStatementFile } from "../utils/file-validation";
 import { withUserLedgerLock } from "../utils/ledger-lock";
+import {
+  applyAccountBalanceDelta,
+  resolveAccountForSmsService,
+} from "./account.service";
 
 export { parseBankDate };
 
@@ -805,6 +809,9 @@ export const bulkCommitBankTransactionsService = async (
   }
 
   return withUserLedgerLock(userId, async () => {
+    const defaultAccount = await resolveAccountForSmsService(userId);
+    const defaultAccountId = defaultAccount?._id?.toString() || null;
+
     const lastTx = await TransactionModel.findOne({ userId })
       .sort({ createdAt: -1, _id: -1 })
       .select("ledgerHash")
@@ -831,6 +838,7 @@ export const bulkCommitBankTransactionsService = async (
         description: t.description || "Imported via Bank Statement Pipeline",
         isRecurring: false,
         externalRef: t.externalRef ?? null,
+        accountId: defaultAccountId,
         prevLedgerHash: runningHash,
         createdAt: stamp,
         updatedAt: stamp,
@@ -849,6 +857,30 @@ export const bulkCommitBankTransactionsService = async (
     });
 
     const inserted = await TransactionModel.insertMany(docs, { ordered: true });
+
+    if (defaultAccountId) {
+      let netIncome = 0;
+      let netExpense = 0;
+      for (const t of transactions) {
+        const amt = Math.abs(Number(t.amount) || 0);
+        if (t.type === TransactionTypeEnum.INCOME) netIncome += amt;
+        else if (t.type === TransactionTypeEnum.EXPENSE) netExpense += amt;
+      }
+      if (netIncome > 0) {
+        await applyAccountBalanceDelta(userId, {
+          type: TransactionTypeEnum.INCOME,
+          amount: netIncome,
+          accountId: defaultAccountId,
+        });
+      }
+      if (netExpense > 0) {
+        await applyAccountBalanceDelta(userId, {
+          type: TransactionTypeEnum.EXPENSE,
+          amount: netExpense,
+          accountId: defaultAccountId,
+        });
+      }
+    }
 
     return {
       success: true,

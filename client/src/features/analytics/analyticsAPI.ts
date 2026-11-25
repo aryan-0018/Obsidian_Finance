@@ -112,7 +112,15 @@ export const analyticsApi = apiClient.injectEndpoints({
       }),
       invalidatesTags: (result) =>
         result?.actionTaken
-          ? ["transactions", "analytics", "reports", "budget", "telegram"]
+          ? [
+              "transactions",
+              "analytics",
+              "reports",
+              "budget",
+              "telegram",
+              "accounts",
+              "subscriptions",
+            ]
           : [],
     }),
     processVoiceCommand: builder.mutation<
@@ -131,7 +139,14 @@ export const analyticsApi = apiClient.injectEndpoints({
           action === "TRANSACTION_DELETED" ||
           action === "TRANSACTION_UPDATED"
         ) {
-          return ["transactions", "analytics", "reports", "budget"];
+          return [
+            "transactions",
+            "analytics",
+            "reports",
+            "budget",
+            "accounts",
+            "subscriptions",
+          ];
         }
         if (action === "BUDGET_UPDATED") {
           return ["budget", "analytics"];

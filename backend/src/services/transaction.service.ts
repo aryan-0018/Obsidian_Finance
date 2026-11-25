@@ -496,6 +496,9 @@ export const bulkTransactionService = async (
   transactions: CreateTransactionType[]
 ) => {
   return withUserLedgerLock(userId, async () => {
+    const defaultAccount = await resolveAccountForSmsService(userId);
+    const defaultAccountId = defaultAccount?._id?.toString() || null;
+
     const lastTx = await TransactionModel.findOne({ userId })
       .sort({ createdAt: -1, _id: -1 })
       .select("ledgerHash")
@@ -507,6 +510,8 @@ export const bulkTransactionService = async (
       const smallestAmount = convertToSmallestUnit(tx.amount);
       const txDate = tx.date ? new Date(tx.date) : new Date();
       const tempId = new mongoose.Types.ObjectId();
+      const resolvedAccountId =
+        tx.accountId !== undefined ? tx.accountId : defaultAccountId;
       const prev = runningHash;
       runningHash = computeTransactionBlockHash(prev, {
         _id: tempId,
@@ -523,6 +528,7 @@ export const bulkTransactionService = async (
             ...tx,
             _id: tempId,
             amount: smallestAmount,
+            accountId: resolvedAccountId,
             userId,
             date: txDate,
             isRecurring: false,
@@ -541,6 +547,19 @@ export const bulkTransactionService = async (
     const result = await TransactionModel.bulkWrite(bulkOps, {
       ordered: true,
     });
+
+    for (const tx of transactions) {
+      const targetAccountId =
+        tx.accountId !== undefined ? tx.accountId : defaultAccountId;
+      if (targetAccountId) {
+        await applyAccountBalanceDelta(userId, {
+          type: tx.type,
+          amount: Number(tx.amount),
+          accountId: targetAccountId,
+          toAccountId: tx.toAccountId,
+        });
+      }
+    }
 
     return {
       insertedCount: result.insertedCount,
