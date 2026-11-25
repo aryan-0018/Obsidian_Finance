@@ -1,18 +1,20 @@
+import { lazy } from "react";
 import { AUTH_ROUTES, PROTECTED_ROUTES } from "./routePath";
-import SignIn from "@/pages/auth/sign-in";
-import SignUp from "@/pages/auth/sign-up";
-import Dashboard from "@/pages/dashboard";
-import Transactions from "@/pages/transactions";
-import Reports from "@/pages/reports";
-import Analytics from "@/pages/analytics";
-import About from "@/pages/about";
-import Help from "@/pages/help";
-import Settings from "@/pages/settings";
-import Account from "@/pages/settings/account";
-import Billing from "@/pages/settings/billing";
-import TelegramCopilotSettings from "@/pages/settings/copilot";
-import SecuritySettings from "@/pages/settings/security";
-import SmsSyncSettings from "@/pages/settings/sms-sync";
+
+const SignIn = lazy(() => import("@/pages/auth/sign-in"));
+const SignUp = lazy(() => import("@/pages/auth/sign-up"));
+const Dashboard = lazy(() => import("@/pages/dashboard"));
+const Transactions = lazy(() => import("@/pages/transactions"));
+const Reports = lazy(() => import("@/pages/reports"));
+const Analytics = lazy(() => import("@/pages/analytics"));
+const About = lazy(() => import("@/pages/about"));
+const Help = lazy(() => import("@/pages/help"));
+const Settings = lazy(() => import("@/pages/settings"));
+const Account = lazy(() => import("@/pages/settings/account"));
+const Billing = lazy(() => import("@/pages/settings/billing"));
+const TelegramCopilotSettings = lazy(() => import("@/pages/settings/copilot"));
+const SecuritySettings = lazy(() => import("@/pages/settings/security"));
+const SmsSyncSettings = lazy(() => import("@/pages/settings/sms-sync"));
 
 export const authenticationRoutePaths = [
   { path: AUTH_ROUTES.SIGN_IN, element: <SignIn /> },

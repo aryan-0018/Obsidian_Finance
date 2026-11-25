@@ -54,19 +54,23 @@ const DashboardDataChart: React.FC<PropsType> = (props) => {
   const { user } = useTypedSelector((state) => state.auth);
   const currency = user?.currency || "INR";
 
-  const { data, isFetching } = useChartAnalyticsQuery(
+  const { data, isLoading } = useChartAnalyticsQuery(
     {
       preset: dateRange?.value,
       from: dateRange?.from ? new Date(dateRange.from).toISOString() : undefined,
       to: dateRange?.to ? new Date(dateRange.to).toISOString() : undefined,
     },
-    { skip: !dateRange }
+    {
+      skip: !dateRange,
+      pollingInterval: 20000,
+      skipPollingIfUnfocused: true,
+    }
   );
   const chartData = data?.data?.chartData || [];
   const totalExpenseCount = data?.data?.totalExpenseCount || 0;
   const totalIncomeCount = data?.data?.totalIncomeCount || 0;
 
-  if (isFetching) {
+  if (isLoading) {
     return <ChartSkeleton />;
   }
 

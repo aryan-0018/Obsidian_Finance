@@ -7,13 +7,17 @@ const DashboardStats = ({ dateRange }: { dateRange?: DateRangeType }) => {
   const { user } = useTypedSelector((state) => state.auth);
   const currency = user?.currency || "INR";
 
-  const { data, isFetching } = useSummaryAnalyticsQuery(
+  const { data, isLoading } = useSummaryAnalyticsQuery(
     {
       preset: dateRange?.value,
       from: dateRange?.from ? new Date(dateRange.from).toISOString() : undefined,
       to: dateRange?.to ? new Date(dateRange.to).toISOString() : undefined,
     },
-    { skip: !dateRange }
+    {
+      skip: !dateRange,
+      pollingInterval: 20000,
+      skipPollingIfUnfocused: true,
+    }
   );
   const summaryData = data?.data;
 
@@ -26,7 +30,7 @@ const DashboardStats = ({ dateRange }: { dateRange?: DateRangeType }) => {
         currency={currency}
         dateRange={dateRange}
         percentageChange={summaryData?.percentageChange?.balance}
-        isLoading={isFetching}
+        isLoading={isLoading}
         cardType="balance"
       />
       <SummaryCard
@@ -35,7 +39,7 @@ const DashboardStats = ({ dateRange }: { dateRange?: DateRangeType }) => {
         currency={currency}
         percentageChange={summaryData?.percentageChange?.income}
         dateRange={dateRange}
-        isLoading={isFetching}
+        isLoading={isLoading}
         cardType="income"
       />
       <SummaryCard
@@ -44,7 +48,7 @@ const DashboardStats = ({ dateRange }: { dateRange?: DateRangeType }) => {
         currency={currency}
         dateRange={dateRange}
         percentageChange={summaryData?.percentageChange?.expenses}
-        isLoading={isFetching}
+        isLoading={isLoading}
         cardType="expenses"
       />
       <SummaryCard
@@ -54,7 +58,7 @@ const DashboardStats = ({ dateRange }: { dateRange?: DateRangeType }) => {
         expenseRatio={summaryData?.savingRate?.expenseRatio}
         isPercentageValue
         dateRange={dateRange}
-        isLoading={isFetching}
+        isLoading={isLoading}
         cardType="savings"
       />
     </div>

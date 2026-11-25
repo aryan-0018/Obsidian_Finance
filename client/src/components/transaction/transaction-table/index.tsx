@@ -125,16 +125,22 @@ const TransactionTable = (props: {
   const [bulkDeleteTransaction, { isLoading: isBulkDeleting }] =
     useBulkDeleteTransactionMutation();
 
-  const { data, isFetching } = useGetAllTransactionsQuery({
-    keyword: debouncedTerm,
-    type: filter.type,
-    recurringStatus: filter.recurringStatus,
-    category: filter.category,
-    from: filter.from,
-    to: filter.to,
-    pageNumber: filter.pageNumber,
-    pageSize: filter.pageSize,
-  });
+  const { data, isLoading } = useGetAllTransactionsQuery(
+    {
+      keyword: debouncedTerm,
+      type: filter.type,
+      recurringStatus: filter.recurringStatus,
+      category: filter.category,
+      from: filter.from,
+      to: filter.to,
+      pageNumber: filter.pageNumber,
+      pageSize: filter.pageSize,
+    },
+    {
+      pollingInterval: 20000,
+      skipPollingIfUnfocused: true,
+    }
+  );
 
   const transactions = data?.transations || [];
   const pagination = {
@@ -197,7 +203,7 @@ const TransactionTable = (props: {
       searchPlaceholder="Search transactions..."
       initialSearchTerm={urlKeyword}
       initialFilters={initialFilters}
-      isLoading={isFetching}
+      isLoading={isLoading}
       isBulkDeleting={isBulkDeleting}
       isShowPagination={props.isShowPagination}
       pagination={pagination}

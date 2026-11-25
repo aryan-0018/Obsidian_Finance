@@ -1,4 +1,5 @@
 import { combineReducers, configureStore } from "@reduxjs/toolkit";
+import { setupListeners } from "@reduxjs/toolkit/query";
 import authReducer from "../features/auth/authSlice";
 import storage from "redux-persist/lib/storage";
 import {
@@ -59,5 +60,7 @@ export const store = configureStore({
 });
 
 export const persistor = persistStore(store);
+
+setupListeners(store.dispatch);
 
 export type RootState = ReturnType<typeof store.getState>;

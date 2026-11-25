@@ -42,18 +42,22 @@ const ExpensePieChart = (props: { dateRange?: DateRangeType }) => {
   const { user } = useTypedSelector((state) => state.auth);
   const currency = user?.currency || "INR";
 
-  const { data, isFetching } = useExpensePieChartBreakdownQuery(
+  const { data, isLoading } = useExpensePieChartBreakdownQuery(
     {
       preset: dateRange?.value,
       from: dateRange?.from ? new Date(dateRange.from).toISOString() : undefined,
       to: dateRange?.to ? new Date(dateRange.to).toISOString() : undefined,
     },
-    { skip: !dateRange }
+    {
+      skip: !dateRange,
+      pollingInterval: 20000,
+      skipPollingIfUnfocused: true,
+    }
   );
   const categories = data?.data?.breakdown || [];
   const totalSpent = data?.data?.totalSpent || 0;
 
-  if (isFetching) {
+  if (isLoading) {
     return <PieChartSkeleton />;
   }
   // Custom legend component

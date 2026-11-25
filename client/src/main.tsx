@@ -11,6 +11,14 @@ import { GoogleOAuthProvider } from "@react-oauth/google";
 
 const googleClientId = (import.meta.env.VITE_GOOGLE_CLIENT_ID || "").trim();
 
+if (import.meta.env.PROD && "serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("/sw.js").catch(() => {
+      // Service worker registration failed silently; app continues normally
+    });
+  });
+}
+
 const appTree = (
   <NuqsAdapter>
     <App />
